@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "mobileFinal",
-    "slug": "mobileFinal",
+    "name": "Kalangka",
+    "slug": "kalangka",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobilefinal",
+    "scheme": "kalangka",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ian_takumi.kalangka"
     },
     "web": {
       "output": "static",
@@ -43,6 +44,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a5fdf796-e344-409a-a31f-795784adbf36"
+      }
     }
   }
 }
