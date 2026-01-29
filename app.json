@@ -7,9 +7,9 @@
     "icon": "./assets/images/icon.png",
     "scheme": "kalangka",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {
