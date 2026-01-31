@@ -6,6 +6,12 @@ export interface User {
   avatar: string;
   gender: string;
 }
+
+export interface Token {
+  access_token: string;
+  refresh_token: string;
+}
+
 export interface Tree {
   id: string;
   description: string;
@@ -14,6 +20,8 @@ export interface Tree {
   status: "active" | "inactive";
   created_at: Date | null;
   updated_at: Date | null;
+  qr_code_url: string;
+  is_synced: boolean;
 }
 
 export interface Flower {

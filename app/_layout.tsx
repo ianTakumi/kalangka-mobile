@@ -4,6 +4,7 @@ import "../index.css";
 import { Provider } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
 import { store, persistor } from "../redux/store";
+import Toast from "react-native-toast-message";
 
 export default function RootLayout() {
   return (
@@ -17,6 +18,7 @@ export default function RootLayout() {
           <Stack.Screen name="registration" options={{ headerShown: false }} />
         </Stack>
       </PersistGate>
+      <Toast />
     </Provider>
   );
 }

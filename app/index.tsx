@@ -102,5 +102,5 @@ export default function Index() {
   }
 
   // All checks passed
-  return <Redirect href="/users" />;
+  return <Redirect href="/users/" />;
 }
