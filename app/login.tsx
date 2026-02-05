@@ -193,7 +193,7 @@ export default function LoginScreen() {
                   render={({ field: { onChange, value, onBlur } }) => (
                     <View>
                       <TextInput
-                        className={`w-full border rounded-xl px-4 py-3 ${
+                        className={`w-full border text-black rounded-xl px-4 py-3 ${
                           errors.password
                             ? "border-red-500 bg-red-50"
                             : "border-gray-300 bg-gray-50"

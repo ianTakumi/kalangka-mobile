@@ -12,3 +12,6 @@ export const CREATE_TREES_TABLE = `
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `;
+
+export const CREATE_FRUITS_TABLE = ``;
+export const CREATE_USERS_TABLE = ``;

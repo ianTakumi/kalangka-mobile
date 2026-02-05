@@ -5,6 +5,8 @@ export default function _layout() {
   return (
     <Stack>
       <Stack.Screen name="(drawers)" options={{ headerShown: false }} />
+      <Stack.Screen name="editProfile" options={{ headerShown: false }} />
+      <Stack.Screen name="changePassword" options={{ headerShown: false }} />
     </Stack>
   );
 }

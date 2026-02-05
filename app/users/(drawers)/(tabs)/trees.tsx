@@ -1,4 +1,3 @@
-// app/trees.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -11,8 +10,9 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  RefreshControl,
 } from "react-native";
-import TreeService from "@/services/treeService"; // Updated to use SQLite-only service
+import TreeService from "@/services/treeService";
 import NetInfo from "@react-native-community/netinfo";
 import Toast from "react-native-toast-message";
 import { Tree } from "@/types/index";
@@ -48,6 +48,7 @@ export default function TreesScreen() {
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // For CRUD operations
   const [modalVisible, setModalVisible] = useState(false);
@@ -56,10 +57,10 @@ export default function TreesScreen() {
   const [formData, setFormData] = useState({
     description: "",
     status: "active" as const,
+    type: "",
     latitude: "",
     longitude: "",
-    local_image_path: "",
-    qr_code_url: "",
+    image_path: "",
   });
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [stats, setStats] = useState({
@@ -69,6 +70,7 @@ export default function TreesScreen() {
     synced: 0,
     unsynced: 0,
   });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     initApp();
@@ -106,9 +108,33 @@ export default function TreesScreen() {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Refresh both trees and stats
+      await loadTrees();
+      await loadStats();
+
+      // If online, also sync
+      if (isOnline) {
+        await autoSync();
+      }
+    } catch (error) {
+      console.error("Refresh error:", error);
+      Toast.show({
+        type: "error",
+        text1: "Refresh Failed",
+        text2: "Failed to refresh data",
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const loadTrees = async () => {
     try {
       const data = await TreeService.getTrees();
+      console.log(data);
       setTrees(data);
     } catch (error) {
       console.error("Load trees error:", error);
@@ -155,11 +181,11 @@ export default function TreesScreen() {
       // Set form data with captured location
       setFormData({
         description: "",
+        type: "",
         status: "active",
         latitude: latitude.toString(),
         longitude: longitude.toString(),
-        local_image_path: newPath,
-        qr_code_url: "",
+        image_path: newPath,
       });
 
       setPreviewImage(newPath);
@@ -203,13 +229,14 @@ export default function TreesScreen() {
     try {
       const treeData = {
         description: formData.description,
+        type: formData.type,
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
         status: formData.status,
-        qr_code_url: formData.qr_code_url || "",
-        local_image_path: formData.local_image_path || "",
+        image_path: formData.image_path || "",
       };
 
+      console.log("Creating tree with data:", treeData);
       await TreeService.createTree(treeData);
 
       Toast.show({
@@ -225,6 +252,7 @@ export default function TreesScreen() {
       setPreviewImage(null);
     } catch (error) {
       console.error("Create error:", error);
+
       Toast.show({
         type: "error",
         text1: "Create Failed",
@@ -240,10 +268,10 @@ export default function TreesScreen() {
       status: tree.status,
       latitude: tree.latitude.toString(),
       longitude: tree.longitude.toString(),
-      local_image_path: (tree as any).local_image_path || "",
-      qr_code_url: tree.qr_code_url || "",
+      image_path: (tree as any).image_path || "",
+      type: tree.type || "",
     });
-    setPreviewImage((tree as any).local_image_path || null);
+    setPreviewImage((tree as any).image_path || null);
     setModalVisible(true);
   };
 
@@ -254,7 +282,7 @@ export default function TreesScreen() {
       const updates = {
         description: formData.description,
         status: formData.status,
-        qr_code_url: formData.qr_code_url,
+        type: formData.type || "",
       };
 
       await TreeService.updateTree(editingTree.id, updates);
@@ -314,12 +342,12 @@ export default function TreesScreen() {
   const resetForm = () => {
     setEditingTree(null);
     setFormData({
+      type: "",
       description: "",
       status: "active",
       latitude: "",
       longitude: "",
-      local_image_path: "",
-      qr_code_url: "",
+      image_path: "",
     });
     setPreviewImage(null);
   };
@@ -401,7 +429,7 @@ export default function TreesScreen() {
   };
 
   const renderTreeItem = ({ item }: { item: Tree }) => {
-    const hasLocalImage = (item as any).local_image_path;
+    const hasLocalImage = (item as any).image_path;
 
     return (
       <View className="bg-white p-4 rounded-xl mb-3 shadow-sm border border-gray-100">
@@ -410,7 +438,7 @@ export default function TreesScreen() {
           {hasLocalImage ? (
             <View className="mr-4">
               <Image
-                source={{ uri: (item as any).local_image_path }}
+                source={{ uri: (item as any).image_path }}
                 className="w-20 h-20 rounded-lg"
                 resizeMode="cover"
               />
@@ -589,6 +617,17 @@ export default function TreesScreen() {
         renderItem={renderTreeItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16 }}
+        // Add RefreshControl here
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#059669"]} // Android
+            tintColor="#059669" // iOS
+            title="Pull to refresh"
+            titleColor="#6b7280"
+          />
+        }
         ListEmptyComponent={
           <View className="items-center justify-center py-20 px-4">
             <View className="bg-gray-100 p-6 rounded-full mb-4">
@@ -685,6 +724,83 @@ export default function TreesScreen() {
                   </View>
                 </View>
               )}
+
+              <View className="mb-4 relative">
+                <Text className="text-gray-700 font-medium mb-2">
+                  Tree Type *
+                </Text>
+
+                <TouchableOpacity
+                  className="border border-gray-300 rounded-xl px-4 py-3 bg-gray-50 flex-row justify-between items-center"
+                  onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+                >
+                  <Text
+                    className={`${formData.type ? "text-gray-800" : "text-gray-400"}`}
+                  >
+                    {formData.type || "Select tree type..."}
+                  </Text>
+                  <Text className="text-gray-500">▼</Text>
+                </TouchableOpacity>
+
+                {/* Dropdown Options */}
+                {isDropdownOpen && (
+                  <View className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60">
+                    <ScrollView className="max-h-60">
+                      <TouchableOpacity
+                        className="px-4 py-3 border-b border-gray-100 active:bg-gray-50"
+                        onPress={() => {
+                          setFormData({ ...formData, type: "Langka" });
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        <Text className="text-gray-800">Langka</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-4 py-3 border-b border-gray-100 active:bg-gray-50"
+                        onPress={() => {
+                          setFormData({ ...formData, type: "Banana" });
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        <Text className="text-gray-800">Banana</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-4 py-3 border-b border-gray-100 active:bg-gray-50"
+                        onPress={() => {
+                          setFormData({ ...formData, type: "Papaya" });
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        <Text className="text-gray-800">Papaya</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-4 py-3 border-b border-gray-100 active:bg-gray-50"
+                        onPress={() => {
+                          setFormData({ ...formData, type: "Mangga" });
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        <Text className="text-gray-800">Mangga</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-4 py-3 active:bg-gray-50"
+                        onPress={() => {
+                          setFormData({ ...formData, type: "Durian" });
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        <Text className="text-gray-800">Durian</Text>
+                      </TouchableOpacity>
+                    </ScrollView>
+                  </View>
+                )}
+
+                {!formData.type && (
+                  <Text className="text-red-500 text-sm mt-1">
+                    Please select a tree type
+                  </Text>
+                )}
+              </View>
 
               <View className="mb-4">
                 <Text className="text-gray-700 font-medium mb-2">

@@ -12,15 +12,17 @@ export interface Token {
   refresh_token: string;
 }
 
+// types/index.ts
 export interface Tree {
   id: string;
+  type: string;
   description: string;
   latitude: number;
   longitude: number;
   status: "active" | "inactive";
   created_at: Date | null;
+  image_path: string;
   updated_at: Date | null;
-  qr_code_url: string;
   is_synced: boolean;
 }
 
@@ -29,7 +31,7 @@ export interface Flower {
   tree_id: string;
   quantity: number;
   wrapped_at: Date;
-  image_uri: string;
+  image_url: string;
   created_at: Date | null;
   updated_at: Date | null;
   deleted_at: Date | null;
