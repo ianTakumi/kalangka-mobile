@@ -65,8 +65,8 @@ export default function LoginScreen() {
           console.log("Login successful:", res.data);
           const { user } = res.data;
           const token = {
-            access_token: res.data.session.access_token,
-            refresh_token: res.data.session.refresh_token,
+            access_token: res.data.access_token,
+            token_type: res.data.token_type,
           };
 
           dispatch(login({ user, token }));
@@ -77,7 +77,11 @@ export default function LoginScreen() {
             text2: "Welcome back!",
           });
 
-          router.push("/users");
+          if (user.role !== "admin") {
+            router.push("/users");
+          } else {
+            router.push("/admin");
+          }
         }
       })
       .catch((err) => {

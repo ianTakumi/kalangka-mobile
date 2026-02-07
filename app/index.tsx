@@ -8,7 +8,7 @@ import { Leaf, Loader2 } from "lucide-react-native";
 export default function Index() {
   const [isChecking, setIsChecking] = useState(true);
   const spinValue = useRef(new Animated.Value(0)).current;
-
+  const user = useSelector((state: RootState) => state.auth.user);
   const isOnboardingCompleted = useSelector(
     (state: RootState) => state.auth?.isOnboardingCompleted,
   );
@@ -102,5 +102,9 @@ export default function Index() {
   }
 
   // All checks passed
-  return <Redirect href="/users/" />;
+  if (user?.role === "admin") {
+    return <Redirect href="/admin/" />;
+  } else {
+    return <Redirect href="/users/" />;
+  }
 }

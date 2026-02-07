@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
-
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 export default function _layout() {
   return (
     <Tabs
@@ -20,13 +20,25 @@ export default function _layout() {
         tabBarIcon: ({ color, size }) => {
           switch (route.name) {
             case "index":
-              return <Ionicons name="home-outline" size={22} color={color} />;
+              return <FontAwesome5 name="home" size={22} color={color} />;
 
             case "trees":
               return <FontAwesome5 name="tree" size={22} color={color} />;
 
             case "flowers":
-              return <Ionicons name="flower-outline" size={22} color={color} />;
+              return <Ionicons name="flower" size={22} color={color} />;
+
+            case "harvest":
+              return <FontAwesome5 name="seedling" size={22} color={color} />;
+
+            case "fruits":
+              return (
+                <MaterialCommunityIcons
+                  name="fruit-pear"
+                  size={22}
+                  color={color}
+                />
+              );
 
             default:
               return null;
@@ -37,6 +49,10 @@ export default function _layout() {
       <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="trees" options={{ title: "Trees" }} />
       <Tabs.Screen name="flowers" options={{ title: "Flowers" }} />
+      <Tabs.Screen name="fruits" options={{ title: "Fruits" }} />
+      <Tabs.Screen name="harvest" options={{ title: "Harvest" }} />
+
+      {/* <Tabs.Screen name="profile" options={{ title: "Profile" }} /> */}
     </Tabs>
   );
 }

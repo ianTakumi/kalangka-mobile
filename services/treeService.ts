@@ -2,6 +2,9 @@ import * as SQLite from "expo-sqlite";
 import client from "@/utils/axiosInstance";
 import NetInfo from "@react-native-community/netinfo";
 import { Tree } from "@/types/index";
+import { supabase } from "@/utils/supabase";
+import { decode } from "base64-arraybuffer";
+import * as FileSystem from "expo-file-system/legacy";
 
 class TreeService {
   private db: SQLite.SQLiteDatabase | null = null;
@@ -34,26 +37,26 @@ class TreeService {
 
       // Create tables
       await this.db.execAsync(`
-          CREATE TABLE IF NOT EXISTS trees (
-            id TEXT PRIMARY KEY,
-            description TEXT NOT NULL,
-            type TEXT NOT NULL,
-            latitude REAL NOT NULL,
-            longitude REAL NOT NULL,
-            status TEXT NOT NULL DEFAULT 'active',
-            is_synced INTEGER DEFAULT 0,
-            image_path TEXT NOT NULL,
-            created_at TEXT,
-            updated_at TEXT
-          );
-        `);
+            CREATE TABLE IF NOT EXISTS trees (
+              id TEXT PRIMARY KEY,
+              description TEXT NOT NULL,
+              type TEXT NOT NULL,
+              latitude REAL NOT NULL,
+              longitude REAL NOT NULL,
+              status TEXT NOT NULL DEFAULT 'active',
+              is_synced INTEGER DEFAULT 0,
+              image_path TEXT NOT NULL,
+              created_at TEXT,
+              updated_at TEXT
+            );
+          `);
 
       // Add indexes for better performance
       await this.db.execAsync(`
-          CREATE INDEX IF NOT EXISTS idx_trees_status ON trees(status);
-          CREATE INDEX IF NOT EXISTS idx_trees_synced ON trees(is_synced);
-          CREATE INDEX IF NOT EXISTS idx_trees_created ON trees(created_at);
-        `);
+            CREATE INDEX IF NOT EXISTS idx_trees_status ON trees(status);
+            CREATE INDEX IF NOT EXISTS idx_trees_synced ON trees(is_synced);
+            CREATE INDEX IF NOT EXISTS idx_trees_created ON trees(created_at);
+          `);
 
       console.log("SQLite database initialized successfully");
       this.isInitializing = false;
@@ -89,7 +92,7 @@ class TreeService {
     try {
       await this.db.runAsync(
         `INSERT INTO trees (id, description, type, latitude, longitude,image_path, status,  is_synced, created_at, updated_at) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           treeData.description,
@@ -398,46 +401,73 @@ class TreeService {
       if (!tree.image_path) {
         return null;
       }
+      console.log(`📤 Direct Supabase upload for tree ${tree.id}...`);
+      return await this.uploadWithBase64(tree);
+    } catch (error) {
+      console.error(`❌ Supabase upload failed:`, error);
+      return null;
+    }
+  }
 
-      // Check if file exists
+  // ========== PARAAN 1: BASE64 UPLOAD ==========
+  private async uploadWithBase64(tree: Tree): Promise<string | null> {
+    try {
+      // 1. Check if file exists first
       const fileExists = await this.checkFileExists(tree.image_path);
       if (!fileExists) {
         console.warn(`Image file not found: ${tree.image_path}`);
         return null;
       }
 
-      // Create FormData
-      const formData = new FormData();
-
-      // Append the image file
-      formData.append("image", {
-        uri: tree.image_path,
-        type: "image/jpeg",
-        name: `tree_${tree.id}_${Date.now()}.jpg`,
-      } as any);
-
-      // Append metadata
-      formData.append("tree_id", tree.id);
-      formData.append("folder", "tree-images");
-
-      console.log(`📤 Uploading image for tree ${tree.id}...`);
-
-      // Upload to separate image endpoint
-      const response = await client.post("/upload/single", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        timeout: 30000, // 30 seconds timeout
+      // 2. Basahin ang image bilang base64
+      const base64 = await FileSystem.readAsStringAsync(tree.image_path, {
+        encoding: FileSystem.EncodingType.Base64,
       });
 
-      if (response.data.success && response.data.data?.url) {
-        console.log(`✅ Image uploaded: ${response.data.data.url}`);
-        return response.data.data.url;
-      } else {
-        throw new Error("No URL returned from upload");
+      // 3. Gumawa ng unique filename
+      const filename = `tree_${tree.id}_${Date.now()}.jpg`;
+      const filePath = `${filename}`; // No subfolder needed
+
+      console.log(`📤 Uploading to Supabase bucket 'kalangka': ${filePath}`);
+
+      // 4. Convert base64 to ArrayBuffer
+      const arrayBuffer = decode(base64);
+
+      // 5. Upload directly to Supabase Storage - BUCKET NAME: 'kalangka'
+      const { data, error } = await supabase.storage
+        .from("kalangka") // ✅ ITO NA ANG BAGONG BUCKET NAME
+        .upload(filePath, arrayBuffer, {
+          contentType: "image/jpeg",
+          upsert: false, // Don't overwrite existing files
+        });
+
+      if (error) {
+        console.error("Supabase upload error:", error.message);
+
+        // Check specific error types
+        if (error.message.includes("bucket not found")) {
+          console.error(
+            "❌ Bucket 'kalangka' doesn't exist! Create it in Supabase dashboard.",
+          );
+          console.error(
+            "Go to: Storage → Create New Bucket → Name: 'kalangka' → Public",
+          );
+        } else if (error.message.includes("Forbidden")) {
+          console.error("❌ No RLS policies or authentication issue");
+          console.error("Add RLS policies in Supabase dashboard");
+        }
+        return null;
       }
+
+      // 6. Kunin ang public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("kalangka").getPublicUrl(filePath);
+
+      console.log(`✅ Uploaded to: ${publicUrl}`);
+      return publicUrl;
     } catch (error) {
-      console.error(`❌ Image upload failed for tree ${tree.id}:`, error);
+      console.error("Base64 upload error:", error);
       return null;
     }
   }
@@ -445,9 +475,7 @@ class TreeService {
   // Helper method to check if file exists
   private async checkFileExists(filePath: string): Promise<boolean> {
     try {
-      // For React Native - using expo-file-system
-      const { getInfoAsync } = await import("expo-file-system/legacy");
-      const fileInfo = await getInfoAsync(filePath);
+      const fileInfo = await FileSystem.getInfoAsync(filePath);
       return fileInfo.exists;
     } catch (error) {
       console.error("Error checking file existence:", error);
@@ -539,14 +567,14 @@ class TreeService {
 
     try {
       const stats = await this.db!.getAllAsync(`
-          SELECT 
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-            SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
-            SUM(CASE WHEN is_synced = 1 THEN 1 ELSE 0 END) as synced,
-            SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced
-          FROM trees
-        `);
+            SELECT 
+              COUNT(*) as total,
+              SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+              SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
+              SUM(CASE WHEN is_synced = 1 THEN 1 ELSE 0 END) as synced,
+              SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced
+            FROM trees
+          `);
 
       return {
         total: stats[0]?.total || 0,

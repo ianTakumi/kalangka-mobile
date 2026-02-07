@@ -3,13 +3,12 @@ export interface User {
   first_name: string;
   last_name: string;
   email: string;
-  avatar: string;
   gender: string;
 }
 
 export interface Token {
   access_token: string;
-  refresh_token: string;
+  token_type: string;
 }
 
 // types/index.ts
@@ -24,6 +23,7 @@ export interface Tree {
   image_path: string;
   updated_at: Date | null;
   is_synced: boolean;
+  role: string;
 }
 
 export interface Flower {
@@ -35,6 +35,7 @@ export interface Flower {
   created_at: Date | null;
   updated_at: Date | null;
   deleted_at: Date | null;
+  is_synced: boolean;
 }
 
 export interface Fruit {

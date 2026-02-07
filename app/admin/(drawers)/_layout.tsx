@@ -7,7 +7,7 @@ export default function _layout() {
         name="(tabs)"
         options={{
           drawerLabel: "Home",
-          title: "User Side",
+          title: "Admin Side",
         }}
       />
     </Drawer>

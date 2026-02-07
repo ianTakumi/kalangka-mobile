@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const DEVELOPMENT_URL = "http://192.168.1.62:5000/api/v1";
+const DEVELOPMENT_URL = "http://192.168.1.62:8000/api/";
 const PRODUCTION_URL = "https://kalangka-backend.onrender.com/api/v1";
 
 const client = axios.create({

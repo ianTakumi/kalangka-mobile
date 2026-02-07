@@ -88,6 +88,7 @@ export default function RegistrationScreen() {
     await client
       .post("/auth/register", data)
       .then((res) => {
+        console.log(res);
         if (res.status === 201) {
           Toast.show({
             type: "success",

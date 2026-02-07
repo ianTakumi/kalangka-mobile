@@ -1,10 +1,10 @@
 import React from "react";
 import { View, Text } from "react-native";
 
-export default function profile() {
+export default function fruits() {
   return (
     <View>
-      <Text>Harvest</Text>
+      <Text>fruits</Text>
     </View>
   );
 }

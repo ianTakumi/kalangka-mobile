@@ -30,6 +30,7 @@ import {
 } from "lucide-react-native";
 import TreeCamera from "@/components/TreeCamera";
 import * as FileSystem from "expo-file-system/legacy";
+import { useRouter } from "expo-router";
 
 // Create directory for tree images
 const TREE_IMAGES_DIR = FileSystem.documentDirectory + "tree_images/";
@@ -49,6 +50,7 @@ export default function TreesScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const router = useRouter();
 
   // For CRUD operations
   const [modalVisible, setModalVisible] = useState(false);
@@ -431,81 +433,103 @@ export default function TreesScreen() {
   const renderTreeItem = ({ item }: { item: Tree }) => {
     const hasLocalImage = (item as any).image_path;
 
+    const handlePress = () => {
+      // Navigate to treeinfo with the tree data
+      router.push({
+        pathname: "/admin/treeinfo",
+        params: {
+          treeData: JSON.stringify(item),
+        },
+      });
+    };
+
+    const handleEditPress = (e: any) => {
+      e.stopPropagation(); // Prevent triggering the parent press
+      handleEdit(item);
+    };
+
+    const handleDeletePress = (e: any) => {
+      e.stopPropagation(); // Prevent triggering the parent press
+      handleDelete(item.id);
+    };
+
     return (
-      <View className="bg-white p-4 rounded-xl mb-3 shadow-sm border border-gray-100">
-        <View className="flex-row">
-          {/* Image Preview */}
-          {hasLocalImage ? (
-            <View className="mr-4">
-              <Image
-                source={{ uri: (item as any).image_path }}
-                className="w-20 h-20 rounded-lg"
-                resizeMode="cover"
-              />
-            </View>
-          ) : (
-            <View className="mr-4 w-20 h-20 bg-gray-100 rounded-lg items-center justify-center">
-              <Camera size={24} color="#9ca3af" />
-            </View>
-          )}
-
-          <View className="flex-1">
-            <View className="flex-row items-center mb-2">
-              <Text className="text-lg font-semibold text-gray-800 flex-1">
-                {item.description}
-              </Text>
-              <View
-                className={`px-2 py-1 rounded-full ${item.status === "active" ? "bg-green-100" : "bg-gray-100"}`}
-              >
-                <Text
-                  className={`text-xs font-medium ${item.status === "active" ? "text-green-700" : "text-gray-700"}`}
-                >
-                  {item.status}
-                </Text>
-              </View>
-            </View>
-
-            <View className="flex-row items-center mb-2">
-              <MapPin size={14} color="#6b7280" />
-              <Text className="text-sm text-gray-600 ml-1">
-                {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
-              </Text>
-            </View>
-
-            <View className="flex-row items-center justify-between mt-2">
-              <View className="flex-row items-center">
-                <View
-                  className={`w-2 h-2 rounded-full mr-2 ${item.is_synced ? "bg-green-500" : "bg-yellow-500"}`}
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
+        <View className="bg-white p-4 rounded-xl mb-3 shadow-sm border border-gray-100">
+          <View className="flex-row">
+            {/* Image Preview */}
+            {hasLocalImage ? (
+              <View className="mr-4">
+                <Image
+                  source={{ uri: (item as any).image_path }}
+                  className="w-20 h-20 rounded-lg"
+                  resizeMode="cover"
                 />
-                <Text className="text-xs text-gray-500">
-                  {item.is_synced ? "Synced" : "Pending Sync"}
+              </View>
+            ) : (
+              <View className="mr-4 w-20 h-20 bg-gray-100 rounded-lg items-center justify-center">
+                <Camera size={24} color="#9ca3af" />
+              </View>
+            )}
+
+            <View className="flex-1">
+              <View className="flex-row items-center mb-2">
+                <Text className="text-lg font-semibold text-gray-800 flex-1">
+                  {item.description}
+                </Text>
+                <View
+                  className={`px-2 py-1 rounded-full ${item.status === "active" ? "bg-green-100" : "bg-gray-100"}`}
+                >
+                  <Text
+                    className={`text-xs font-medium ${item.status === "active" ? "text-green-700" : "text-gray-700"}`}
+                  >
+                    {item.status}
+                  </Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-center mb-2">
+                <MapPin size={14} color="#6b7280" />
+                <Text className="text-sm text-gray-600 ml-1">
+                  {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
                 </Text>
               </View>
 
-              <Text className="text-xs text-gray-400">
-                {item.created_at
-                  ? new Date(item.created_at).toLocaleDateString()
-                  : "No date"}
-              </Text>
-            </View>
-          </View>
+              <View className="flex-row items-center justify-between mt-2">
+                <View className="flex-row items-center">
+                  <View
+                    className={`w-2 h-2 rounded-full mr-2 ${item.is_synced ? "bg-green-500" : "bg-yellow-500"}`}
+                  />
+                  <Text className="text-xs text-gray-500">
+                    {item.is_synced ? "Synced" : "Pending Sync"}
+                  </Text>
+                </View>
 
-          <View className="flex-row ml-2">
-            <TouchableOpacity
-              className="p-2 bg-blue-50 rounded-lg mr-2"
-              onPress={() => handleEdit(item)}
-            >
-              <Edit2 size={18} color="#3b82f6" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="p-2 bg-red-50 rounded-lg"
-              onPress={() => handleDelete(item.id)}
-            >
-              <Trash2 size={18} color="#ef4444" />
-            </TouchableOpacity>
+                <Text className="text-xs text-gray-400">
+                  {item.created_at
+                    ? new Date(item.created_at).toLocaleDateString()
+                    : "No date"}
+                </Text>
+              </View>
+            </View>
+
+            <View className="flex-row ml-2">
+              <TouchableOpacity
+                className="p-2 bg-blue-50 rounded-lg mr-2"
+                onPress={handleEditPress}
+              >
+                <Edit2 size={18} color="#3b82f6" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="p-2 bg-red-50 rounded-lg"
+                onPress={handleDeletePress}
+              >
+                <Trash2 size={18} color="#ef4444" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

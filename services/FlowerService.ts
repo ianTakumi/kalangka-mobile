@@ -2,6 +2,9 @@ import * as SQLite from "expo-sqlite";
 import { Flower } from "@/types/index";
 import client from "@/utils/axiosInstance";
 import NetInfo from "@react-native-community/netinfo";
+import { supabase } from "@/utils/supabase";
+import { decode } from "base64-arraybuffer";
+import * as FileSystem from "expo-file-system/legacy";
 
 class FlowerService {
   private db: SQLite.SQLiteDatabase | null = null;
@@ -32,7 +35,7 @@ class FlowerService {
           tree_id TEXT NOT NULL,
           quantity INTEGER NOT NULL DEFAULT 1,
           wrapped_at TEXT NOT NULL,
-          image_uri TEXT NOT NULL,
+          image_url TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'active',
           is_synced INTEGER DEFAULT 0,
           created_at TEXT,
@@ -77,16 +80,14 @@ class FlowerService {
       status?: string;
     },
   ): Promise<string> {
-    if (!this.db) {
-      throw new Error("Database not initialized. Call init() first.");
-    }
+    await this.ensureDatabaseReady();
 
     const id = this.generateUUID();
     const now = new Date().toISOString();
 
     try {
-      await this.db.runAsync(
-        `INSERT INTO flowers (id, tree_id, quantity, wrapped_at, image_uri, status, is_synced, created_at, updated_at) 
+      await this.db!.runAsync(
+        `INSERT INTO flowers (id, tree_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
@@ -95,7 +96,7 @@ class FlowerService {
           flowerData.wrapped_at instanceof Date
             ? flowerData.wrapped_at.toISOString()
             : flowerData.wrapped_at,
-          flowerData.image_uri || "",
+          flowerData.image_url || "",
           flowerData.status || "active",
           0,
           now,
@@ -171,7 +172,7 @@ class FlowerService {
         "tree_id",
         "quantity",
         "wrapped_at",
-        "image_uri",
+        "image_url",
         "status",
       ];
       const fieldsToUpdate = Object.keys(updates).filter((key) =>
@@ -263,7 +264,7 @@ class FlowerService {
       tree_id: flower.tree_id,
       quantity: flower.quantity,
       wrapped_at: flower.wrapped_at ? new Date(flower.wrapped_at) : new Date(),
-      image_uri: flower.image_uri,
+      image_url: flower.image_url,
       created_at: flower.created_at ? new Date(flower.created_at) : null,
       updated_at: flower.updated_at ? new Date(flower.updated_at) : null,
       deleted_at: flower.deleted_at ? new Date(flower.deleted_at) : null,
@@ -349,7 +350,7 @@ class FlowerService {
 
       // Upload image if exists
       let imageUrl = null;
-      if (flower.image_uri) {
+      if (flower.image_url) {
         try {
           imageUrl = await this.uploadImageToServer(flower);
           if (!imageUrl) {
@@ -371,7 +372,6 @@ class FlowerService {
         tree_id: flower.tree_id,
         quantity: flower.quantity,
         wrapped_at: flower.wrapped_at.toISOString(),
-        status: flower.status || "active",
         created_at: flower.created_at ? flower.created_at.toISOString() : null,
         updated_at: flower.updated_at ? flower.updated_at.toISOString() : null,
         image_url: imageUrl, // server na bahala mag-detect kung may image o wala
@@ -415,42 +415,75 @@ class FlowerService {
 
   private async uploadImageToServer(flower: Flower): Promise<string | null> {
     try {
-      if (!flower.image_uri) {
+      if (!flower.image_url) {
         return null;
       }
-
-      const fileExists = await this.checkFileExists(flower.image_uri);
-      if (!fileExists) {
-        console.warn(`Image file not found: ${flower.image_uri}`);
-        return null;
-      }
-
-      const formData = new FormData();
-      formData.append("image", {
-        uri: flower.image_uri,
-        type: "image/jpeg",
-        name: `flower_${flower.id}_${Date.now()}.jpg`,
-      } as any);
-
-      formData.append("flower_id", flower.id);
-      formData.append("tree_id", flower.tree_id);
-      formData.append("folder", "flower-images");
-
-      console.log(`📤 Uploading image for flower ${flower.id}...`);
-
-      const response = await client.post("/upload/single", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 30000,
-      });
-
-      if (response.data.success && response.data.data?.url) {
-        console.log(`✅ Image uploaded: ${response.data.data.url}`);
-        return response.data.data.url;
-      } else {
-        throw new Error("No URL returned from upload");
-      }
+      console.log(`📤 Direct Supabase upload for flower ${flower.id}...`);
+      return await this.uploadWithBase64(flower);
     } catch (error) {
       console.error(`❌ Image upload failed for flower ${flower.id}:`, error);
+      return null;
+    }
+  }
+
+  private async uploadWithBase64(flower: Flower): Promise<string | null> {
+    try {
+      // 1. Check if file exists first
+      const fileExists = await this.checkFileExists(flower.image_url);
+      if (!fileExists) {
+        console.warn(`Image file not found: ${flower.image_url}`);
+        return null;
+      }
+
+      // 2. Basahin ang image bilang base64
+      const base64 = await FileSystem.readAsStringAsync(flower.image_url, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // 3. Gumawa ng unique filename
+      const filename = `flower_${flower.id}_${Date.now()}.jpg`;
+      const filePath = `${filename}`;
+
+      console.log(`📤 Uploading to Supabase bucket 'kalangka': ${filePath}`);
+
+      // 4. Convert base64 to ArrayBuffer
+      const arrayBuffer = decode(base64);
+
+      // 5. Upload directly to Supabase Storage - BUCKET NAME: 'kalangka'
+      const { data, error } = await supabase.storage
+        .from("kalangka") // ✅ ITO NA ANG BAGONG BUCKET NAME
+        .upload(filePath, arrayBuffer, {
+          contentType: "image/jpeg",
+          upsert: false, // Don't overwrite existing files
+        });
+
+      if (error) {
+        console.error("Supabase upload error:", error.message);
+
+        // Check specific error types
+        if (error.message.includes("bucket not found")) {
+          console.error(
+            "❌ Bucket 'kalangka' doesn't exist! Create it in Supabase dashboard.",
+          );
+          console.error(
+            "Go to: Storage → Create New Bucket → Name: 'kalangka' → Public",
+          );
+        } else if (error.message.includes("Forbidden")) {
+          console.error("❌ No RLS policies or authentication issue");
+          console.error("Add RLS policies in Supabase dashboard");
+        }
+        return null;
+      }
+
+      // 6. Kunin ang public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("kalangka").getPublicUrl(filePath);
+
+      console.log(`✅ Uploaded to: ${publicUrl}`);
+      return publicUrl;
+    } catch (error) {
+      console.error("Base64 upload error:", error);
       return null;
     }
   }
