@@ -11,6 +11,7 @@ export default function _layout() {
       <Stack.Screen name="profile" options={{ headerShown: false }} />
       <Stack.Screen name="treeinfo" options={{ headerShown: false }} />
       <Stack.Screen name="qrcam" options={{ headerShown: false }} />
+      <Stack.Screen name="map" options={{ headerShown: false }} />
       <Stack.Screen name="changePassword" options={{ headerShown: false }} />
     </Stack>
   );

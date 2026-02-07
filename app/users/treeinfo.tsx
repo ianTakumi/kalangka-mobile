@@ -32,15 +32,16 @@ import {
 } from "lucide-react-native";
 import { Flower as FlowerType } from "@/types/index";
 import FlowerService from "@/services/FlowerService";
+import * as MediaLibrary from "expo-media-library";
+import { captureRef } from "react-native-view-shot";
+import * as FileSystem from "expo-file-system/legacy";
 
 export default function TreeInfoScreen() {
   const params = useLocalSearchParams();
-
-  // Get the data directly
   const treeData = params.treeData
     ? JSON.parse(params.treeData as string)
     : null;
-
+  const qrCodeRef = useRef(null);
   const [showFlowerForm, setShowFlowerForm] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
   const [flower, setFlower] = useState<FlowerType | null>(null);
@@ -130,6 +131,55 @@ export default function TreeInfoScreen() {
       requestPermission();
     }
   }, [permission]);
+
+  const saveQRCodeToGallery = async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+
+      if (status !== "granted") {
+        Toast.show({
+          type: "error",
+          text1: "Permission Denied",
+          text2: "Storage permission is required to save QR code",
+          position: "bottom",
+        });
+        return;
+      }
+
+      // Show loading toast
+      Toast.show({
+        type: "info",
+        text1: "Saving QR Code",
+        text2: "Please wait...",
+        position: "bottom",
+      });
+
+      // Capture QR code as image
+      const uri = await captureRef(qrCodeRef, {
+        format: "png",
+        quality: 1.0,
+      });
+
+      // Save directly to gallery - SIMPLIFIED VERSION
+      await MediaLibrary.saveToLibraryAsync(uri);
+
+      // Show success message
+      Toast.show({
+        type: "success",
+        text1: "QR Code Saved!",
+        text2: "QR code has been saved to your gallery",
+        position: "bottom",
+      });
+    } catch (error) {
+      console.error("Error saving QR code:", error);
+      Toast.show({
+        type: "error",
+        text1: "Save Failed",
+        text2: error.message || "Failed to save QR code. Please try again.",
+        position: "bottom",
+      });
+    }
+  };
 
   // Handle taking a picture with camera
   const takePicture = async () => {
@@ -950,7 +1000,10 @@ export default function TreeInfoScreen() {
               </View>
 
               <View className="items-center p-4 bg-gray-50 rounded-xl">
-                <View className="bg-white p-4 rounded-lg shadow-sm">
+                <View
+                  ref={qrCodeRef}
+                  className="bg-white p-4 rounded-lg shadow-sm"
+                >
                   <QRCode
                     value={qrCodeData}
                     size={180}
@@ -959,6 +1012,9 @@ export default function TreeInfoScreen() {
                     quietZone={8}
                     ecl="H"
                   />
+                  <Text className="mt-2 text-gray-800 font-medium text-center">
+                    {treeData.description}
+                  </Text>
                 </View>
 
                 <Text className="text-center text-gray-600 mt-4 px-4">
@@ -969,13 +1025,7 @@ export default function TreeInfoScreen() {
                 <View className="flex-row mt-6 space-x-3">
                   <TouchableOpacity
                     className="flex-1 bg-emerald-50 py-3 rounded-lg items-center"
-                    onPress={() => {
-                      Toast.show({
-                        type: "info",
-                        text1: "Coming Soon",
-                        text2: "Save QR feature will be available soon",
-                      });
-                    }}
+                    onPress={saveQRCodeToGallery}
                   >
                     <Text className="text-emerald-700 font-semibold">
                       Save QR

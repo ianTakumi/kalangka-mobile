@@ -51,6 +51,8 @@ export default function TreesScreen() {
   const [syncing, setSyncing] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const router = useRouter();
+  const [hasSyncedFromServer, setHasSyncedFromServer] = useState(false);
+  const [serverTreeCount, setServerTreeCount] = useState(0);
 
   // For CRUD operations
   const [modalVisible, setModalVisible] = useState(false);
@@ -79,18 +81,75 @@ export default function TreesScreen() {
     ensureImagesDirExists();
 
     // Listen to network changes
-    const unsubscribe = NetInfo.addEventListener((state) => {
+    const unsubscribe = NetInfo.addEventListener(async (state) => {
       const online = state.isConnected ?? false;
       setIsOnline(online);
 
       // Auto-sync when coming online
       if (online) {
         autoSync();
+
+        // NEW: Sync trees FROM server when online and not yet synced
+        if (!hasSyncedFromServer) {
+          setTimeout(() => syncTreesFromServer(), 1000); // Small delay
+        }
       }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [hasSyncedFromServer]); // Add dependency
+
+  const syncTreesFromServer = async () => {
+    if (!isOnline) {
+      console.log("📴 Offline - Cannot sync from server");
+      return;
+    }
+
+    try {
+      console.log("🔄 Starting sync from server...");
+      setSyncing(true);
+
+      Toast.show({
+        type: "info",
+        text1: "Syncing from Server",
+        text2: "Downloading latest trees...",
+      });
+
+      const { synced, errors } = await TreeService.syncTreesFromServer();
+
+      if (errors.length > 0) {
+        console.warn("Sync completed with warnings:", errors);
+      }
+
+      if (synced > 0) {
+        Toast.show({
+          type: "success",
+          text1: "Sync Complete!",
+          text2: `${synced} tree(s) downloaded from server`,
+        });
+        setHasSyncedFromServer(true); // Mark as synced
+      } else {
+        Toast.show({
+          type: "info",
+          text1: "Already Up-to-date",
+          text2: "No new trees on server",
+        });
+      }
+
+      // Refresh local data
+      await loadTrees();
+      await loadStats();
+    } catch (error: any) {
+      console.error("❌ Server sync failed:", error);
+      Toast.show({
+        type: "error",
+        text1: "Server Sync Failed",
+        text2: error.message || "Failed to sync from server",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const initApp = async () => {
     try {
@@ -98,6 +157,29 @@ export default function TreesScreen() {
       await TreeService.init();
       await loadTrees();
       await loadStats();
+
+      // NEW: Check network status immediately
+      const netInfo = await NetInfo.fetch();
+      const online = netInfo.isConnected ?? false;
+      setIsOnline(online);
+
+      if (online) {
+        // Check if we should sync from server
+        try {
+          const { needsSync, treeCount } = await TreeService.checkAndSync();
+          setServerTreeCount(treeCount);
+
+          if (needsSync) {
+            console.log(`🔄 Server has ${treeCount} trees, auto-syncing...`);
+            setTimeout(() => syncTreesFromServer(), 1500); // Delay to let UI load
+          } else if (treeCount > 0) {
+            setHasSyncedFromServer(true); // Already in sync
+            console.log(`✅ Already synced with server (${treeCount} trees)`);
+          }
+        } catch (checkError) {
+          console.log("Could not check server status:", checkError);
+        }
+      }
     } catch (error) {
       console.error("Init error:", error);
       Toast.show({
@@ -117,9 +199,9 @@ export default function TreesScreen() {
       await loadTrees();
       await loadStats();
 
-      // If online, also sync
+      // If online, also sync from server
       if (isOnline) {
-        await autoSync();
+        await syncTreesFromServer();
       }
     } catch (error) {
       console.error("Refresh error:", error);
@@ -132,12 +214,19 @@ export default function TreesScreen() {
       setRefreshing(false);
     }
   };
-
   const loadTrees = async () => {
     try {
       const data = await TreeService.getTrees();
-      console.log(data);
+      console.log(`📊 Loaded ${data.length} trees locally`);
       setTrees(data);
+
+      // NEW: Auto-sync if online and no local trees
+      if (isOnline && !hasSyncedFromServer && data.length === 0) {
+        console.log(
+          "📥 First time online with empty local DB, auto-syncing...",
+        );
+        setTimeout(() => syncTreesFromServer(), 1000);
+      }
     } catch (error) {
       console.error("Load trees error:", error);
       Toast.show({
@@ -366,20 +455,32 @@ export default function TreesScreen() {
 
     setSyncing(true);
     try {
+      // First sync local changes TO server
       await TreeService.syncAll();
+
+      // Then sync FROM server to get latest data
+      const { synced, errors } = await TreeService.syncTreesFromServer();
+
+      // Refresh data
       await loadTrees();
       await loadStats();
 
       Toast.show({
         type: "success",
-        text1: "Sync Complete",
-        text2: "All data synchronized",
+        text1: "Full Sync Complete",
+        text2:
+          synced > 0
+            ? `Uploaded local changes and downloaded ${synced} tree(s) from server`
+            : "All data synchronized",
       });
+
+      setHasSyncedFromServer(true); // Mark as synced
     } catch (error) {
+      console.error("Sync error:", error);
       Toast.show({
         type: "error",
         text1: "Sync Failed",
-        text2: "Failed to sync data",
+        text2: "Failed to sync data with server",
       });
     } finally {
       setSyncing(false);
@@ -537,7 +638,7 @@ export default function TreesScreen() {
     return (
       <View className="flex-1 justify-center items-center bg-gray-50">
         <ActivityIndicator size="large" color="#059669" />
-        <Text className="mt-4 text-gray-600">Initializing database...</Text>
+        <Text className="mt-4 text-gray-600">Loading...</Text>
       </View>
     );
   }

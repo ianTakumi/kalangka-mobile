@@ -284,7 +284,7 @@ export default function RegistrationScreen() {
                 render={({ field: { onChange, value, onBlur } }) => (
                   <View>
                     <TextInput
-                      className={`w-full border rounded-xl px-4 py-3 ${errors.password ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"}`}
+                      className={`w-full border rounded-xl px-4 text-gray-900 py-3 ${errors.password ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"}`}
                       placeholder="At least 6 characters"
                       value={value}
                       onChangeText={onChange}
@@ -331,7 +331,7 @@ export default function RegistrationScreen() {
                 render={({ field: { onChange, value, onBlur } }) => (
                   <View>
                     <TextInput
-                      className={`w-full border rounded-xl px-4 py-3 ${errors.confirmPassword ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"}`}
+                      className={`w-full border rounded-xl px-4 py-3 text-gray-900   ${errors.confirmPassword ? "border-red-500 bg-red-50" : "border-gray-300 bg-gray-50"}`}
                       placeholder="Confirm your password"
                       value={value}
                       onChangeText={onChange}

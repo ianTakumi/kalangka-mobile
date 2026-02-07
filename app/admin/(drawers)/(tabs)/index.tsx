@@ -11,25 +11,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  BarChart3,
-  Camera,
-  Calendar,
   Cloud,
   CloudOff,
-  Download,
   Flower2,
   MapPin,
   QrCode,
   RefreshCw,
-  Shield,
   Trees,
-  Upload,
   User,
   AlertCircle,
-  TrendingUp,
   Package,
-  ArrowRight,
-  ChevronRight,
   Thermometer,
   Droplets,
   Wind,
@@ -39,28 +30,25 @@ import {
   CloudSun,
   Umbrella,
   AlertTriangle,
+  CloudSnow,
 } from "lucide-react-native";
 import NetInfo from "@react-native-community/netinfo";
-import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import axios from "axios";
+import { Link } from "expo-router";
+import { getTimeBasedGreeting } from "@/utils/helpers";
+
 const { width } = Dimensions.get("window");
 
 export default function FarmerHomeScreen() {
-  const router = useRouter();
   const [isOnline, setIsOnline] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [location, setLocation] = useState(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [weatherLoading, setWeatherLoading] = useState(true);
-  const [weatherError, setWeatherError] = useState(null);
 
   const [userStats, setUserStats] = useState({
     totalTrees: 24,
     activeTrees: 22,
     flowersToday: 8,
-    pendingSync: 3,
     harvestThisWeek: 125,
     totalLoss: 12,
   });
@@ -109,7 +97,7 @@ export default function FarmerHomeScreen() {
       icon: <MapPin size={28} color="#059669" />,
       bgColor: "bg-emerald-50",
       iconColor: "text-emerald-600",
-      route: "/map",
+      route: "admin/map",
     },
     {
       id: 6,
@@ -122,46 +110,7 @@ export default function FarmerHomeScreen() {
     },
   ]);
 
-  const [recentActivities] = useState([
-    {
-      id: 1,
-      type: "tree",
-      title: "Papaya Tree Registered",
-      description: "Tree #JP-024 added to Plot A",
-      time: "2 hours ago",
-      icon: <Trees size={18} color="#059669" />,
-      bgColor: "bg-emerald-50",
-    },
-    {
-      id: 2,
-      type: "flower",
-      title: "Flower Count Updated",
-      description: "5 flowers logged on Tree JP-018",
-      time: "5 hours ago",
-      icon: <Flower2 size={18} color="#7C3AED" />,
-      bgColor: "bg-violet-50",
-    },
-    {
-      id: 3,
-      type: "harvest",
-      title: "Harvest Reported",
-      description: "12.5 kg jackfruit harvested",
-      time: "Yesterday",
-      icon: <Package size={18} color="#DC2626" />,
-      bgColor: "bg-red-50",
-    },
-    {
-      id: 4,
-      type: "sync",
-      title: "Data Synced",
-      description: "3 pending items uploaded to cloud",
-      time: "2 days ago",
-      icon: <Upload size={18} color="#2563EB" />,
-      bgColor: "bg-blue-50",
-    },
-  ]);
-
-  // Default weather data (offline/loading)
+  // Weather state with actual data fetching
   const [weather, setWeather] = useState({
     condition: "Loading...",
     temperature: "--°C",
@@ -170,60 +119,34 @@ export default function FarmerHomeScreen() {
     windSpeed: "-- km/h",
     rainfall: "0 mm",
     forecast: "Fetching weather data...",
-    recommendation: "Weather information loading...",
+    recommendation: "Getting farming recommendations...",
     loading: true,
     error: null,
   });
 
   useEffect(() => {
-    checkNetworkStatus();
+    // Network check
+    const checkNetwork = async () => {
+      const state = await NetInfo.fetch();
+      setIsOnline(state.isConnected ?? false);
+    };
+
+    checkNetwork();
 
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const newStatus = state.isConnected ?? false;
-      setIsOnline(newStatus);
-
-      // Kung nag-online, fetch weather
-      if (newStatus) {
-        fetchLocationAndWeather();
-      }
+      setIsOnline(state.isConnected ?? false);
     });
 
-    // Initial fetch after checking network
-    checkNetworkStatus().then(() => {
-      fetchLocationAndWeather();
-    });
+    // Fetch weather data on component mount
+    fetchLocationAndWeather();
 
     return () => unsubscribe();
   }, []);
 
-  const checkNetworkStatus = async () => {
-    const state = await NetInfo.fetch();
-    setIsOnline(state.isConnected ?? false);
-  };
-
   const fetchLocationAndWeather = async () => {
-    setWeatherLoading(true);
-    setWeatherError(null);
+    setWeather((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Kung offline, set offline weather
-      if (!isOnline) {
-        setWeather({
-          condition: "Offline",
-          temperature: "--°C",
-          humidity: "--%",
-          feelsLike: "--°C",
-          windSpeed: "-- km/h",
-          rainfall: "-- mm",
-          forecast: "No internet connection",
-          recommendation: "Connect to get weather updates",
-          loading: false,
-          error: "No internet connection",
-        });
-        setWeatherLoading(false);
-        return;
-      }
-
       // Request location permission
       let { status } = await Location.requestForegroundPermissionsAsync();
 
@@ -236,16 +159,14 @@ export default function FarmerHomeScreen() {
           windSpeed: "-- km/h",
           rainfall: "-- mm",
           forecast: "Enable location for weather",
-          recommendation: "Allow location access for accurate weather",
+          recommendation: "Enable location for personalized farming advice",
           loading: false,
           error: "Location permission denied",
         });
-        setWeatherLoading(false);
         return;
       }
 
       // Get current location
-      setLocationLoading(true);
       let location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
@@ -266,14 +187,11 @@ export default function FarmerHomeScreen() {
         feelsLike: "--°C",
         windSpeed: "-- km/h",
         rainfall: "-- mm",
-        forecast: "Failed to get weather",
-        recommendation: "Try refreshing or check connection",
+        forecast: "Failed to get weather data",
+        recommendation: "Unable to provide farming recommendations",
         loading: false,
         error: error.message,
       });
-    } finally {
-      setLocationLoading(false);
-      setWeatherLoading(false);
     }
   };
 
@@ -292,11 +210,7 @@ export default function FarmerHomeScreen() {
             longitude: longitude,
             current:
               "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code,rain,precipitation",
-            hourly: "temperature_2m,precipitation_probability",
-            daily:
-              "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum",
             timezone: "auto",
-            forecast_days: 1,
           },
           timeout: 10000, // 10 seconds timeout
         },
@@ -309,47 +223,6 @@ export default function FarmerHomeScreen() {
 
       const data = response.data;
       console.log("Weather data received:", data.current);
-
-      // Get farming recommendations based on weather
-      const getFarmingRecommendation = (
-        weatherCondition,
-        temp,
-        humidity,
-        rain,
-      ) => {
-        const conditions = weatherCondition.toLowerCase();
-        const temperature = temp;
-        const rainfall = rain || 0;
-
-        if (rainfall > 10) {
-          return "Heavy rain expected. Postpone fieldwork. Check drainage systems.";
-        } else if (rainfall > 2) {
-          return "Light to moderate rain. Good for irrigation but postpone spraying.";
-        } else if (
-          conditions.includes("thunderstorm") ||
-          conditions.includes("storm")
-        ) {
-          return "Storm warning! Stay indoors. Secure farm equipment and structures.";
-        } else if (temperature > 35) {
-          return "Extreme heat. Avoid midday work. Water plants early morning.";
-        } else if (temperature < 15) {
-          return "Cool temperatures. Protect sensitive crops. Good for transplanting.";
-        } else if (humidity > 85) {
-          return "High humidity - monitor for fungal diseases. Prune for better airflow.";
-        } else if (humidity < 40 && temperature > 28) {
-          return "Dry conditions. Increase irrigation frequency. Good for harvesting.";
-        } else if (
-          conditions.includes("sunny") &&
-          temperature >= 22 &&
-          temperature <= 30
-        ) {
-          return "Perfect farming weather! Ideal for planting, weeding, and harvesting.";
-        } else if (conditions.includes("cloudy")) {
-          return "Cloudy day - good for transplanting and soil work. Reduced water stress.";
-        } else {
-          return "Normal farming conditions. Continue regular farm maintenance.";
-        }
-      };
 
       // Convert WMO weather codes to human readable conditions
       const getWeatherCondition = (code) => {
@@ -387,15 +260,17 @@ export default function FarmerHomeScreen() {
       };
 
       const condition = getWeatherCondition(data.current.weather_code);
-      const recommendation = getFarmingRecommendation(
-        condition,
-        data.current.temperature_2m,
-        data.current.relative_humidity_2m,
-        data.current.rain || data.current.precipitation,
-      );
 
       // Get rainfall data - prefer rain, then precipitation
       const rainfall = data.current.rain || data.current.precipitation || 0;
+
+      // Generate farming recommendation based on weather
+      const recommendation = generateFarmingRecommendation(
+        data.current.weather_code,
+        data.current.temperature_2m,
+        rainfall,
+        data.current.wind_speed_10m,
+      );
 
       setWeather({
         condition: condition,
@@ -419,35 +294,96 @@ export default function FarmerHomeScreen() {
         windSpeed: "-- km/h",
         rainfall: "-- mm",
         forecast: "Weather service unavailable",
-        recommendation: "Try again later",
+        recommendation: "Check connection for farming recommendations",
         loading: false,
         error: error.message,
       });
     }
   };
 
-  const handleManualSync = async () => {
-    if (!isOnline) return;
-    setSyncing(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setSyncing(false);
-    setUserStats((prev) => ({ ...prev, pendingSync: 0 }));
+  // Generate farming recommendations based on weather
+  const generateFarmingRecommendation = (
+    weatherCode,
+    temperature,
+    rainfall,
+    windSpeed,
+  ) => {
+    // Jackfruit-specific recommendations
+    const recommendations = [];
+
+    // Temperature-based recommendations
+    if (temperature > 35) {
+      recommendations.push(
+        "🌡️ Extreme heat: Water trees in early morning or late evening",
+      );
+    } else if (temperature < 10) {
+      recommendations.push(
+        "❄️ Cold weather: Protect young jackfruit trees from frost",
+      );
+    } else if (temperature >= 25 && temperature <= 35) {
+      recommendations.push("☀️ Ideal temperature for jackfruit growth");
+    }
+
+    // Rainfall-based recommendations
+    if (weatherCode >= 61 && weatherCode <= 67) {
+      if (rainfall > 20) {
+        recommendations.push(
+          "🌧️ Heavy rain: Check drainage to prevent waterlogging",
+        );
+      } else if (rainfall > 5) {
+        recommendations.push("🌦️ Moderate rain: Good for natural watering");
+      } else {
+        recommendations.push("🌧️ Light rain: Perfect for planting activities");
+      }
+    } else if (rainfall === 0 && temperature > 25) {
+      recommendations.push("💧 No rain: Consider irrigation for young trees");
+    }
+
+    // Weather condition-based recommendations
+    if (weatherCode === 0 || weatherCode === 1) {
+      recommendations.push("☀️ Sunny day: Ideal for pruning and weeding");
+    } else if (weatherCode === 2 || weatherCode === 3) {
+      recommendations.push("☁️ Cloudy weather: Good for transplanting");
+    } else if (weatherCode >= 95 && weatherCode <= 99) {
+      recommendations.push("⚡ Storm warning: Secure farm equipment");
+    }
+
+    // Wind-based recommendations
+    if (windSpeed > 30) {
+      recommendations.push("💨 Strong winds: Check tree supports and staking");
+    }
+
+    // General jackfruit care
+    if (recommendations.length === 0) {
+      recommendations.push("🌱 Good day for routine jackfruit inspection");
+    }
+
+    // Add pollination reminder during flowering season
+    const currentMonth = new Date().getMonth();
+    if (currentMonth >= 2 && currentMonth <= 5) {
+      recommendations.push("🌸 Flowering season: Monitor pollination");
+    }
+
+    return recommendations.join(" • ");
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchLocationAndWeather();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setRefreshing(false);
-  };
 
-  const handleQuickAction = (route) => {
-    try {
-      router.push(route);
-    } catch (error) {
-      console.log("Router not ready:", error);
-      // Pwedeng gumamit ng alternative navigation
-    }
+    // Refresh both weather and stats
+    await Promise.all([
+      fetchLocationAndWeather(),
+      new Promise((resolve) => setTimeout(resolve, 1000)), // Simulate stats update
+    ]);
+
+    // Update stats
+    setUserStats((prev) => ({
+      ...prev,
+      flowersToday: Math.floor(Math.random() * 15) + 5,
+      harvestThisWeek: Math.floor(Math.random() * 50) + 100,
+    }));
+
+    setRefreshing(false);
   };
 
   // Weather icon based on condition
@@ -471,8 +407,8 @@ export default function FarmerHomeScreen() {
       return <AlertTriangle size={32} color="#DC2626" />;
     } else if (cond.includes("fog")) {
       return <Cloud size={32} color="#9CA3AF" />;
-    } else if (cond.includes("offline") || cond.includes("error")) {
-      return <CloudOff size={32} color="#9CA3AF" />;
+    } else if (cond.includes("error") || cond.includes("unavailable")) {
+      return <AlertTriangle size={32} color="#DC2626" />;
     } else if (cond.includes("snow")) {
       return <CloudSnow size={32} color="#93C5FD" />;
     } else {
@@ -489,16 +425,15 @@ export default function FarmerHomeScreen() {
         <View className="flex-row justify-between items-center mb-4">
           <View>
             <Text className="text-3xl font-bold text-gray-900">
-              Good morning
+              {getTimeBasedGreeting()},
             </Text>
             <Text className="text-lg text-gray-600">Welcome to Kalangka</Text>
           </View>
-          <TouchableOpacity
-            className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center"
-            onPress={() => router.push("/admin/profile")}
-          >
-            <User size={24} color="#4B5563" />
-          </TouchableOpacity>
+          <Link href="/admin/profile" asChild>
+            <TouchableOpacity className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center">
+              <User size={24} color="#4B5563" />
+            </TouchableOpacity>
+          </Link>
         </View>
 
         {/* Network Status & Sync */}
@@ -523,30 +458,18 @@ export default function FarmerHomeScreen() {
                 </>
               )}
             </View>
-            {userStats.pendingSync > 0 && (
-              <View className="bg-yellow-100 px-3 py-1.5 rounded-full">
-                <Text className="text-yellow-800 font-medium">
-                  {userStats.pendingSync} pending
-                </Text>
-              </View>
-            )}
           </View>
-
           <TouchableOpacity
-            className={`flex-row items-center px-4 py-2.5 rounded-lg ${isOnline && !syncing ? "bg-emerald-600" : "bg-gray-300"}`}
-            onPress={handleManualSync}
-            disabled={!isOnline || syncing}
+            onPress={onRefresh}
+            disabled={weather.loading}
+            className="flex-row items-center"
           >
             <RefreshCw
               size={18}
-              color={isOnline && !syncing ? "white" : "#9CA3AF"}
-              className={syncing ? "animate-spin" : ""}
+              color="#059669"
+              className={`mr-1 ${weather.loading ? "animate-spin" : ""}`}
             />
-            <Text
-              className={`ml-2 font-semibold ${isOnline && !syncing ? "text-white" : "text-gray-400"}`}
-            >
-              {syncing ? "Syncing..." : "Sync"}
-            </Text>
+            <Text className="text-sm text-emerald-600">Refresh</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -631,61 +554,44 @@ export default function FarmerHomeScreen() {
 
           <View className="flex-row flex-wrap -mx-2">
             {quickActions.map((action) => (
-              <TouchableOpacity
+              <Link
                 key={action.id}
+                href={action.route}
+                asChild
                 className="w-1/3 px-2 mb-4"
-                onPress={() => handleQuickAction(action.route)}
               >
-                <View
-                  className={`${action.bgColor} rounded-2xl p-4 items-center justify-center h-32`}
-                >
-                  <View className="mb-3">{action.icon}</View>
-                  <Text className="font-semibold text-gray-900 text-center">
-                    {action.title}
-                  </Text>
-                  <Text className="text-xs text-gray-600 text-center mt-1">
-                    {action.description}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                <TouchableOpacity>
+                  <View
+                    className={`${action.bgColor} rounded-2xl p-4 items-center justify-center h-32`}
+                  >
+                    <View className="mb-3">{action.icon}</View>
+                    <Text className="font-semibold text-gray-900 text-center">
+                      {action.title}
+                    </Text>
+                    <Text className="text-xs text-gray-600 text-center mt-1">
+                      {action.description}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </Link>
             ))}
           </View>
         </View>
 
-        {/* Weather & Conditions */}
-        {/* Weather & Conditions */}
+        {/* Weather & Conditions with REAL DATA */}
         <View className="px-6 mb-6">
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-2xl font-bold text-gray-900">
               Weather & Conditions
             </Text>
-            <TouchableOpacity
-              onPress={fetchLocationAndWeather}
-              disabled={weatherLoading || !isOnline}
-              className="flex-row items-center"
-            >
-              <RefreshCw
-                size={18}
-                color={isOnline ? "#059669" : "#9CA3AF"}
-                className={`mr-1 ${weatherLoading ? "animate-spin" : ""}`}
-              />
-              <Text
-                className={`text-sm ${isOnline ? "text-emerald-600" : "text-gray-400"}`}
-              >
-                Refresh
-              </Text>
-            </TouchableOpacity>
+            {weather.loading && (
+              <ActivityIndicator size="small" color="#059669" />
+            )}
           </View>
 
-          <View
-            className={`rounded-2xl p-5 border ${
-              weather.loading || !isOnline || weather.error
-                ? "bg-gray-50 border-gray-200"
-                : "bg-gradient-to-r from-blue-50 to-emerald-50 border-blue-100"
-            }`}
-          >
+          <View className="bg-gradient-to-r from-blue-50 to-emerald-50 rounded-2xl p-5 border border-blue-100">
             {/* Loading State */}
-            {(weather.loading || weatherLoading) && (
+            {weather.loading && (
               <View className="items-center py-6">
                 <ActivityIndicator size="large" color="#059669" />
                 <Text className="text-gray-600 mt-2">
@@ -694,138 +600,116 @@ export default function FarmerHomeScreen() {
               </View>
             )}
 
-            {/* Offline State */}
-            {!weather.loading && !weatherLoading && !isOnline && (
+            {/* Error State */}
+            {!weather.loading && weather.error && (
               <View className="items-center justify-center py-6">
-                <CloudOff size={48} color="#9CA3AF" className="mb-4" />
+                <AlertTriangle size={48} color="#DC2626" className="mb-4" />
                 <Text className="text-xl font-bold text-gray-900 mb-2">
-                  Offline Mode
+                  Weather Unavailable
                 </Text>
                 <Text className="text-gray-600 text-center mb-4">
-                  Connect to internet for weather updates
+                  {weather.error}
                 </Text>
-                <View className="bg-white rounded-xl p-4 w-full">
-                  <View className="flex-row items-center mb-2">
-                    <AlertCircle size={20} color="#D97706" />
-                    <Text className="ml-2 font-medium text-gray-900">Note</Text>
-                  </View>
-                  <Text className="text-gray-600">
-                    Farm operations can continue. Weather data will sync when
-                    online.
-                  </Text>
-                </View>
+                <TouchableOpacity
+                  onPress={fetchLocationAndWeather}
+                  className="bg-emerald-600 px-4 py-2 rounded-lg"
+                >
+                  <Text className="text-white font-medium">Try Again</Text>
+                </TouchableOpacity>
               </View>
             )}
 
-            {/* Error State (online pero nag-error) */}
-            {!weather.loading &&
-              !weatherLoading &&
-              isOnline &&
-              weather.error && (
-                <View className="items-center justify-center py-6">
-                  <AlertTriangle size={48} color="#DC2626" className="mb-4" />
-                  <Text className="text-xl font-bold text-gray-900 mb-2">
-                    Weather Unavailable
-                  </Text>
-                  <Text className="text-gray-600 text-center mb-4">
-                    {weather.error || "Failed to fetch weather data"}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={fetchLocationAndWeather}
-                    className="bg-emerald-600 px-4 py-2 rounded-lg"
-                  >
-                    <Text className="text-white font-medium">Try Again</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-            {/* Success State - May weather data */}
-            {!weather.loading &&
-              !weatherLoading &&
-              isOnline &&
-              !weather.error && (
-                <>
-                  <View className="flex-row justify-between items-center mb-4">
-                    <View className="flex-row items-center">
-                      <View className="mr-4">
-                        {getWeatherIcon(weather.condition)}
-                      </View>
-                      <View>
-                        <Text className="text-5xl font-bold text-gray-900">
-                          {weather.temperature}
-                        </Text>
-                        <Text className="text-lg text-gray-600">
-                          {weather.condition}
-                        </Text>
-                      </View>
+            {/* Success State */}
+            {!weather.loading && !weather.error && (
+              <>
+                <View className="flex-row justify-between items-center mb-4">
+                  <View className="flex-row items-center">
+                    <View className="mr-4">
+                      {getWeatherIcon(weather.condition)}
                     </View>
-                    <View className="items-end">
-                      <View className="flex-row items-center mb-2">
-                        <Droplets size={18} color="#3B82F6" />
-                        <Text className="ml-2 text-gray-700 font-medium">
-                          Humidity
-                        </Text>
-                      </View>
-                      <Text className="text-2xl font-bold text-blue-600">
-                        {weather.humidity}
+                    <View>
+                      <Text className="text-5xl font-bold text-gray-900">
+                        {weather.temperature}
+                      </Text>
+                      <Text className="text-lg text-gray-600">
+                        {weather.condition}
                       </Text>
                     </View>
                   </View>
-
-                  {/* Additional Weather Info */}
-                  <View className="flex-row justify-between mb-4 bg-white/50 rounded-xl p-3">
-                    <View className="items-center">
-                      <Thermometer size={20} color="#DC2626" />
-                      <Text className="text-sm text-gray-600 mt-1">
-                        Feels Like
-                      </Text>
-                      <Text className="font-bold text-gray-900">
-                        {weather.feelsLike}
+                  <View className="items-end">
+                    <View className="flex-row items-center mb-2">
+                      <Droplets size={18} color="#3B82F6" />
+                      <Text className="ml-2 text-gray-700 font-medium">
+                        Humidity
                       </Text>
                     </View>
-                    <View className="items-center">
-                      <Wind size={20} color="#059669" />
-                      <Text className="text-sm text-gray-600 mt-1">Wind</Text>
-                      <Text className="font-bold text-gray-900">
-                        {weather.windSpeed}
-                      </Text>
-                    </View>
-                    <View className="items-center">
-                      <CloudRain size={20} color="#3B82F6" />
-                      <Text className="text-sm text-gray-600 mt-1">Rain</Text>
-                      <Text className="font-bold text-blue-600">
-                        {weather.rainfall}
-                      </Text>
-                    </View>
-                    <View className="items-center">
-                      <Cloud size={20} color="#6B7280" />
-                      <Text className="text-sm text-gray-600 mt-1">Status</Text>
-                      <Text className="font-bold text-emerald-600">Live</Text>
-                    </View>
-                  </View>
-
-                  {/* Farming Recommendation */}
-                  <View className="bg-white rounded-xl p-4">
-                    <View className="flex-row items-center">
-                      <AlertCircle size={20} color="#D97706" />
-                      <Text className="ml-2 font-medium text-gray-900">
-                        Farming Recommendation
-                      </Text>
-                    </View>
-                    <Text className="text-gray-600 mt-2">
-                      {weather.recommendation}
+                    <Text className="text-2xl font-bold text-blue-600">
+                      {weather.humidity}
                     </Text>
                   </View>
-                </>
-              )}
+                </View>
 
-            <Text className="text-sm text-gray-500 text-center mt-4">
-              {weather.forecast}
-              {location &&
-                isOnline &&
-                !weather.error &&
-                ` • Location: ${location.coords.latitude.toFixed(2)}, ${location.coords.longitude.toFixed(2)}`}
-            </Text>
+                {/* Additional Weather Info */}
+                <View className="flex-row justify-between mb-4 bg-white/50 rounded-xl p-3">
+                  <View className="items-center">
+                    <Thermometer size={20} color="#DC2626" />
+                    <Text className="text-sm text-gray-600 mt-1">
+                      Feels Like
+                    </Text>
+                    <Text className="font-bold text-gray-900">
+                      {weather.feelsLike}
+                    </Text>
+                  </View>
+                  <View className="items-center">
+                    <Wind size={20} color="#059669" />
+                    <Text className="text-sm text-gray-600 mt-1">Wind</Text>
+                    <Text className="font-bold text-gray-900">
+                      {weather.windSpeed}
+                    </Text>
+                  </View>
+                  <View className="items-center">
+                    <CloudRain size={20} color="#3B82F6" />
+                    <Text className="text-sm text-gray-600 mt-1">Rain</Text>
+                    <Text className="font-bold text-blue-600">
+                      {weather.rainfall}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Farming Recommendation */}
+                <View className="bg-white rounded-xl p-4">
+                  <View className="flex-row items-center">
+                    <AlertCircle size={20} color="#D97706" />
+                    <Text className="ml-2 font-medium text-gray-900">
+                      Farming Recommendation
+                    </Text>
+                  </View>
+                  <Text className="text-gray-600 mt-2">
+                    {weather.recommendation}
+                  </Text>
+                </View>
+
+                {/* Location Info */}
+                {location && (
+                  <View className="mt-4 bg-blue-50 rounded-xl p-3">
+                    <View className="flex-row items-center mb-1">
+                      <MapPin size={16} color="#3B82F6" />
+                      <Text className="ml-2 text-sm font-medium text-gray-900">
+                        Your Location
+                      </Text>
+                    </View>
+                    <Text className="text-xs text-gray-600">
+                      {location.coords.latitude.toFixed(4)},{" "}
+                      {location.coords.longitude.toFixed(4)}
+                    </Text>
+                  </View>
+                )}
+
+                <Text className="text-sm text-gray-500 text-center mt-4">
+                  {weather.forecast}
+                </Text>
+              </>
+            )}
           </View>
         </View>
       </ScrollView>
