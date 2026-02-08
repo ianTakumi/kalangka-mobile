@@ -24,7 +24,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.ian_takumi.kalangka"
+      "package": "com.ian_takumi.kalangka",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCFxHDlSIRpdTkR4CZAgS4WEWe4bMhF8a8"
+        }
+      }
     },
     "web": {
       "output": "static",
@@ -53,6 +58,14 @@
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true,
           "granularPermissions": ["photo"]
+        }
+      ],
+      [
+        "expo-maps",
+        {
+          "requestLocationPermission": true,
+          "locationPermission": "Allow $(PRODUCT_NAME) to use your location",
+          "apiKey": "AIzaSyCFxHDlSIRpdTkR4CZAgS4WEWe4bMhF8a8"
         }
       ]
     ],
