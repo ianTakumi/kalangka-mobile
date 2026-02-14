@@ -27,7 +27,7 @@ class FlowerService {
   private async performInit(): Promise<boolean> {
     try {
       console.log("Initializing SQLite database for flowers...");
-      this.db = await SQLite.openDatabaseAsync("flowers.db");
+      this.db = await SQLite.openDatabaseAsync("kalangka.db");
 
       await this.db.execAsync(`
         CREATE TABLE IF NOT EXISTS flowers (
@@ -72,6 +72,20 @@ class FlowerService {
     }
   }
 
+  private async markAsUnsynced(id: string): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    try {
+      await this.db!.runAsync(
+        "UPDATE flowers SET is_synced = 0, updated_at = ? WHERE id = ?",
+        [new Date().toISOString(), id],
+      );
+      console.log(`📝 Flower ${id} marked as unsynced`);
+    } catch (error) {
+      console.error(`Error marking flower ${id} as unsynced:`, error);
+    }
+  }
+
   async createFlower(
     flowerData: Omit<
       Flower,
@@ -96,7 +110,7 @@ class FlowerService {
           flowerData.wrapped_at instanceof Date
             ? flowerData.wrapped_at.toISOString()
             : flowerData.wrapped_at,
-          flowerData.image_url || "",
+          flowerData.image_url,
           flowerData.status || "active",
           0,
           now,
@@ -116,13 +130,17 @@ class FlowerService {
     }
   }
 
-  async getFlowers(): Promise<Flower[]> {
+  async getFlowers(includeDeleted: boolean = false): Promise<Flower[]> {
     await this.ensureDatabaseReady();
 
     try {
-      const result = await this.db!.getAllAsync(
-        "SELECT * FROM flowers WHERE deleted_at IS NULL ORDER BY created_at DESC",
-      );
+      let query = "SELECT * FROM flowers";
+      if (!includeDeleted) {
+        query += " WHERE deleted_at IS NULL";
+      }
+      query += " ORDER BY created_at DESC";
+
+      const result = await this.db!.getAllAsync(query);
       return result.map((flower: any) => this.mapFlowerFromDB(flower));
     } catch (error) {
       console.error("Error fetching flowers:", error);
@@ -130,14 +148,21 @@ class FlowerService {
     }
   }
 
-  async getFlowersByTreeId(treeId: string): Promise<Flower[]> {
+  async getFlowersByTreeId(
+    treeId: string,
+    includeDeleted: boolean = false,
+  ): Promise<Flower[]> {
     await this.ensureDatabaseReady();
 
     try {
-      const result = await this.db!.getAllAsync(
-        "SELECT * FROM flowers WHERE tree_id = ? AND deleted_at IS NULL ORDER BY wrapped_at DESC",
-        [treeId],
-      );
+      let query = "SELECT * FROM flowers WHERE tree_id = ?";
+      if (!includeDeleted) {
+        query += " AND deleted_at IS NULL";
+      }
+      query += " ORDER BY wrapped_at DESC";
+
+      const result = await this.db!.getAllAsync(query, [treeId]);
+      console.log(result);
       return result.map((flower: any) => this.mapFlowerFromDB(flower));
     } catch (error) {
       console.error(`Error fetching flowers for tree ${treeId}:`, error);
@@ -168,6 +193,13 @@ class FlowerService {
 
     const now = new Date().toISOString();
     try {
+      // Check kung may existing flower
+      const existingFlower = await this.getFlower(id);
+      if (!existingFlower) {
+        throw new Error(`Flower ${id} not found`);
+      }
+
+      // Continue with the rest of your update logic...
       const allowedFields = [
         "tree_id",
         "quantity",
@@ -207,6 +239,8 @@ class FlowerService {
       return true;
     } catch (error) {
       console.error(`Error updating flower ${id}:`, error);
+      // Mark as unsynced kahit may error
+      await this.markAsUnsynced(id);
       throw new Error("Failed to update flower. Please try again.");
     }
   }
@@ -215,8 +249,21 @@ class FlowerService {
     await this.ensureDatabaseReady();
 
     try {
-      await this.db!.runAsync(`DELETE FROM flowers WHERE id = ?`, [id]);
+      // Kunin muna ang flower data bago i-delete
+      const flower = await this.getFlower(id);
 
+      if (!flower) {
+        throw new Error(`Flower ${id} not found`);
+      }
+
+      const now = new Date().toISOString();
+      // Soft delete - mark as deleted instead of removing
+      await this.db!.runAsync(
+        `UPDATE flowers SET deleted_at = ?, updated_at = ?, is_synced = 0 WHERE id = ?`,
+        [now, now, id],
+      );
+
+      // Mag-sync ng delete sa server
       this.syncDeleteToServer(id);
       return true;
     } catch (error) {
@@ -227,7 +274,6 @@ class FlowerService {
 
   async hardDeleteFlower(id: string): Promise<boolean> {
     await this.ensureDatabaseReady();
-
     try {
       await this.db!.runAsync(`DELETE FROM flowers WHERE id = ?`, [id]);
       this.syncDeleteToServer(id);
@@ -258,6 +304,19 @@ class FlowerService {
     }
   }
 
+  async getFlowerCount(): Promise<number> {
+    await this.ensureDatabaseReady();
+    try {
+      const result = await this.db!.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM flowers WHERE deleted_at IS NULL",
+      );
+      return result?.count || 0;
+    } catch (err) {
+      console.error("Error counting flowers:", err);
+      return 0;
+    }
+  }
+
   private mapFlowerFromDB(flower: any): Flower {
     return {
       id: flower.id,
@@ -283,13 +342,13 @@ class FlowerService {
   private markSyncFinish(id: string): void {
     this.syncInProgress.delete(id);
   }
-
   async getUnsyncedFlowers(): Promise<Flower[]> {
     await this.ensureDatabaseReady();
 
     try {
+      // Remove the "AND deleted_at IS NULL" condition to include deleted flowers
       const result = await this.db!.getAllAsync(
-        "SELECT * FROM flowers WHERE is_synced = 0 AND deleted_at IS NULL ORDER BY created_at ASC",
+        "SELECT * FROM flowers WHERE is_synced = 0 ORDER BY created_at ASC",
       );
       return result.map((flower: any) => this.mapFlowerFromDB(flower));
     } catch (error) {
@@ -502,14 +561,47 @@ class FlowerService {
   private async syncDeleteToServer(id: string): Promise<void> {
     const netInfo = await NetInfo.fetch();
     if (!netInfo.isConnected) {
-      console.log("Offline - Delete will sync when online");
+      console.log("📴 Offline - Delete will sync when online");
       return;
     }
 
+    if (this.isSyncInProgress(id)) {
+      console.log(`⏸️ Delete sync already in progress for flower ${id}`);
+      return;
+    }
+
+    this.markSyncStart(id);
+
     try {
-      await client.delete(`/flowers/${id}`);
+      // Check if flower exists on server
+      try {
+        await client.get(`/flowers/${id}`);
+
+        // If record exists on server, delete it
+        await client.delete(`/flowers/${id}`);
+        console.log(`🗑️ Deleted flower ${id} from server`);
+
+        // 🟢 IMPORTANT: Hard delete from local database after successful server deletion
+        await this.hardDeleteFlower(id);
+        console.log(`✅ Permanently removed flower ${id} from local database`);
+      } catch (getError: any) {
+        if (getError.response?.status === 404) {
+          console.log(`⚠️ Flower ${id} not found on server, already deleted`);
+          // 🟢 Also hard delete locally since it's already gone from server
+          await this.hardDeleteFlower(id);
+          console.log(
+            `✅ Permanently removed flower ${id} from local database`,
+          );
+        } else {
+          throw getError;
+        }
+      }
     } catch (error) {
-      console.error(`Delete sync failed for flower ${id}:`, error);
+      console.error(`❌ Delete sync failed for flower ${id}:`, error);
+      // Keep as unsynced to retry later
+      await this.markAsUnsynced(id);
+    } finally {
+      this.markSyncFinish(id);
     }
   }
 
@@ -522,16 +614,20 @@ class FlowerService {
 
     try {
       const unsyncedFlowers = await this.getUnsyncedFlowers();
+      console.log("Unsynced flowers", unsyncedFlowers);
+      console.log(`Found ${unsyncedFlowers.length} unsynced flowers`);
 
       for (const flower of unsyncedFlowers) {
         if (flower.deleted_at) {
+          console.log(`🗑️ Syncing DELETE for flower ${flower.id}`);
           await this.syncDeleteToServer(flower.id);
         } else {
+          console.log(`📤 Syncing flower ${flower.id}`);
           await this.syncFlowerToServer(flower);
         }
       }
 
-      console.log(`Synced ${unsyncedFlowers.length} flowers`);
+      console.log(`✅ Synced ${unsyncedFlowers.length} flowers`);
     } catch (error) {
       console.error("Full sync failed:", error);
     }

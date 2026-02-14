@@ -5,6 +5,7 @@ import { Tree } from "@/types/index";
 import { supabase } from "@/utils/supabase";
 import { decode } from "base64-arraybuffer";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Location from "expo-location";
 
 class TreeService {
   private db: SQLite.SQLiteDatabase | null = null;
@@ -35,7 +36,7 @@ class TreeService {
       console.log("Initializing SQLite database...");
 
       // Use the new async API
-      this.db = await SQLite.openDatabaseAsync("trees.db");
+      this.db = await SQLite.openDatabaseAsync("kalangka.db");
 
       // Create tables
       await this.db.execAsync(`
@@ -834,8 +835,116 @@ class TreeService {
     }
   }
 
-  // Add this at the very end of the class (before the export)
-  // Add this method to check sync status
+  /**
+   * Calculate distance from user to a specific tree
+   */
+  async getTreeDistance(
+    treeLat: number,
+    treeLng: number,
+  ): Promise<string | null> {
+    try {
+      // Check location permission
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") {
+        return null;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      // Calculate distance using Haversine formula
+      const R = 6371; // Earth's radius in kilometers
+      const lat1 = (location.coords.latitude * Math.PI) / 180;
+      const lat2 = (treeLat * Math.PI) / 180;
+      const dLat = ((treeLat - location.coords.latitude) * Math.PI) / 180;
+      const dLon = ((treeLng - location.coords.longitude) * Math.PI) / 180;
+
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) *
+          Math.cos(lat2) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceInKm = R * c;
+
+      // Format distance
+      if (distanceInKm < 1) {
+        return `${Math.round(distanceInKm * 1000)} meters away`;
+      } else {
+        return `${distanceInKm.toFixed(1)} km away`;
+      }
+    } catch (error) {
+      console.log("Could not calculate distance:", error);
+      return null;
+    }
+  }
+
+  async getTreesWithDistance(): Promise<(Tree & { distance?: string })[]> {
+    const trees = await this.getTrees();
+
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") {
+        return trees; // Return trees without distance if no permission
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      return trees.map((tree) => {
+        const R = 6371;
+        const lat1 = (location.coords.latitude * Math.PI) / 180;
+        const lat2 = (tree.latitude * Math.PI) / 180;
+        const dLat =
+          ((tree.latitude - location.coords.latitude) * Math.PI) / 180;
+        const dLon =
+          ((tree.longitude - location.coords.longitude) * Math.PI) / 180;
+
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1) *
+            Math.cos(lat2) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distanceInKm = R * c;
+
+        let distance: string;
+        if (distanceInKm < 1) {
+          distance = `${Math.round(distanceInKm * 1000)} meters away`;
+        } else {
+          distance = `${distanceInKm.toFixed(1)} km away`;
+        }
+
+        return { ...tree, distance };
+      });
+    } catch (error) {
+      console.log("Could not calculate distances:", error);
+      return trees;
+    }
+  }
+
+  async getTreeCount(): Promise<number> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const result = await this.db!.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM trees",
+      );
+
+      return result?.count || 0;
+    } catch (err) {
+      console.error("Error getting tree count:", err);
+      return 0;
+    }
+  }
+
   async checkAndSync(): Promise<{ needsSync: boolean; treeCount: number }> {
     try {
       const { data: remoteTrees, error } = await supabase

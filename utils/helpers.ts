@@ -9,5 +9,3 @@ export const getTimeBasedGreeting = () => {
     return "Good evening";
   }
 };
-
-export const uploadImageToSupabase = async (file: File) => {};

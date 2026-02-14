@@ -31,7 +31,7 @@ import {
 import TreeCamera from "@/components/TreeCamera";
 import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
-
+import * as Location from "expo-location";
 // Create directory for tree images
 const TREE_IMAGES_DIR = FileSystem.documentDirectory + "tree_images/";
 
@@ -216,7 +216,7 @@ export default function TreesScreen() {
   };
   const loadTrees = async () => {
     try {
-      const data = await TreeService.getTrees();
+      const data = await TreeService.getTreesWithDistance();
       console.log(`📊 Loaded ${data.length} trees locally`);
       setTrees(data);
 
@@ -531,26 +531,39 @@ export default function TreesScreen() {
     );
   };
 
-  const renderTreeItem = ({ item }: { item: Tree }) => {
+  const renderTreeItem = ({ item }: { item: Tree & { distance?: string } }) => {
     const hasLocalImage = (item as any).image_path;
 
+    const treeInfoData = {
+      id: item.id,
+      description: item.description,
+      image_path: (item as any).image_path || null,
+      is_synced: item.is_synced,
+      coordinates: {
+        latitude: item.latitude,
+        longitude: item.longitude,
+      },
+      type: item.type,
+      status: item.status,
+      created_at: item.created_at,
+    };
+
     const handlePress = () => {
-      // Navigate to treeinfo with the tree data
       router.push({
         pathname: "/admin/treeinfo",
         params: {
-          treeData: JSON.stringify(item),
+          treeData: JSON.stringify(treeInfoData),
         },
       });
     };
 
     const handleEditPress = (e: any) => {
-      e.stopPropagation(); // Prevent triggering the parent press
+      e.stopPropagation();
       handleEdit(item);
     };
 
     const handleDeletePress = (e: any) => {
-      e.stopPropagation(); // Prevent triggering the parent press
+      e.stopPropagation();
       handleDelete(item.id);
     };
 
@@ -589,10 +602,11 @@ export default function TreesScreen() {
                 </View>
               </View>
 
+              {/* Distance from user */}
               <View className="flex-row items-center mb-2">
                 <MapPin size={14} color="#6b7280" />
                 <Text className="text-sm text-gray-600 ml-1">
-                  {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
+                  {item.distance || "Distance unavailable"}
                 </Text>
               </View>
 

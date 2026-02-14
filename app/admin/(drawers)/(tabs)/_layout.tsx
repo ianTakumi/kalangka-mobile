@@ -11,11 +11,12 @@ export default function _layout() {
         tabBarActiveTintColor: "#4CAF50",
         tabBarInactiveTintColor: "#9CA3AF",
         tabBarStyle: {
-          height: 60,
-          borderTopWidth: 0.3,
-          borderTopColor: "#E5E7EB",
-          backgroundColor: "#fff",
-          paddingBottom: 5,
+          display: "none",
+          // height: 60,
+          // borderTopWidth: 0.3,
+          // borderTopColor: "#E5E7EB",
+          // backgroundColor: "#fff",
+          // paddingBottom: 5,
         },
         tabBarIcon: ({ color, size }) => {
           switch (route.name) {

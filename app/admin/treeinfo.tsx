@@ -29,12 +29,13 @@ import {
   Calendar,
   Package,
   X,
+  ClipboardList,
 } from "lucide-react-native";
 import { Flower as FlowerType } from "@/types/index";
 import FlowerService from "@/services/FlowerService";
 import * as MediaLibrary from "expo-media-library";
 import { captureRef } from "react-native-view-shot";
-import * as FileSystem from "expo-file-system/legacy";
+import { useRouter } from "expo-router";
 
 export default function TreeInfoScreen() {
   const params = useLocalSearchParams();
@@ -51,6 +52,8 @@ export default function TreeInfoScreen() {
     wrapped_at: new Date(),
     image_url: "",
   });
+  const [flowerCount, setFlowerCount] = useState(0);
+  const router = useRouter();
 
   // Date input states
   const [dateInput, setDateInput] = useState("");
@@ -336,7 +339,95 @@ export default function TreeInfoScreen() {
     }
   };
 
-  // Update the handleDeleteFlower function:
+  // Helper functions for date calculation
+  const calculateDueDate = (wrappedDate) => {
+    if (!wrappedDate) return "N/A";
+
+    const date = new Date(wrappedDate);
+    date.setDate(date.getDate() + 120); // Add 120 days
+
+    // Format as MM/DD/YYYY
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const day = date.getDate().toString().padStart(2, "0");
+    const year = date.getFullYear();
+
+    return `${month}/${day}/${year}`;
+  };
+
+  const calculateDaysRemaining = (wrappedDate) => {
+    if (!wrappedDate) return 0;
+
+    const wrapped = new Date(wrappedDate);
+    const dueDate = new Date(wrapped);
+    dueDate.setDate(dueDate.getDate() + 120);
+
+    const today = new Date();
+    const diffTime = dueDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays;
+  };
+
+  const renderDaysRemaining = (wrappedDate) => {
+    const daysRemaining = calculateDaysRemaining(wrappedDate);
+
+    let bgColor = "bg-emerald-50";
+    let textColor = "text-emerald-700";
+    let borderColor = "border-emerald-200";
+    let statusText = "On Track";
+
+    if (daysRemaining <= 30) {
+      bgColor = "bg-amber-50";
+      textColor = "text-amber-700";
+      borderColor = "border-amber-200";
+      statusText = "Approaching Review";
+    }
+
+    if (daysRemaining <= 7) {
+      bgColor = "bg-red-50";
+      textColor = "text-red-700";
+      borderColor = "border-red-200";
+      statusText = "Review Soon";
+    }
+
+    if (daysRemaining <= 0) {
+      bgColor = "bg-red-100";
+      textColor = "text-red-800";
+      borderColor = "border-red-300";
+      statusText = "Overdue for Review";
+    }
+
+    return (
+      <View className={`${bgColor} border ${borderColor} rounded-lg p-3`}>
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row items-center">
+            <Clock
+              size={16}
+              color={
+                textColor.includes("red")
+                  ? "#dc2626"
+                  : textColor.includes("amber")
+                    ? "#f59e0b"
+                    : "#059669"
+              }
+            />
+            <Text className={`${textColor} font-medium ml-2`}>
+              {statusText}
+            </Text>
+          </View>
+          <Text className={`${textColor} font-bold`}>
+            {daysRemaining <= 0 ? "OVERDUE" : `${daysRemaining} days remaining`}
+          </Text>
+        </View>
+        <Text className={`${textColor} text-sm mt-1`}>
+          {daysRemaining > 0
+            ? `Review due in ${daysRemaining} days`
+            : "Please review with farmers immediately"}
+        </Text>
+      </View>
+    );
+  };
+
   const handleDeleteFlower = async () => {
     Alert.alert(
       "Delete Flower",
@@ -380,6 +471,7 @@ export default function TreeInfoScreen() {
           await FlowerService.init();
           const treeId = treeData.id || treeData._id;
           const flowers = await FlowerService.getFlowersByTreeId(treeId);
+          setFlowerCount(flowers.length);
           console.log(`Loaded flowers for tree ${treeId}:`, flowers);
           // Get the first flower (assuming one flower per tree)
           if (flowers.length > 0) {
@@ -614,7 +706,7 @@ export default function TreeInfoScreen() {
                   <MapPin size={20} color="#059669" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm text-gray-500 mb-1">Locationf</Text>
+                  <Text className="text-sm text-gray-500 mb-1">Location</Text>
                   <Text className="text-gray-900 font-medium">
                     {treeData?.coordinates?.latitude.toFixed(6)},{" "}
                     {treeData?.coordinates?.longitude.toFixed(6)}
@@ -672,7 +764,7 @@ export default function TreeInfoScreen() {
             </View>
           </View>
 
-          {/* Flower Section */}
+          {/* Flower Section - NEW VERSION */}
           <View className="bg-white rounded-2xl shadow-lg p-6 mb-6">
             <View className="flex-row justify-between items-center mb-4">
               <View className="flex-row items-center">
@@ -681,302 +773,53 @@ export default function TreeInfoScreen() {
                 </View>
                 <View>
                   <Text className="text-xl font-bold text-gray-900">
-                    Flower Information
+                    Flowers ({flowerCount})
                   </Text>
                   <Text className="text-gray-500">
-                    {flower ? "Flower details" : "No flower added yet"}
+                    Track flower wrapping and reviews
                   </Text>
                 </View>
               </View>
-
-              {flower ? (
-                <TouchableOpacity
-                  onPress={() => setIsEditingFlower(true)}
-                  className="flex-row items-center bg-emerald-50 px-3 py-2 rounded-lg"
-                >
-                  <Edit2 size={16} color="#059669" />
-                  <Text className="text-emerald-700 font-medium ml-2">
-                    Edit
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={() => setShowFlowerForm(true)}
-                  className="flex-row items-center bg-emerald-500 px-3 py-2 rounded-lg"
-                >
-                  <Plus size={16} color="#fff" />
-                  <Text className="text-white font-medium ml-2">
-                    Add Flower
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
 
-            {flower ? (
-              <View>
-                {!isEditingFlower ? (
-                  <View className="bg-gray-50 rounded-xl p-4">
-                    <View className="flex-row items-center mb-3">
-                      <Package size={20} color="#6b7280" />
-                      <Text className="text-gray-900 font-medium ml-2">
-                        Quantity: {flower.quantity}
-                      </Text>
-                    </View>
-
-                    <View className="flex-row items-center mb-3">
-                      <Calendar size={20} color="#6b7280" />
-                      <Text className="text-gray-900 font-medium ml-2">
-                        Wrapped: {formatDateTime(flower.wrapped_at)}
-                      </Text>
-                    </View>
-
-                    {flower.image_url ? (
-                      <View className="mt-4">
-                        <Text className="text-sm font-medium text-gray-700 mb-2">
-                          Flower Image
-                        </Text>
-                        <Image
-                          source={{ uri: flower.image_url }}
-                          className="w-full h-48 rounded-lg"
-                          resizeMode="cover"
-                        />
-                      </View>
-                    ) : (
-                      <View className="mt-4 p-4 bg-gray-100 rounded-lg items-center">
-                        <CameraIcon size={32} color="#9ca3af" />
-                        <Text className="text-gray-500 mt-2">
-                          No image available
-                        </Text>
-                      </View>
-                    )}
-
-                    <TouchableOpacity
-                      onPress={handleDeleteFlower}
-                      className="flex-row items-center justify-center mt-6 py-3 bg-red-50 rounded-lg"
-                    >
-                      <Trash2 size={18} color="#dc2626" />
-                      <Text className="text-red-600 font-medium ml-2">
-                        Delete Flower
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View className="bg-gray-50 rounded-xl p-4">
-                    {/* Flower Form */}
-                    <Text className="text-lg font-bold text-gray-900 mb-4">
-                      Edit Flower Information
+            {flowerCount > 0 ? (
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: "/admin/flowers",
+                    params: { treeData: JSON.stringify(treeData) },
+                  })
+                }
+                className="bg-emerald-50 rounded-xl p-4"
+              >
+                <View className="flex-row items-center justify-between">
+                  <View>
+                    <Text className="font-semibold text-gray-800">
+                      View All Flowers
                     </Text>
-
-                    {/* Quantity Input */}
-                    <View className="mb-4">
-                      <Text className="text-sm font-medium text-gray-700 mb-1">
-                        Quantity
-                      </Text>
-                      <TextInput
-                        className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                        value={flowerForm.quantity}
-                        onChangeText={(text) =>
-                          setFlowerForm({ ...flowerForm, quantity: text })
-                        }
-                        placeholder="Enter quantity"
-                        keyboardType="numeric"
-                      />
-                    </View>
-
-                    {/* Date Picker */}
-                    <View className="mb-4">
-                      <Text className="text-sm font-medium text-gray-700 mb-1">
-                        Wrapped Date & Time
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => setShowDateModal(true)}
-                        className="bg-white border border-gray-300 rounded-lg px-4 py-3 flex-row items-center"
-                      >
-                        <Calendar size={20} color="#6b7280" />
-                        <Text className="text-gray-900 ml-2">
-                          {formatDateTime(flowerForm.wrapped_at)}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Take Photo Button */}
-                    <View className="mb-6">
-                      <Text className="text-sm font-medium text-gray-700 mb-1">
-                        Flower Image
-                      </Text>
-                      {flowerForm.image_url ? (
-                        <>
-                          <Image
-                            source={{ uri: flowerForm.image_url }}
-                            className="w-full h-48 rounded-lg mb-3"
-                            resizeMode="cover"
-                          />
-                          <TouchableOpacity
-                            onPress={takePicture}
-                            className="bg-emerald-50 py-3 rounded-lg items-center"
-                          >
-                            <Text className="text-emerald-700 font-medium">
-                              Take New Photo
-                            </Text>
-                          </TouchableOpacity>
-                        </>
-                      ) : (
-                        <TouchableOpacity
-                          onPress={takePicture}
-                          className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-8 items-center"
-                        >
-                          <CameraIcon size={32} color="#9ca3af" />
-                          <Text className="text-gray-500 mt-2">
-                            Tap to take photo
-                          </Text>
-                          <Text className="text-gray-400 text-sm mt-1">
-                            Recommended: 4:3 ratio
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
-                    {/* Form Actions */}
-                    <View className="flex-row space-x-3">
-                      <TouchableOpacity
-                        onPress={() => {
-                          setIsEditingFlower(false);
-                          Toast.show({
-                            type: "info",
-                            text1: "Cancelled",
-                            text2: "Changes discarded",
-                          });
-                        }}
-                        className="flex-1 bg-gray-100 py-3 rounded-lg items-center"
-                      >
-                        <Text className="text-gray-700 font-medium">
-                          Cancel
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={handleSaveFlower}
-                        className="flex-1 bg-emerald-500 py-3 rounded-lg items-center"
-                      >
-                        <Text className="text-white font-medium">Save</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-            ) : showFlowerForm ? (
-              <View className="bg-gray-50 rounded-xl p-4">
-                {/* Add Flower Form */}
-                <Text className="text-lg font-bold text-gray-900 mb-4">
-                  Add Flower Information
-                </Text>
-
-                {/* Quantity Input */}
-                <View className="mb-4">
-                  <Text className="text-sm font-medium text-gray-700 mb-1">
-                    Quantity
-                  </Text>
-                  <TextInput
-                    className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                    value={flowerForm.quantity}
-                    onChangeText={(text) =>
-                      setFlowerForm({ ...flowerForm, quantity: text })
-                    }
-                    placeholder="Enter quantity"
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                {/* Date Picker */}
-                <View className="mb-4">
-                  <Text className="text-sm font-medium text-gray-700 mb-1">
-                    Wrapped Date & Time
-                  </Text>
-                  {/* <TouchableOpacity
-                    onPress={() => setShowDateModal(true)}
-                    className="bg-white border border-gray-300 rounded-lg px-4 py-3 flex-row items-center"
-                  > */}
-                  <View className="bg-white border border-gray-300 rounded-lg px-4 py-3 flex-row items-center">
-                    <Calendar size={20} color="#6b7280" />
-                    <Text className="text-gray-900 ml-2">
-                      {formatDateTime(flowerForm.wrapped_at)}
+                    <Text className="text-gray-600 mt-1">
+                      {flowerCount} flower{flowerCount !== 1 ? "s" : ""}{" "}
+                      recorded
                     </Text>
                   </View>
-
-                  {/* </TouchableOpacity> */}
                 </View>
-
-                {/* Take Photo Button */}
-                <View className="mb-6">
-                  <Text className="text-sm font-medium text-gray-700 mb-1">
-                    Flower Image
-                  </Text>
-                  {flowerForm.image_url ? (
-                    <>
-                      <Image
-                        source={{ uri: flowerForm.image_url }}
-                        className="w-full h-48 rounded-lg mb-3"
-                        resizeMode="cover"
-                      />
-                      <TouchableOpacity
-                        onPress={takePicture}
-                        className="bg-emerald-50 py-3 rounded-lg items-center"
-                      >
-                        <Text className="text-emerald-700 font-medium">
-                          Take New Photo
-                        </Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={takePicture}
-                      className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-8 items-center"
-                    >
-                      <CameraIcon size={32} color="#9ca3af" />
-                      <Text className="text-gray-500 mt-2">
-                        Tap to take photo
-                      </Text>
-                      <Text className="text-gray-400 text-sm mt-1">
-                        Recommended: 4:3 ratio
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* Form Actions */}
-                <View className="flex-row space-x-3">
-                  <TouchableOpacity
-                    onPress={() => {
-                      setShowFlowerForm(false);
-                      Toast.show({
-                        type: "info",
-                        text1: "Cancelled",
-                        text2: "Flower addition cancelled",
-                        position: "bottom",
-                      });
-                    }}
-                    className="flex-1 bg-gray-100 py-3 rounded-lg items-center"
-                  >
-                    <Text className="text-gray-700 font-medium">Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSaveFlower}
-                    className="flex-1 bg-emerald-500 py-3 rounded-lg items-center"
-                  >
-                    <Text className="text-white font-medium">Add Flower</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                onPress={() => setShowFlowerForm(true)}
+                onPress={() =>
+                  router.push({
+                    pathname: "/admin/flowers",
+                    params: { treeData: JSON.stringify(treeData) },
+                  })
+                }
                 className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 items-center"
               >
                 <Plus size={48} color="#9ca3af" />
                 <Text className="text-gray-500 mt-4 text-lg font-medium">
-                  Add Flower Information
+                  Add First Flower
                 </Text>
                 <Text className="text-gray-400 text-center mt-2">
-                  Record the flower quantity, wrapping date, and take a photo
+                  Start tracking flower wrapping and reviews
                 </Text>
               </TouchableOpacity>
             )}

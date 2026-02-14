@@ -48,6 +48,7 @@ export interface Fruit {
   created_at: Date | null;
   updated_at: Date | null;
   deleted_at: Date | null;
+  is_synced?: boolean;
 }
 
 export interface FruitWeight {

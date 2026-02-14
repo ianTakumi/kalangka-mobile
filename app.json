@@ -64,8 +64,8 @@
         "expo-maps",
         {
           "requestLocationPermission": true,
-          "locationPermission": "Allow $(PRODUCT_NAME) to use your location"
-          // "apiKey": "AIzaSyCFxHDlSIRpdTkR4CZAgS4WEWe4bMhF8a8"
+          "locationPermission": "Allow $(PRODUCT_NAME) to use your location",
+          "apiKey": "AIzaSyCFxHDlSIRpdTkR4CZAgS4WEWe4bMhF8a8"
         }
       ]
     ],

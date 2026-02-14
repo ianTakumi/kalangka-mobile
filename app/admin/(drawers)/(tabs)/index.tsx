@@ -37,6 +37,8 @@ import * as Location from "expo-location";
 import axios from "axios";
 import { Link } from "expo-router";
 import { getTimeBasedGreeting } from "@/utils/helpers";
+import treeService from "@/services/treeService";
+import FlowerService from "@/services/FlowerService";
 
 const { width } = Dimensions.get("window");
 
@@ -46,9 +48,9 @@ export default function FarmerHomeScreen() {
   const [location, setLocation] = useState(null);
 
   const [userStats, setUserStats] = useState({
-    totalTrees: 24,
-    activeTrees: 22,
-    flowersToday: 8,
+    totalTrees: treeService.getTreeCount(),
+    // activeTrees: 22,
+    flowersToday: FlowerService.getFlowerCount(),
     harvestThisWeek: 125,
     totalLoss: 12,
   });
@@ -64,25 +66,7 @@ export default function FarmerHomeScreen() {
       route: "/admin/(drawers)/(tabs)/trees",
     },
     {
-      id: 2,
-      title: "Log Flowers",
-      description: "Record flower count",
-      icon: <Flower2 size={28} color="#7C3AED" />,
-      bgColor: "bg-violet-50",
-      iconColor: "text-violet-600",
-      route: "/admin/(drawers)/(tabs)/flowers",
-    },
-    {
       id: 3,
-      title: "Report Harvest",
-      description: "Log harvested weight",
-      icon: <Package size={28} color="#DC2626" />,
-      bgColor: "bg-red-50",
-      iconColor: "text-red-600",
-      route: "/harvest/(drawers)/(tabs)/harvest",
-    },
-    {
-      id: 4,
       title: "Scan QR",
       description: "Quick tree access",
       icon: <QrCode size={28} color="#2563EB" />,
@@ -91,7 +75,7 @@ export default function FarmerHomeScreen() {
       route: "/admin/qrcam",
     },
     {
-      id: 5,
+      id: 4,
       title: "View Map",
       description: "Tree locations",
       icon: <MapPin size={28} color="#059669" />,
@@ -100,7 +84,7 @@ export default function FarmerHomeScreen() {
       route: "admin/map",
     },
     {
-      id: 6,
+      id: 5,
       title: "User Management",
       description: "Manage farm workers",
       icon: <User size={28} color="#7C3AED" />,
@@ -462,7 +446,7 @@ export default function FarmerHomeScreen() {
           <TouchableOpacity
             onPress={onRefresh}
             disabled={weather.loading}
-            className="flex-row items-center"
+            className="flex-row items-center gap-2"
           >
             <RefreshCw
               size={18}
@@ -492,7 +476,7 @@ export default function FarmerHomeScreen() {
             <Text className="text-2xl font-bold text-gray-900">
               Farm Overview
             </Text>
-            <Text className="text-gray-600">Today's summary</Text>
+            <Text className="text-gray-600">Today&apos;s summary</Text>
           </View>
 
           <ScrollView
@@ -500,7 +484,7 @@ export default function FarmerHomeScreen() {
             showsHorizontalScrollIndicator={false}
             className="mb-6"
           >
-            <View className="flex-row space-x-4">
+            <View className="flex-row gap-2">
               {/* Total Trees Card */}
               <View className="w-40 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <View className="w-12 h-12 bg-emerald-50 rounded-xl items-center justify-center mb-3">
@@ -510,12 +494,12 @@ export default function FarmerHomeScreen() {
                   {userStats.totalTrees}
                 </Text>
                 <Text className="text-gray-600 font-medium">Total Trees</Text>
-                <Text className="text-sm text-emerald-600 mt-1">
+                {/* <Text className="text-sm text-emerald-600 mt-1">
                   {userStats.activeTrees} active
-                </Text>
+                </Text> */}
               </View>
 
-              {/* Flowers Today Card */}
+              {/* Total Flowers Card */}
               <View className="w-40 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <View className="w-12 h-12 bg-violet-50 rounded-xl items-center justify-center mb-3">
                   <Flower2 size={24} color="#7C3AED" />
@@ -523,10 +507,7 @@ export default function FarmerHomeScreen() {
                 <Text className="text-3xl font-bold text-gray-900">
                   {userStats.flowersToday}
                 </Text>
-                <Text className="text-gray-600 font-medium">Flowers Today</Text>
-                <Text className="text-sm text-gray-500 mt-1">
-                  Last 24 hours
-                </Text>
+                <Text className="text-gray-600 font-medium">Total Flowers</Text>
               </View>
 
               {/* Harvest Card */}
@@ -538,7 +519,6 @@ export default function FarmerHomeScreen() {
                   {userStats.harvestThisWeek}
                 </Text>
                 <Text className="text-gray-600 font-medium">Kg This Week</Text>
-                <Text className="text-sm text-gray-500 mt-1">Jackfruit</Text>
               </View>
             </View>
           </ScrollView>
@@ -688,22 +668,6 @@ export default function FarmerHomeScreen() {
                     {weather.recommendation}
                   </Text>
                 </View>
-
-                {/* Location Info */}
-                {location && (
-                  <View className="mt-4 bg-blue-50 rounded-xl p-3">
-                    <View className="flex-row items-center mb-1">
-                      <MapPin size={16} color="#3B82F6" />
-                      <Text className="ml-2 text-sm font-medium text-gray-900">
-                        Your Location
-                      </Text>
-                    </View>
-                    <Text className="text-xs text-gray-600">
-                      {location.coords.latitude.toFixed(4)},{" "}
-                      {location.coords.longitude.toFixed(4)}
-                    </Text>
-                  </View>
-                )}
 
                 <Text className="text-sm text-gray-500 text-center mt-4">
                   {weather.forecast}

@@ -9,9 +9,12 @@ export default function _layout() {
       <Stack.Screen name="users" options={{ headerShown: false }} />
       <Stack.Screen name="editProfile" options={{ headerShown: false }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />
+      <Stack.Screen name="reportFlower" options={{ headerShown: false }} />
       <Stack.Screen name="treeinfo" options={{ headerShown: false }} />
       <Stack.Screen name="qrcam" options={{ headerShown: false }} />
       <Stack.Screen name="map" options={{ headerShown: false }} />
+      <Stack.Screen name="flowers" options={{ headerShown: false }} />
+      <Stack.Screen name="fruits" options={{ headerShown: false }} />
       <Stack.Screen name="changePassword" options={{ headerShown: false }} />
     </Stack>
   );
