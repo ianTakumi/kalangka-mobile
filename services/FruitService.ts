@@ -1,11 +1,10 @@
-// services/FruitService.ts
-import * as SQLite from "expo-sqlite";
 import { Fruit } from "@/types/index";
 import client from "@/utils/axiosInstance";
-import NetInfo from "@react-native-community/netinfo";
 import { supabase } from "@/utils/supabase";
+import NetInfo from "@react-native-community/netinfo";
 import { decode } from "base64-arraybuffer";
 import * as FileSystem from "expo-file-system/legacy";
+import * as SQLite from "expo-sqlite";
 
 class FruitService {
   private db: SQLite.SQLiteDatabase | null = null;

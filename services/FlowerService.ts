@@ -1,10 +1,11 @@
-import * as SQLite from "expo-sqlite";
+import { CREATE_FLOWER_INDEXES, CREATE_FLOWERS_TABLE } from "@/database/schema";
 import { Flower } from "@/types/index";
 import client from "@/utils/axiosInstance";
-import NetInfo from "@react-native-community/netinfo";
 import { supabase } from "@/utils/supabase";
+import NetInfo from "@react-native-community/netinfo";
 import { decode } from "base64-arraybuffer";
 import * as FileSystem from "expo-file-system/legacy";
+import * as SQLite from "expo-sqlite";
 
 class FlowerService {
   private db: SQLite.SQLiteDatabase | null = null;
@@ -29,29 +30,8 @@ class FlowerService {
       console.log("Initializing SQLite database for flowers...");
       this.db = await SQLite.openDatabaseAsync("kalangka.db");
 
-      await this.db.execAsync(`
-        CREATE TABLE IF NOT EXISTS flowers (
-          id TEXT PRIMARY KEY,
-          tree_id TEXT NOT NULL,
-          quantity INTEGER NOT NULL DEFAULT 1,
-          wrapped_at TEXT NOT NULL,
-          image_url TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'active',
-          is_synced INTEGER DEFAULT 0,
-          created_at TEXT,
-          updated_at TEXT,
-          deleted_at TEXT,
-          FOREIGN KEY (tree_id) REFERENCES trees(id) ON DELETE CASCADE
-        );
-      `);
-
-      await this.db.execAsync(`
-        CREATE INDEX IF NOT EXISTS idx_flowers_tree_id ON flowers(tree_id);
-        CREATE INDEX IF NOT EXISTS idx_flowers_status ON flowers(status);
-        CREATE INDEX IF NOT EXISTS idx_flowers_synced ON flowers(is_synced);
-        CREATE INDEX IF NOT EXISTS idx_flowers_created ON flowers(created_at);
-        CREATE INDEX IF NOT EXISTS idx_flowers_wrapped ON flowers(wrapped_at);
-      `);
+      await this.db.execAsync(CREATE_FLOWERS_TABLE);
+      await this.db.execAsync(CREATE_FLOWER_INDEXES);
 
       console.log("Flowers SQLite database initialized successfully");
       this.isInitializing = false;
@@ -98,7 +78,10 @@ class FlowerService {
 
     const id = this.generateUUID();
     const now = new Date().toISOString();
-
+    console.log("Creating flower with data:", {
+      id,
+      ...flowerData,
+    });
     try {
       await this.db!.runAsync(
         `INSERT INTO flowers (id, tree_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
@@ -437,6 +420,8 @@ class FlowerService {
         is_synced: true,
       };
 
+      console.log(payload);
+
       console.log(`📤 Syncing flower ${flower.id}...`);
 
       let response;
@@ -633,6 +618,144 @@ class FlowerService {
     }
   }
 
+  async syncFlowersFromServer(): Promise<{ synced: number; errors: string[] }> {
+    try {
+      console.log("🔄 Starting flower sync from server...");
+      await this.ensureDatabaseReady();
+      if (!this.db) throw new Error("Database not initialized");
+
+      const errors: string[] = [];
+      let syncedCount = 0;
+
+      // Get flowers from Laravel
+      const response = await client.get("/flowers");
+      if (!response.data.success || !response.data.data) {
+        throw new Error("Invalid response from server");
+      }
+
+      const remoteFlowers = response.data.data;
+      if (!remoteFlowers?.length) {
+        return { synced: 0, errors: ["No flowers found on server"] };
+      }
+
+      console.log(`📥 Found ${remoteFlowers.length} flowers on server`);
+
+      // Process each flower
+      for (const rf of remoteFlowers) {
+        try {
+          // Check if exists
+          const existing = await this.getFlower(rf.id);
+
+          // Download image if it's a URL
+          let localImagePath = rf.image_url || "";
+          if (rf.image_url?.startsWith("http")) {
+            try {
+              // Create flowers images directory if not exists
+              const dir = `${FileSystem.documentDirectory}flowers_images/`;
+              const dirInfo = await FileSystem.getInfoAsync(dir);
+              if (!dirInfo.exists) {
+                await FileSystem.makeDirectoryAsync(dir, {
+                  intermediates: true,
+                });
+              }
+
+              // Download image
+              const ext = rf.image_url.split(".").pop()?.split("?")[0] || "jpg";
+              const localPath = `${dir}flower_${rf.id}_${Date.now()}.${ext}`;
+              const { uri } = await FileSystem.downloadAsync(
+                rf.image_url,
+                localPath,
+              );
+              localImagePath = uri;
+              console.log(`✅ Downloaded image for flower ${rf.id}`);
+            } catch (imgError) {
+              console.warn(
+                `⚠️ Image download failed for flower ${rf.id}, using URL`,
+              );
+              localImagePath = rf.image_url; // Keep URL as fallback
+            }
+          }
+
+          if (!existing) {
+            // Insert new flower
+            await this.db!.runAsync(
+              `INSERT INTO flowers (id, tree_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                rf.id,
+                rf.tree_id,
+                rf.quantity || 1,
+                rf.wrapped_at,
+                localImagePath,
+                rf.status || "active",
+                1,
+                rf.created_at,
+                rf.updated_at || rf.created_at,
+              ],
+            );
+            syncedCount++;
+            console.log(`✅ Added flower ${rf.id}`);
+          } else {
+            // Update if newer
+            const localUpdated = existing.updated_at?.getTime() || 0;
+            const remoteUpdated = new Date(rf.updated_at).getTime();
+
+            if (remoteUpdated > localUpdated) {
+              await this.db!.runAsync(
+                `UPDATE flowers SET tree_id=?, quantity=?, wrapped_at=?, image_url=?, 
+               status=?, is_synced=?, updated_at=? WHERE id=?`,
+                [
+                  rf.tree_id,
+                  rf.quantity || 1,
+                  rf.wrapped_at,
+                  localImagePath,
+                  rf.status || "active",
+                  1,
+                  rf.updated_at,
+                  rf.id,
+                ],
+              );
+              syncedCount++;
+              console.log(`✅ Updated flower ${rf.id}`);
+            }
+          }
+        } catch (err: any) {
+          errors.push(`Flower ${rf.id}: ${err.message}`);
+        }
+      }
+
+      console.log(
+        `✅ Flower sync: ${syncedCount} synced, ${errors.length} errors`,
+      );
+      return { synced: syncedCount, errors };
+    } catch (error: any) {
+      console.error("❌ Flower sync failed:", error);
+      throw new Error(`Failed to sync flowers: ${error.message}`);
+    }
+  }
+
+  async checkAndSync(): Promise<{ needsSync: boolean; flowerCount: number }> {
+    try {
+      const response = await client.get("/flowers");
+      if (!response.data.success || !response.data.data) {
+        return { needsSync: false, flowerCount: 0 };
+      }
+
+      const remoteFlowers = response.data.data;
+      const localFlowers = await this.getFlowers(true); // include all
+
+      const needsSync = remoteFlowers.length !== localFlowers.length;
+
+      return {
+        needsSync,
+        flowerCount: remoteFlowers.length,
+      };
+    } catch (error) {
+      console.error("Error checking flower sync:", error);
+      return { needsSync: false, flowerCount: 0 };
+    }
+  }
+
   async clearDatabase(): Promise<void> {
     await this.ensureDatabaseReady();
 
@@ -664,7 +787,11 @@ class FlowerService {
     }
   }
 
-  async getStats(): Promise<{
+  /**
+   * Get flower statistics - optionally filtered by tree_id
+   * @param treeId Optional tree ID to filter stats for a specific tree
+   */
+  async getStats(treeId?: string): Promise<{
     total: number;
     active: number;
     inactive: number;
@@ -675,24 +802,33 @@ class FlowerService {
     await this.ensureDatabaseReady();
 
     try {
-      const stats = await this.db!.getAllAsync(`
-        SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-          SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
-          SUM(CASE WHEN is_synced = 1 THEN 1 ELSE 0 END) as synced,
-          SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced,
-          SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) as deleted
-        FROM flowers
-      `);
+      let query = `
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+        SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
+        SUM(CASE WHEN is_synced = 1 THEN 1 ELSE 0 END) as synced,
+        SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced,
+        SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) as deleted
+      FROM flowers
+    `;
+
+      const params: any[] = [];
+
+      if (treeId) {
+        query += ` WHERE tree_id = ?`;
+        params.push(treeId);
+      }
+
+      const stats = await this.db!.getFirstAsync(query, params);
 
       return {
-        total: stats[0]?.total || 0,
-        active: stats[0]?.active || 0,
-        inactive: stats[0]?.inactive || 0,
-        synced: stats[0]?.synced || 0,
-        unsynced: stats[0]?.unsynced || 0,
-        deleted: stats[0]?.deleted || 0,
+        total: stats?.total || 0,
+        active: stats?.active || 0,
+        inactive: stats?.inactive || 0,
+        synced: stats?.synced || 0,
+        unsynced: stats?.unsynced || 0,
+        deleted: stats?.deleted || 0,
       };
     } catch (error) {
       console.error("Error getting flowers database stats:", error);

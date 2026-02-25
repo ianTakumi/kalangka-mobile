@@ -383,7 +383,7 @@ export default function FarmerHomeScreen() {
           <TouchableOpacity
             onPress={onRefresh}
             disabled={weather.loading}
-            className="flex-row items-center"
+            className="flex-row items-center gap-2"
           >
             <RefreshCw
               size={18}
@@ -519,7 +519,7 @@ export default function FarmerHomeScreen() {
                 </View>
 
                 {/* Location Info */}
-                {location && (
+                {/* {location && (
                   <View className="mt-4 bg-blue-50 rounded-xl p-3">
                     <View className="flex-row items-center mb-1">
                       <MapPin size={16} color="#3B82F6" />
@@ -532,7 +532,7 @@ export default function FarmerHomeScreen() {
                       {location.coords.longitude.toFixed(4)}
                     </Text>
                   </View>
-                )}
+                )} */}
 
                 <Text className="text-sm text-gray-500 text-center mt-4">
                   {weather.forecast}

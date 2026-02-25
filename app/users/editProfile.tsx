@@ -15,11 +15,13 @@ import { RootState } from "@/redux/store";
 import { updateUser } from "@/redux/slices/authSlice";
 import { Ionicons } from "@expo/vector-icons";
 import client from "@/utils/axiosInstance";
+import { useRouter } from "expo-router";
+import NetInfo from "@react-native-community/netinfo";
 
 export default function EditProfile() {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
-
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -66,47 +68,50 @@ export default function EditProfile() {
     setLoading(true);
 
     try {
-      await client.put("/users/" + user?.id, formData).then((res) => {
-        if (res.status === 200) {
-          dispatch(
-            updateUser({
-              ...user,
-              first_name: formData.firstName,
-              last_name: formData.lastName,
-              email: formData.email,
-              gender: formData.gender,
-            }),
-          );
-          Toast.show({
-            type: "success",
-            text1: "Profile updated successfully",
-          });
-        }
-      });
+      // I-convert ang field names para tugma sa backend expectations
+      const apiData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        gender: formData.gender,
+      };
+
+      console.log("Sending data:", apiData); // For debugging
+
+      const res = await client.put("/users/" + user?.id, apiData);
+
+      if (res.status === 200) {
+        dispatch(
+          updateUser({
+            ...user,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            gender: formData.gender,
+          }),
+        );
+
+        Toast.show({
+          type: "success",
+          text1: "Profile updated successfully",
+        });
+      }
     } catch (err) {
+      console.error("Update error:", err.response?.data || err.message); // For debugging
+
+      // Show more specific error message if available
+      const errorMessage =
+        err.response?.data?.message || "Please try again later";
+
       Toast.show({
         type: "error",
         text1: "Failed to update profile",
-        text2: "Please try again later",
+        text2: errorMessage,
       });
+    } finally {
+      // I-set ang loading sa false regardless of success or error
+      setLoading(false);
     }
-    // try {
-    //   dispatch(
-    //     updateUser({
-    //       ...user,
-    //       first_name: formData.firstName,
-    //       last_name: formData.lastName,
-    //       email: formData.email,
-    //       gender: formData.gender,
-    //     }),
-    //   );
-
-    //   Alert.alert("Success", "Profile updated successfully", [{ text: "OK" }]);
-    // } catch (error) {
-    //   Alert.alert("Error", "Failed to update profile. Please try again.");
-    // } finally {
-    //   setLoading(false);
-    // }
   };
 
   const handleCancel = () => {
@@ -117,7 +122,7 @@ export default function EditProfile() {
       {
         text: "Discard",
         style: "destructive",
-        onPress: () => console.log("Navigating back"),
+        onPress: () => router.back(),
       },
     ]);
   };
@@ -138,6 +143,27 @@ export default function EditProfile() {
       </SafeAreaView>
     );
   }
+
+  useEffect(() => {
+    const checkNetworkAndGoBack = async () => {
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected || !netState.isInternetReachable) {
+        Alert.alert(
+          "Offline Mode",
+          "You need an internet connection to edit your profile.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back(),
+            },
+          ],
+          { cancelable: false },
+        );
+      }
+    };
+
+    checkNetworkAndGoBack();
+  }, []);
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">

@@ -1,24 +1,21 @@
-// app/registration.tsx
+import UserService from "@/services/UserService";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "expo-router";
+import { Eye, EyeOff } from "lucide-react-native";
 import React, { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
-  View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff } from "lucide-react-native";
-import client from "@/utils/axiosInstance";
 import Toast from "react-native-toast-message";
+import { z } from "zod";
 
-// STEP 1: Define validation schema with Zod
 const registrationSchema = z
   .object({
     first_name: z
@@ -56,7 +53,7 @@ const registrationSchema = z
 // Type for form data based on Zod schema
 type RegistrationFormData = z.infer<typeof registrationSchema>;
 
-export default function RegistrationScreen() {
+export default function CreateUser() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -77,42 +74,39 @@ export default function RegistrationScreen() {
       password: "",
       confirmPassword: "",
     },
-    mode: "onChange", // Real-time validation
+    mode: "onChange",
   });
 
-  // STEP 3: Handle form submission
   const handleRegister = async (data: RegistrationFormData) => {
     setLoading(true);
-    console.log(data);
 
-    await client
-      .post("/auth/register", data)
-      .then((res) => {
-        console.log(res);
-        if (res.status === 201) {
-          Toast.show({
-            type: "success",
-            text1: "Registration Successful",
-            text2: "You can now log in with your credentials.",
-          });
-          router.push("/login");
-        }
-      })
-      .catch((err) => {
-        console.log(err);
-        Toast.show({
-          type: "error",
-          text1: "Registration Failed",
-          text2:
-            err.response?.data?.message ||
-            "Something went wrong. Please try again.",
-        });
+    try {
+      const userId = await UserService.createUser({
+        first_name: data.first_name,
+        last_name: data.last_name,
+        email: data.email,
+        gender: data.gender,
+        password: data.password,
       });
-    setLoading(false);
-  };
 
-  const handleLogin = () => {
-    router.push("/login");
+      console.log("User created with ID:", userId);
+
+      Toast.show({
+        type: "success",
+        text1: "User Created Successfully",
+      });
+
+      router.push("/admin/users");
+    } catch (error: any) {
+      console.log(error);
+      Toast.show({
+        type: "error",
+        text1: "User Creation Failed",
+        text2: error.message || "Something went wrong. Please try again.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -122,7 +116,7 @@ export default function RegistrationScreen() {
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
-        className="flex-1"
+        className="flex-1  mt-10"
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <View className="flex-1 px-6 py-8">
@@ -132,7 +126,7 @@ export default function RegistrationScreen() {
               Create Account
             </Text>
             <Text className="text-gray-600 mt-2 text-center">
-              Join Kalangka Smart Farming Platform
+              Add farm workers to your farm
             </Text>
           </View>
 
@@ -357,28 +351,6 @@ export default function RegistrationScreen() {
               <Text className="text-white text-center font-semibold text-lg">
                 {loading ? "Creating Account..." : "Create Account"}
               </Text>
-            </TouchableOpacity>
-
-            {/* Terms & Conditions */}
-            <View className="mt-6 p-4 bg-gray-50 rounded-xl">
-              <Text className="text-gray-700 text-sm text-center">
-                By creating an account, you agree to our{" "}
-                <Text className="text-green-600 font-medium">
-                  Terms of Service
-                </Text>{" "}
-                and{" "}
-                <Text className="text-green-600 font-medium">
-                  Privacy Policy
-                </Text>
-              </Text>
-            </View>
-          </View>
-
-          {/* Login Link */}
-          <View className="flex-row justify-center items-center mt-6">
-            <Text className="text-gray-600">Already have an account? </Text>
-            <TouchableOpacity onPress={handleLogin}>
-              <Text className="text-green-600 font-semibold"> Sign In</Text>
             </TouchableOpacity>
           </View>
         </View>

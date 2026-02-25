@@ -1,0 +1,604 @@
+import {
+  CREATE_FRUIT_WEIGHTS_TABLE,
+  CREATE_FRUIT_WEIGHT_INDEXES,
+  CREATE_HARVESTS_TABLE,
+  CREATE_HARVEST_INDEXES,
+  CREATE_WASTES_TABLE,
+  CREATE_WASTE_INDEXES,
+} from "@/database/schema";
+import { FruitWeight, Harvest, Waste } from "@/types/index";
+import client from "@/utils/axiosInstance";
+import NetInfo from "@react-native-community/netinfo";
+import * as SQLite from "expo-sqlite";
+
+class HarvestService {
+  private db: SQLite.SQLiteDatabase | null = null;
+  private isInitializing: boolean = false;
+  private initPromise: Promise<boolean> | null = null;
+  private syncInProgress: Set<string> = new Set();
+
+  // Initialize database
+  async init(): Promise<boolean> {
+    if (this.db) return true;
+    if (this.isInitializing && this.initPromise) {
+      return await this.initPromise;
+    }
+
+    this.isInitializing = true;
+    this.initPromise = this.performInit();
+    return await this.initPromise;
+  }
+
+  private async performInit(): Promise<boolean> {
+    try {
+      console.log("Initializing SQLite database for fruits...");
+      this.db = await SQLite.openDatabaseAsync("kalangka.db");
+
+      await this.db.execAsync(CREATE_HARVESTS_TABLE);
+      await this.db.execAsync(CREATE_HARVEST_INDEXES);
+      await this.db.execAsync(CREATE_FRUIT_WEIGHTS_TABLE);
+      await this.db.execAsync(CREATE_FRUIT_WEIGHT_INDEXES);
+      await this.db.execAsync(CREATE_WASTES_TABLE);
+      await this.db.execAsync(CREATE_WASTE_INDEXES);
+
+      console.log(
+        "Harvest, Fruit Weights, and Waste tables created successfully.",
+      );
+      this.isInitializing = false;
+      return true;
+    } catch (error) {
+      console.error(
+        "Failed to initialize Harvest, Fruit Weights, and Waste SQLite database:",
+        error,
+      );
+      this.isInitializing = false;
+      this.initPromise = null;
+      throw new Error(
+        "Harvest, Fruit Weights, and Waste database initialization failed. Please restart the app.",
+      );
+    }
+  }
+
+  private async ensureDatabaseReady(): Promise<void> {
+    if (!this.db) {
+      await this.init();
+    }
+  }
+
+  private generateUUID(): string {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      },
+    );
+  }
+
+  // ==================== HARVEST METHODS ====================
+
+  // Create Harvest
+  async createHarvest(
+    data: Omit<
+      Harvest,
+      | "id"
+      | "harvest_at"
+      | "created_at"
+      | "updated_at"
+      | "is_synced"
+      | "deleted_at"
+    >,
+  ): Promise<Harvest> {
+    await this.ensureDatabaseReady();
+
+    const id = this.generateUUID();
+
+    const harvest: Harvest = {
+      id,
+      fruit_id: data.fruit_id,
+      ripe_quantity: data.ripe_quantity,
+    };
+
+    // 3 columns lang talaga - id, fruit_id, ripe_quantity lang
+    await this.db!.runAsync(
+      `INSERT INTO harvests (id, fruit_id, ripe_quantity)
+     VALUES (?, ?, ?)`,
+      [harvest.id, harvest.fruit_id, harvest.ripe_quantity],
+    );
+
+    return harvest;
+  }
+
+  // Get Harvest by Fruit ID
+  async getHarvestByFruitId(fruitId: string): Promise<Harvest | null> {
+    await this.ensureDatabaseReady();
+
+    const result = await this.db!.getFirstAsync<Harvest>(
+      `SELECT * FROM harvests WHERE fruit_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+      [fruitId],
+    );
+
+    return result || null;
+  }
+
+  // Get Harvests by Date Range
+  async getHarvestsByDateRange(
+    startDate: string,
+    endDate: string,
+  ): Promise<Harvest[]> {
+    await this.ensureDatabaseReady();
+
+    return await this.db!.getAllAsync<Harvest>(
+      `SELECT * FROM harvests WHERE harvest_date BETWEEN ? AND ? AND deleted_at IS NULL ORDER BY harvest_date DESC`,
+      [startDate, endDate],
+    );
+  }
+
+  // Update Harvest
+  async updateHarvestRipeQuantity(
+    id: string,
+    newRipeQuantity: number,
+  ): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    await this.db!.runAsync(
+      `UPDATE harvests 
+     SET ripe_quantity = ?, updated_at = CURRENT_TIMESTAMP 
+     WHERE id = ? AND deleted_at IS NULL`,
+      [newRipeQuantity, id],
+    );
+  }
+
+  // Delete Harvest (Soft Delete)
+  async softDeleteHarvest(id: string): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    await this.db!.runAsync(
+      `UPDATE harvests SET deleted_at = ?, updated_at = ? WHERE id = ?`,
+      [new Date().toISOString(), new Date().toISOString(), id],
+    );
+  }
+
+  // ==================== FRUIT WEIGHTS METHODS ====================
+  async createFruitWeight(
+    data: Omit<
+      FruitWeight,
+      "id" | "status" | "created_at" | "updated_at" | "is_synced" | "deleted_at"
+    >,
+  ): Promise<FruitWeight> {
+    await this.ensureDatabaseReady();
+
+    const id = this.generateUUID();
+
+    // Auto-determine status based on weight
+    const status = data.weight < 8 ? "local" : "national";
+    const fruitWeight: FruitWeight = {
+      id,
+      harvest_id: data.harvest_id,
+      weight: data.weight,
+      status: status,
+      deleted_at: null,
+    };
+
+    await this.db!.runAsync(
+      `INSERT INTO fruit_weights (id, harvest_id,status, weight, deleted_at)
+     VALUES (?, ?, ?, ?, ?)`,
+      [
+        fruitWeight.id,
+        fruitWeight.harvest_id,
+        fruitWeight.status,
+        fruitWeight.weight,
+        fruitWeight.deleted_at,
+      ],
+    );
+
+    return fruitWeight;
+  }
+
+  // Get Fruit Weights by Harvest ID
+  async getFruitWeightsByHarvestId(harvestId: string): Promise<FruitWeight[]> {
+    await this.ensureDatabaseReady();
+
+    return await this.db!.getAllAsync<FruitWeight>(
+      `SELECT * FROM fruit_weights WHERE harvest_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`,
+      [harvestId],
+    );
+  }
+
+  // Update Fruit Weight
+  async updateFruitWeight(id: string, newWeight: number): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    await this.db!.runAsync(
+      `UPDATE fruit_weights SET weight = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL`,
+      [newWeight, id],
+    );
+  }
+
+  // Delete Fruit Weight (Soft Delete)
+  async softDeleteFruitWeight(id: string): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    await this.db!.runAsync(
+      `UPDATE fruit_weights SET deleted_at = ?, updated_at = ? WHERE id = ?`,
+      [new Date().toISOString(), new Date().toISOString(), id],
+    );
+  }
+
+  // ==================== WASTE METHODS ====================
+  async createWaste(
+    data: Omit<
+      Waste,
+      "id" | "created_at" | "updated_at" | "is_synced" | "deleted_at"
+    > & { reason: string },
+  ): Promise<Waste> {
+    await this.ensureDatabaseReady();
+
+    const id = this.generateUUID();
+    const now = new Date().toISOString();
+
+    const waste: Waste = {
+      id,
+      harvest_id: data.harvest_id,
+      waste_quantity: data.waste_quantity,
+      reason: data.reason,
+      reported_at: new Date(),
+      is_synced: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+      deleted_at: null,
+    };
+
+    // Include ALL columns
+    await this.db!.runAsync(
+      `INSERT INTO wastes (
+      id, 
+      harvest_id, 
+      waste_quantity, 
+      reason, 
+      reported_at, 
+      is_synced, 
+      created_at, 
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        waste.id,
+        waste.harvest_id,
+        waste.waste_quantity,
+        waste.reason,
+        now,
+        0, // is_synced = false
+        now,
+        now,
+      ],
+    );
+
+    console.log("Waste created:", waste);
+    return waste;
+  }
+
+  // Get Wastes by Harvest ID
+  async getWastesByHarvestId(harvestId: string): Promise<Waste[]> {
+    await this.ensureDatabaseReady();
+
+    return await this.db!.getAllAsync<Waste>(
+      `SELECT * FROM wastes WHERE harvest_id = ? AND deleted_at IS NULL ORDER BY reported_at DESC`,
+      [harvestId],
+    );
+  }
+
+  // Update Waste
+  async updateWaste(
+    id: string,
+    newWasteQuantity: number,
+    newReason: string,
+  ): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    await this.db!.runAsync(
+      `UPDATE wastes SET waste_quantity = ?, reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL`,
+      [newWasteQuantity, newReason, id],
+    );
+  }
+
+  // Delete Waste (Soft Delete)
+  async softDeleteWaste(id: string): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    await this.db!.runAsync(
+      `UPDATE wastes SET deleted_at = ?, updated_at = ? WHERE id = ?`,
+      [new Date().toISOString(), new Date().toISOString(), id],
+    );
+  }
+
+  // ==================== COMBINED METHODS ====================
+
+  /**
+   * Complete Harvest Process - Create harvest with weights and optional waste
+   */
+  async completeHarvest(
+    fruitId: string,
+    ripeQuantity: number,
+    weights: number[],
+    wastesData?: { quantity: number; reason: string }[], // Changed to array
+  ): Promise<{
+    harvest: Harvest;
+    fruitWeights: FruitWeight[];
+    wastes: Waste[]; // Changed to array
+    synced: boolean;
+  }> {
+    await this.ensureDatabaseReady();
+
+    // Start transaction
+    await this.db!.execAsync("BEGIN TRANSACTION");
+
+    try {
+      // 1. Create harvest
+      const harvest = await this.createHarvest({
+        fruit_id: fruitId,
+        ripe_quantity: ripeQuantity,
+      });
+
+      // 2. Create fruit weights
+      const fruitWeights: FruitWeight[] = [];
+      for (let i = 0; i < weights.length; i++) {
+        const weight = await this.createFruitWeight({
+          harvest_id: harvest.id,
+          weight: weights[i],
+        });
+        fruitWeights.push(weight);
+      }
+
+      // 3. Create wastes if provided (multiple)
+      const wastes: Waste[] = [];
+      if (wastesData && wastesData.length > 0) {
+        for (const wasteItem of wastesData) {
+          if (wasteItem.quantity > 0) {
+            const waste = await this.createWaste({
+              harvest_id: harvest.id,
+              waste_quantity: wasteItem.quantity,
+              reason: wasteItem.reason,
+            });
+            wastes.push(waste);
+          }
+        }
+      }
+
+      // Commit transaction
+      await this.db!.execAsync("COMMIT");
+
+      let synced = false;
+
+      const networkState = await NetInfo.fetch();
+      console.log("Network state on harvest completion:", networkState);
+      if (networkState.isConnected && networkState.isInternetReachable) {
+        synced = await this.syncCompleteHarvest(harvest.id);
+        console.log(
+          `Harvest ${synced ? "synced" : "failed to sync"} automatically`,
+        );
+      } else {
+        console.log("Device is offline, harvest saved locally");
+      }
+
+      return { harvest, fruitWeights, wastes, synced };
+    } catch (error) {
+      // Rollback on error
+      await this.db!.execAsync("ROLLBACK");
+      console.error("Error in completeHarvest:", error);
+      throw new Error("Failed to complete harvest process");
+    }
+  }
+
+  /**
+   *  Sync complete harvest data to server (harvest + weights + wastes)
+   *  @returns boolean - true if sync successful, false otherwise
+   */
+  async syncCompleteHarvest(harvestId: string): Promise<boolean> {
+    await this.ensureDatabaseReady();
+
+    if (this.syncInProgress.has(harvestId)) {
+      console.warn(`Sync already in progress for harvest ID: ${harvestId}`);
+      return false;
+    }
+
+    this.syncInProgress.add(harvestId);
+
+    try {
+      const harvest = await this.db!.getFirstAsync<Harvest>(
+        `SELECT * FROM harvests WHERE id = ? AND deleted_at IS NULL`,
+        [harvestId],
+      );
+
+      if (!harvest) {
+        console.warn(`No harvest found for sync with ID: ${harvestId}`);
+        return false;
+      }
+
+      const fruitWeights = await this.getFruitWeightsByHarvestId(harvestId);
+      const wastes = await this.getWastesByHarvestId(harvestId);
+
+      // Prepare payload in the exact format your API expects
+      const payload = {
+        id: harvest.id,
+        fruit_id: harvest.fruit_id,
+        ripe_quantity: harvest.ripe_quantity,
+        harvest_at: new Date().toISOString().split("T")[0], // Format: YYYY-MM-DD
+        fruit_weights: fruitWeights.map((w) => ({
+          id: w.id,
+          weight: w.weight,
+          status: w.status,
+        })),
+        wastes: wastes.map((w) => ({
+          id: w.id,
+          waste_quantity: w.waste_quantity,
+          reason: w.reason,
+        })),
+      };
+
+      // Send to server using axios client
+      const response = await client.post("/harvests", payload);
+
+      if (response.data.success) {
+        // Mark as synced in local database
+        await this.db!.execAsync("BEGIN TRANSACTION");
+        try {
+          // Update harvest sync status
+          await this.db!.runAsync(
+            `UPDATE harvests SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            [harvestId],
+          );
+
+          // Update fruit weights sync status
+          for (const weight of fruitWeights) {
+            await this.db!.runAsync(
+              `UPDATE fruit_weights SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [weight.id],
+            );
+          }
+
+          // Update wastes sync status
+          for (const waste of wastes) {
+            await this.db!.runAsync(
+              `UPDATE wastes SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [waste.id],
+            );
+          }
+
+          await this.db!.execAsync("COMMIT");
+          console.log(`Successfully synced harvest ID: ${harvestId}`);
+          return true;
+        } catch (error) {
+          await this.db!.execAsync("ROLLBACK");
+          throw error;
+        }
+      }
+
+      return false;
+    } catch (err) {
+      console.error(`Error syncing harvest (ID: ${harvestId}):`, err);
+      return false;
+    } finally {
+      this.syncInProgress.delete(harvestId);
+    }
+  }
+
+  /**
+   * Get complete harvest details by fruit ID
+   */
+  async getHarvestDetailsByFruitId(fruitId: string): Promise<{
+    harvest: Harvest | null;
+    fruitWeights: FruitWeight[];
+    wastes: Waste[];
+    totalWeight: number;
+    averageWeight: number;
+    totalWaste: number;
+  }> {
+    await this.ensureDatabaseReady();
+
+    const harvest = await this.getHarvestByFruitId(fruitId);
+
+    let fruitWeights: FruitWeight[] = [];
+    let wastes: Waste[] = [];
+    let totalWeight = 0;
+    let averageWeight = 0;
+    let totalWaste = 0;
+
+    if (harvest) {
+      fruitWeights = await this.getFruitWeightsByHarvestId(harvest.id);
+      wastes = await this.getWastesByHarvestId(harvest.id);
+
+      totalWeight = fruitWeights.reduce((sum, w) => sum + w.weight, 0);
+      averageWeight =
+        fruitWeights.length > 0 ? totalWeight / fruitWeights.length : 0;
+      totalWaste = wastes.reduce((sum, w) => sum + w.waste_quantity, 0);
+    }
+
+    console.log("wastes:", wastes);
+
+    return {
+      harvest,
+      fruitWeights,
+      wastes,
+      totalWeight,
+      averageWeight,
+      totalWaste,
+    };
+  }
+
+  /**
+   * Delete entire harvest (harvest + weights + wastes)
+   */
+  async deleteCompleteHarvest(harvestId: string): Promise<void> {
+    await this.ensureDatabaseReady();
+
+    // Start transaction
+    await this.db!.execAsync("BEGIN TRANSACTION");
+
+    try {
+      // Soft delete weights
+      const weights = await this.getFruitWeightsByHarvestId(harvestId);
+      for (const weight of weights) {
+        await this.softDeleteFruitWeight(weight.id);
+      }
+
+      // Soft delete wastes
+      const wastes = await this.getWastesByHarvestId(harvestId);
+      for (const waste of wastes) {
+        await this.softDeleteWaste(waste.id);
+      }
+
+      // Soft delete harvest
+      await this.softDeleteHarvest(harvestId);
+
+      // Commit transaction
+      await this.db!.execAsync("COMMIT");
+    } catch (error) {
+      await this.db!.execAsync("ROLLBACK");
+      console.error("Error in deleteCompleteHarvest:", error);
+      throw new Error("Failed to delete harvest");
+    }
+  }
+
+  /**
+   * Get harvest statistics by date range
+   */
+  async getHarvestStatistics(
+    startDate: string,
+    endDate: string,
+  ): Promise<{
+    totalHarvests: number;
+    totalFruits: number;
+    totalWeight: number;
+    totalWaste: number;
+    averageWeightPerFruit: number;
+  }> {
+    await this.ensureDatabaseReady();
+
+    const harvests = await this.getHarvestsByDateRange(startDate, endDate);
+
+    let totalFruits = 0;
+    let totalWeight = 0;
+    let totalWaste = 0;
+
+    for (const harvest of harvests) {
+      totalFruits += harvest.ripe_quantity;
+
+      const weights = await this.getFruitWeightsByHarvestId(harvest.id);
+      totalWeight += weights.reduce((sum, w) => sum + w.weight, 0);
+
+      const wastes = await this.getWastesByHarvestId(harvest.id);
+      totalWaste += wastes.reduce((sum, w) => sum + w.waste_quantity, 0);
+    }
+
+    return {
+      totalHarvests: harvests.length,
+      totalFruits,
+      totalWeight,
+      totalWaste,
+      averageWeightPerFruit: totalFruits > 0 ? totalWeight / totalFruits : 0,
+    };
+  }
+}
+
+export default new HarvestService();

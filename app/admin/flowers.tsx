@@ -1,36 +1,36 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  Image,
-  RefreshControl,
-} from "react-native";
+import FlowerCamera from "@/components/FlowerCamera";
 import FlowerService from "@/services/FlowerService";
-import NetInfo from "@react-native-community/netinfo";
-import Toast from "react-native-toast-message";
+import FruitService from "@/services/FruitService";
 import { Flower } from "@/types/index";
+import NetInfo from "@react-native-community/netinfo";
+import * as FileSystem from "expo-file-system/legacy";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  Calendar,
+  Camera,
   Flower as FlowerIcon,
+  Package,
+  RefreshCw,
   Trees as TreeIcon,
   Wifi,
   WifiOff,
-  RefreshCw,
-  Camera,
   X,
-  Calendar,
-  Package,
-  MapPin,
 } from "lucide-react-native";
-import FlowerCamera from "@/components/FlowerCamera";
-import * as FileSystem from "expo-file-system/legacy";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Toast from "react-native-toast-message";
 // Create directory for flower images
 const FLOWER_IMAGES_DIR = FileSystem.documentDirectory + "flower_images/";
 
@@ -170,7 +170,7 @@ export default function FlowersScreen() {
 
   const loadStats = async () => {
     try {
-      const databaseStats = await FlowerService.getStats();
+      const databaseStats = await FlowerService.getStats(treeData?.id);
       setStats(databaseStats);
     } catch (error) {
       console.error("Load stats error:", error);
@@ -531,7 +531,7 @@ export default function FlowersScreen() {
         visibilityTime: 5000,
       });
       await FlowerService.syncAll();
-
+      await FruitService.syncAll();
       if (selectedTreeId) {
         await loadFlowers(selectedTreeId);
       }
@@ -566,13 +566,14 @@ export default function FlowersScreen() {
           onPress: async () => {
             try {
               await FlowerService.clearDatabase();
+              await FruitService.clearDatabase();
               await loadFlowers();
               await loadStats();
 
               Toast.show({
                 type: "success",
                 text1: "Database Cleared",
-                text2: "All flowers have been removed",
+                text2: "All flowers and fruits have been removed",
               });
             } catch (error) {
               Toast.show({
@@ -800,12 +801,6 @@ export default function FlowersScreen() {
                   {stats.synced}
                 </Text>
                 <Text className="text-xs text-gray-500">Synced</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-red-600">
-                  {stats.deleted}
-                </Text>
-                <Text className="text-xs text-gray-500">Deleted</Text>
               </View>
             </View>
           </View>

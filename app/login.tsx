@@ -1,24 +1,25 @@
 // app/login.tsx
+import client from "@/utils/axiosInstance";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "expo-router";
+import { Eye, EyeOff } from "lucide-react-native";
 import React, { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
-  View,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { useDispatch } from "react-redux";
-import { login, setCredentials } from "../redux/slices/authSlice";
-import { AppDispatch } from "../redux/store";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff } from "lucide-react-native";
 import Toast from "react-native-toast-message";
-import client from "@/utils/axiosInstance";
+import { useDispatch } from "react-redux";
+import { z } from "zod";
+import { login } from "../redux/slices/authSlice";
+import { AppDispatch } from "../redux/store";
 
 // STEP 1: Define validation schema with Zod
 const loginSchema = z.object({
@@ -91,25 +92,25 @@ export default function LoginScreen() {
           type: "error",
           text1: "Login Failed",
           text2: "Invalid email or password",
-          position: "bottom",
+          position: "top",
         });
       });
 
     setLoading(false);
   };
 
-  const handleRegister = () => {
-    router.push("/registration");
-  };
+  // const handleRegister = () => {
+  //   router.push("/registration");
+  // };
 
-  const handleForgotPassword = () => {
-    Toast.show({
-      type: "info",
-      text1: "Forgot Password",
-      text2: "Please contact admin for password reset",
-      position: "bottom",
-    });
-  };
+  // const handleForgotPassword = () => {
+  //   Toast.show({
+  //     type: "info",
+  //     text1: "Forgot Password",
+  //     text2: "Please contact admin for password reset",
+  //     position: "top",
+  //   });
+  // };
 
   return (
     <>
@@ -125,8 +126,13 @@ export default function LoginScreen() {
           <View className="flex-1 px-6 justify-center min-h-screen py-8">
             {/* Header */}
             <View className="items-center mb-10">
+              <Image
+                source={require("../assets/images/logo/logo.png")}
+                className="w-24 h-24 mb-2"
+                resizeMode="contain"
+              />
               <Text className="text-3xl font-bold text-green-700">
-                Kalangka
+                WrapCrop
               </Text>
               <Text className="text-gray-600 mt-2">Smart Farming Platform</Text>
             </View>
@@ -219,11 +225,11 @@ export default function LoginScreen() {
               </View>
 
               {/* Forgot Password */}
-              <TouchableOpacity onPress={handleForgotPassword} className="mb-6">
+              {/* <TouchableOpacity onPress={handleForgotPassword} className="mb-6">
                 <Text className="text-green-600 text-right">
                   Forgot Password?
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
 
               {/* Login Button */}
               <TouchableOpacity
@@ -240,12 +246,12 @@ export default function LoginScreen() {
             </View>
 
             {/* Register Link */}
-            <View className="flex-row justify-center items-center mt-8">
+            {/* <View className="flex-row justify-center items-center mt-8">
               <Text className="text-gray-600">Don't have an account? </Text>
               <TouchableOpacity onPress={handleRegister}>
                 <Text className="text-green-600 font-semibold"> Sign Up</Text>
               </TouchableOpacity>
-            </View>
+            </View> */}
 
             {/* Footer */}
             <View className="mt-12 pt-6 border-t border-gray-200">

@@ -1,11 +1,11 @@
-import * as SQLite from "expo-sqlite";
-import client from "@/utils/axiosInstance";
-import NetInfo from "@react-native-community/netinfo";
 import { Tree } from "@/types/index";
+import client from "@/utils/axiosInstance";
 import { supabase } from "@/utils/supabase";
+import NetInfo from "@react-native-community/netinfo";
 import { decode } from "base64-arraybuffer";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Location from "expo-location";
+import * as SQLite from "expo-sqlite";
 
 class TreeService {
   private db: SQLite.SQLiteDatabase | null = null;
@@ -750,11 +750,12 @@ class TreeService {
       const unsyncedTrees = await this.getUnsyncedTrees();
 
       for (const tree of unsyncedTrees) {
-        if (tree.status === "inactive") {
-          await this.syncDeleteToServer(tree.id);
-        } else {
-          await this.syncTreeToServer(tree);
-        }
+        await this.syncTreeToServer(tree);
+        // if (tree.status === "inactive") {
+        //   await this.syncDeleteToServer(tree.id);
+        // } else {
+        //   await this.syncTreeToServer(tree);
+        // }
       }
 
       console.log(`Synced ${unsyncedTrees.length} trees`);
@@ -947,27 +948,63 @@ class TreeService {
 
   async checkAndSync(): Promise<{ needsSync: boolean; treeCount: number }> {
     try {
-      const { data: remoteTrees, error } = await supabase
-        .from("trees")
-        .select("id, updated_at")
-        .order("updated_at", { ascending: false });
+      // ✅ GAMITIN ANG LARAVEL API (same as syncTreesFromServer)
+      const response = await client.get("/trees");
 
-      if (error || !remoteTrees || remoteTrees.length === 0) {
+      if (!response.data.success || !response.data.data) {
+        console.log("No trees found on server or invalid response");
+        return { needsSync: false, treeCount: 0 };
+      }
+
+      const remoteTrees = response.data.data; // Array of trees from Laravel
+
+      if (!remoteTrees || remoteTrees.length === 0) {
         return { needsSync: false, treeCount: 0 };
       }
 
       // Get local trees count
       const localTrees = await this.getTrees();
 
-      // Simple check: if remote has more trees or different count
-      const needsSync = remoteTrees.length !== localTrees.length;
+      // Compare counts and latest timestamps
+      let needsSync = false;
+
+      if (remoteTrees.length !== localTrees.length) {
+        // Different count = need sync
+        needsSync = true;
+        console.log(
+          `📊 Count mismatch: Server has ${remoteTrees.length}, Local has ${localTrees.length}`,
+        );
+      } else {
+        // Same count, check if any tree has newer timestamp
+        // Get latest local update
+        const latestLocal = localTrees.reduce((latest, tree) => {
+          const treeTime = tree.updated_at?.getTime() || 0;
+          return treeTime > latest ? treeTime : latest;
+        }, 0);
+
+        // Get latest remote update
+        const latestRemote = remoteTrees.reduce((latest: number, tree: any) => {
+          const treeTime = new Date(tree.updated_at).getTime();
+          return treeTime > latest ? treeTime : latest;
+        }, 0);
+
+        // If remote has newer data, need sync
+        if (latestRemote > latestLocal) {
+          needsSync = true;
+          console.log(
+            `📊 Newer data on server: Server ${new Date(latestRemote)}, Local ${new Date(latestLocal)}`,
+          );
+        }
+      }
 
       return {
         needsSync,
         treeCount: remoteTrees.length,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error checking sync status:", error);
+
+      // If error (like network), assume no sync needed
       return { needsSync: false, treeCount: 0 };
     }
   }

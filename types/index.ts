@@ -4,6 +4,12 @@ export interface User {
   last_name: string;
   email: string;
   gender: string;
+  role: string;
+  password?: string;
+  is_synced: boolean;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
 }
 
 export interface Token {
@@ -53,22 +59,34 @@ export interface Fruit {
 
 export interface FruitWeight {
   id: string;
-  weight_id: number;
-  harvest_id: number;
-  weight: number; // decimal(4,2) - 2 decimal places
+  harvest_id: string;
+  weight: number;
   status: string;
-  deleted_at: Date | null;
   created_at: Date | null;
   updated_at: Date | null;
+  deleted_at: Date | null;
 }
 
 export interface Harvest {
   id: string;
   fruit_id: string;
   ripe_quantity: number;
-  harvest_date: Date;
-  created_at: Date | null;
-  updated_at: Date | null;
+  harvest_at: Date;
+  is_synced: boolean;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+}
+
+export interface Waste {
+  id: string;
+  harvest_id: string;
+  waste_quantity: number;
+  reason: string;
+  reported_at: Date;
+  is_synced: boolean;
+  created_at: Date;
+  updated_at: Date;
   deleted_at: Date | null;
 }
 

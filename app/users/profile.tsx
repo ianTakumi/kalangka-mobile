@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,12 +14,31 @@ import { RootState } from "@/redux/store";
 import { logout } from "@/redux/slices/authSlice";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import NetInfo from "@react-native-community/netinfo";
 
 export default function ProfileScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
+  console.log(user);
   const dispatch = useDispatch();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    // Subscribe to network state changes
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOnline(state.isConnected && state.isInternetReachable);
+    });
+
+    // Check initial network state
+    NetInfo.fetch().then((state) => {
+      setIsOnline(state.isConnected && state.isInternetReachable);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -44,10 +63,24 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
+    if (!isOnline) {
+      Alert.alert(
+        "Offline Mode",
+        "You need an internet connection to edit your profile. Please connect to the internet and try again.",
+      );
+      return;
+    }
     router.push("/users/editProfile");
   };
 
   const handleChangePassword = () => {
+    if (!isOnline) {
+      Alert.alert(
+        "Offline Mode",
+        "You need an internet connection to change your password. Please connect to the internet and try again.",
+      );
+      return;
+    }
     router.push("/users/changePassword");
   };
 
@@ -63,29 +96,28 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
+      {/* Offline Banner */}
+      {!isOnline && (
+        <View className="bg-yellow-500 py-2 px-4">
+          <View className="flex-row items-center justify-center">
+            <Ionicons name="cloud-offline-outline" size={18} color="white" />
+            <Text className="text-white font-medium ml-2">
+              You're offline. Some features are disabled.
+            </Text>
+          </View>
+        </View>
+      )}
+
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="bg-white pt-8 pb-6 px-6">
           <View className="items-center mb-6">
-            {user.avatar ? (
-              <Image
-                source={{ uri: user.avatar }}
-                className="w-32 h-32 rounded-full border-4 border-green-100"
-              />
-            ) : (
-              <View className="w-32 h-32 bg-green-600 rounded-full items-center justify-center border-4 border-green-100">
-                <Text className="text-white text-4xl font-bold">
-                  {user.first_name?.[0]}
-                  {user.last_name?.[0]}
-                </Text>
-              </View>
-            )}
-            <TouchableOpacity
-              className="absolute bottom-0 right-24 bg-green-600 p-3 rounded-full"
-              onPress={handleEditProfile}
-            >
-              <Ionicons name="camera" size={20} color="white" />
-            </TouchableOpacity>
+            <View className="w-32 h-32 bg-green-600 rounded-full items-center justify-center border-4 border-green-100">
+              <Text className="text-white text-4xl font-bold">
+                {user.first_name?.[0]}
+                {user.last_name?.[0]}
+              </Text>
+            </View>
           </View>
 
           <View className="items-center">
@@ -123,8 +155,15 @@ export default function ProfileScreen() {
                     {user.first_name}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={handleEditProfile}>
-                  <Ionicons name="pencil" size={20} color="#16a34a" />
+                <TouchableOpacity
+                  onPress={handleEditProfile}
+                  disabled={!isOnline}
+                >
+                  <Ionicons
+                    name="pencil"
+                    size={20}
+                    color={!isOnline ? "#9ca3af" : "#16a34a"}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -135,8 +174,15 @@ export default function ProfileScreen() {
                     {user.last_name}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={handleEditProfile}>
-                  <Ionicons name="pencil" size={20} color="#16a34a" />
+                <TouchableOpacity
+                  onPress={handleEditProfile}
+                  disabled={!isOnline}
+                >
+                  <Ionicons
+                    name="pencil"
+                    size={20}
+                    color={!isOnline ? "#9ca3af" : "#16a34a"}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -147,8 +193,15 @@ export default function ProfileScreen() {
                     {user.email}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={handleEditProfile}>
-                  <Ionicons name="pencil" size={20} color="#16a34a" />
+                <TouchableOpacity
+                  onPress={handleEditProfile}
+                  disabled={!isOnline}
+                >
+                  <Ionicons
+                    name="pencil"
+                    size={20}
+                    color={!isOnline ? "#9ca3af" : "#16a34a"}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -159,8 +212,15 @@ export default function ProfileScreen() {
                     {user.gender}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={handleEditProfile}>
-                  <Ionicons name="pencil" size={20} color="#16a34a" />
+                <TouchableOpacity
+                  onPress={handleEditProfile}
+                  disabled={!isOnline}
+                >
+                  <Ionicons
+                    name="pencil"
+                    size={20}
+                    color={!isOnline ? "#9ca3af" : "#16a34a"}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -175,12 +235,23 @@ export default function ProfileScreen() {
             </Text>
 
             <TouchableOpacity
-              className="flex-row items-center justify-between py-4 border-b border-gray-100"
+              className={`flex-row items-center justify-between py-4 border-b border-gray-100 ${
+                !isOnline ? "opacity-50" : ""
+              }`}
               onPress={handleEditProfile}
+              disabled={!isOnline}
             >
               <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
-                  <Ionicons name="person" size={20} color="#16a34a" />
+                <View
+                  className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+                    !isOnline ? "bg-gray-200" : "bg-green-100"
+                  }`}
+                >
+                  <Ionicons
+                    name="person"
+                    size={20}
+                    color={!isOnline ? "#9ca3af" : "#16a34a"}
+                  />
                 </View>
                 <View>
                   <Text className="text-gray-800 font-medium">
@@ -191,16 +262,31 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={!isOnline ? "#d1d5db" : "#9ca3af"}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
-              className="flex-row items-center justify-between py-4 border-b border-gray-100"
+              className={`flex-row items-center justify-between py-4 border-b border-gray-100 ${
+                !isOnline ? "opacity-50" : ""
+              }`}
               onPress={handleChangePassword}
+              disabled={!isOnline}
             >
               <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
-                  <Ionicons name="lock-closed" size={20} color="#16a34a" />
+                <View
+                  className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+                    !isOnline ? "bg-gray-200" : "bg-green-100"
+                  }`}
+                >
+                  <Ionicons
+                    name="lock-closed"
+                    size={20}
+                    color={!isOnline ? "#9ca3af" : "#16a34a"}
+                  />
                 </View>
                 <View>
                   <Text className="text-gray-800 font-medium">
@@ -211,7 +297,11 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={!isOnline ? "#d1d5db" : "#9ca3af"}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -255,9 +345,11 @@ export default function ProfileScreen() {
       {/* Bottom Action Button */}
       <View className="p-6 bg-white border-t border-gray-200">
         <TouchableOpacity
-          className="bg-green-600 py-4 rounded-xl items-center"
+          className={`py-4 rounded-xl items-center ${
+            !isOnline ? "bg-gray-400" : "bg-green-600"
+          }`}
           onPress={handleEditProfile}
-          disabled={loading}
+          disabled={loading || !isOnline}
         >
           {loading ? (
             <ActivityIndicator color="white" />
@@ -267,6 +359,11 @@ export default function ProfileScreen() {
             </Text>
           )}
         </TouchableOpacity>
+        {!isOnline && (
+          <Text className="text-gray-500 text-xs text-center mt-2">
+            Connect to internet to edit profile
+          </Text>
+        )}
       </View>
     </SafeAreaView>
   );

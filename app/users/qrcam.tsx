@@ -1,28 +1,27 @@
 // app/qr-scanner.tsx
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Linking,
-  Vibration,
-} from "react-native";
-import { CameraView, useCameraPermissions, CameraType } from "expo-camera";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import {
-  Camera,
-  ScanLine,
-  X,
   AlertCircle,
+  Camera,
   CheckCircle,
-  TreePine,
   Flashlight,
   FlashlightOff,
-  FlipVertical,
+  ScanLine,
+  TreePine,
+  X,
 } from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  Linking,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Vibration,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function QRScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();

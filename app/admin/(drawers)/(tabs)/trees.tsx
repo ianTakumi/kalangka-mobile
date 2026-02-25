@@ -1,37 +1,35 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  Image,
-  RefreshControl,
-} from "react-native";
-import TreeService from "@/services/treeService";
-import NetInfo from "@react-native-community/netinfo";
-import Toast from "react-native-toast-message";
-import { Tree } from "@/types/index";
-import {
-  MapPin,
-  QrCode,
-  Wifi,
-  WifiOff,
-  RefreshCw,
-  Plus,
-  Edit2,
-  Trash2,
-  Camera,
-  X,
-} from "lucide-react-native";
 import TreeCamera from "@/components/TreeCamera";
+import TreeService from "@/services/treeService";
+import { Tree } from "@/types/index";
+import NetInfo from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
-import * as Location from "expo-location";
+import {
+  Camera,
+  Edit2,
+  MapPin,
+  PlusIcon,
+  RefreshCw,
+  Trash2,
+  Wifi,
+  WifiOff,
+  X,
+} from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Toast from "react-native-toast-message";
 // Create directory for tree images
 const TREE_IMAGES_DIR = FileSystem.documentDirectory + "tree_images/";
 
@@ -713,10 +711,8 @@ export default function TreesScreen() {
             className="flex-1 bg-green-600 py-3 rounded-xl flex-row items-center justify-center"
             onPress={handleTakePhoto}
           >
-            <Camera size={20} color="white" />
-            <Text className="text-white font-semibold ml-2">
-              Take Tree Photo
-            </Text>
+            <PlusIcon size={20} color="white" />
+            <Text className="text-white font-semibold ml-2">Add Tree</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

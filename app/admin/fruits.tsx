@@ -1,34 +1,33 @@
 // app/admin/fruit-report.tsx
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  TextInput,
-  Modal,
-} from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import FruitCamera from "@/components/FruitCamera";
 import FruitService from "@/services/FruitService";
 import TreeService from "@/services/treeService";
-import Toast from "react-native-toast-message";
 import { Fruit, Tree } from "@/types/index";
+import NetInfo from "@react-native-community/netinfo";
+import * as FileSystem from "expo-file-system/legacy";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowLeft,
-  Calendar,
+  Camera,
   Package,
   TreePine,
-  Camera,
-  X,
   Wifi,
   WifiOff,
+  X,
 } from "lucide-react-native";
-import FruitCamera from "@/components/FruitCamera";
-import * as FileSystem from "expo-file-system/legacy";
-import NetInfo from "@react-native-community/netinfo";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Toast from "react-native-toast-message";
 
 // Create directory for fruit images
 const FRUIT_IMAGES_DIR = FileSystem.documentDirectory + "fruit_images/";
@@ -244,20 +243,40 @@ export default function FruitReportScreen() {
   };
 
   const handleHarvest = () => {
-    Alert.alert("Harvest", "Have you harvested these fruits?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Yes",
-        onPress: async () => {
-          Toast.show({
-            type: "success",
-            text1: "Harvested!",
-            text2: "Fruits marked as harvested",
-          });
-          router.back();
-        },
+    if (!fruit) {
+      Toast.show({
+        type: "error",
+        text1: "No Report",
+        text2: "Please submit a fruit report before harvesting",
+      });
+      return;
+    }
+
+    // Check kung lampas 115 days na mula ng bagged_at
+    const baggedAt = new Date(fruit.bagged_at);
+    const currentDate = new Date();
+
+    // Compute days difference
+    const diffTime = Math.abs(currentDate - baggedAt);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // if (diffDays < 115) {
+    //   Toast.show({
+    //     type: "info",
+    //     text1: "Too Early",
+    //     text2: `Fruit is only ${diffDays} days old. Must wait at least 115 days after bagging to harvest.`,
+    //   });
+    //   return;
+    // }
+
+    console.log(fruit);
+    router.push({
+      pathname: "/harvest",
+      params: {
+        fruitData: JSON.stringify(fruit),
       },
-    ]);
+    });
+    // Proceed with harvest logic here
   };
 
   if (loading) {

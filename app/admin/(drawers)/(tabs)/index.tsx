@@ -1,44 +1,44 @@
-import React, { useState, useEffect } from "react";
+import FlowerService from "@/services/FlowerService";
+import treeService from "@/services/treeService";
+import { getTimeBasedGreeting } from "@/utils/helpers";
+import NetInfo from "@react-native-community/netinfo";
+import axios from "axios";
+import * as Location from "expo-location";
+import { Link } from "expo-router";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StatusBar,
-  RefreshControl,
-  Dimensions,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
+  AlertCircle,
+  AlertTriangle,
   Cloud,
   CloudOff,
+  CloudRain,
+  CloudSnow,
+  CloudSun,
+  Cloudy,
+  Droplets,
   Flower2,
   MapPin,
+  Package,
   QrCode,
   RefreshCw,
-  Trees,
-  User,
-  AlertCircle,
-  Package,
-  Thermometer,
-  Droplets,
-  Wind,
-  CloudRain,
   Sun,
-  Cloudy,
-  CloudSun,
+  Thermometer,
+  Trees,
   Umbrella,
-  AlertTriangle,
-  CloudSnow,
+  User,
+  Wind,
 } from "lucide-react-native";
-import NetInfo from "@react-native-community/netinfo";
-import * as Location from "expo-location";
-import axios from "axios";
-import { Link } from "expo-router";
-import { getTimeBasedGreeting } from "@/utils/helpers";
-import treeService from "@/services/treeService";
-import FlowerService from "@/services/FlowerService";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
@@ -66,7 +66,7 @@ export default function FarmerHomeScreen() {
       route: "/admin/(drawers)/(tabs)/trees",
     },
     {
-      id: 3,
+      id: 2,
       title: "Scan QR",
       description: "Quick tree access",
       icon: <QrCode size={28} color="#2563EB" />,
@@ -75,7 +75,7 @@ export default function FarmerHomeScreen() {
       route: "/admin/qrcam",
     },
     {
-      id: 4,
+      id: 3,
       title: "View Map",
       description: "Tree locations",
       icon: <MapPin size={28} color="#059669" />,
@@ -84,7 +84,7 @@ export default function FarmerHomeScreen() {
       route: "admin/map",
     },
     {
-      id: 5,
+      id: 4,
       title: "User Management",
       description: "Manage farm workers",
       icon: <User size={28} color="#7C3AED" />,
@@ -538,19 +538,37 @@ export default function FarmerHomeScreen() {
                 key={action.id}
                 href={action.route}
                 asChild
-                className="w-1/3 px-2 mb-4"
+                className={`px-2 mb-4 ${
+                  action.title === "User Management"
+                    ? "w-2/3" // 66.67% width para sa User Management
+                    : "w-1/3" // 33.33% width para sa iba
+                }`}
               >
                 <TouchableOpacity>
                   <View
-                    className={`${action.bgColor} rounded-2xl p-4 items-center justify-center h-32`}
+                    className={`${action.bgColor} rounded-2xl p-4 items-center justify-center ${
+                      action.title === "User Management"
+                        ? "h-32 flex-row" // horizontal layout para sa mas malaki
+                        : "h-32" // normal height para sa iba
+                    }`}
                   >
-                    <View className="mb-3">{action.icon}</View>
-                    <Text className="font-semibold text-gray-900 text-center">
-                      {action.title}
-                    </Text>
-                    <Text className="text-xs text-gray-600 text-center mt-1">
-                      {action.description}
-                    </Text>
+                    <View
+                      className={`${action.title === "User Management" ? "mr-3" : "mb-3"}`}
+                    >
+                      {action.icon}
+                    </View>
+                    <View
+                      className={
+                        action.title === "User Management" ? "flex-1" : ""
+                      }
+                    >
+                      <Text className="font-semibold text-gray-900 text-center">
+                        {action.title}
+                      </Text>
+                      <Text className="text-xs text-gray-600 text-center mt-1">
+                        {action.description}
+                      </Text>
+                    </View>
                   </View>
                 </TouchableOpacity>
               </Link>
