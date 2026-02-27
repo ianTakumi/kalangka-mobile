@@ -1,4 +1,5 @@
 import FlowerService from "@/services/FlowerService";
+import FruitService from "@/services/FruitService";
 import treeService from "@/services/treeService";
 import { getTimeBasedGreeting } from "@/utils/helpers";
 import NetInfo from "@react-native-community/netinfo";
@@ -49,8 +50,8 @@ export default function FarmerHomeScreen() {
 
   const [userStats, setUserStats] = useState({
     totalTrees: treeService.getTreeCount(),
-    // activeTrees: 22,
-    flowersToday: FlowerService.getFlowerCount(),
+    totalFlowers: FlowerService.getFlowerCount(),
+    totalFruits: FruitService.getFruitCount(),
     harvestThisWeek: 125,
     totalLoss: 12,
   });
@@ -363,7 +364,9 @@ export default function FarmerHomeScreen() {
     // Update stats
     setUserStats((prev) => ({
       ...prev,
-      flowersToday: Math.floor(Math.random() * 15) + 5,
+      totalTrees: treeService.getTreeCount(),
+      totalFlowers: FlowerService.getFlowerCount(),
+      totalFruits: FruitService.getFruitCount(),
       harvestThisWeek: Math.floor(Math.random() * 50) + 100,
     }));
 
@@ -371,7 +374,7 @@ export default function FarmerHomeScreen() {
   };
 
   // Weather icon based on condition
-  const getWeatherIcon = (condition) => {
+  const getWeatherIcon = (condition: string) => {
     const cond = condition.toLowerCase();
 
     if (cond.includes("clear") || cond.includes("sunny")) {
@@ -505,9 +508,19 @@ export default function FarmerHomeScreen() {
                   <Flower2 size={24} color="#7C3AED" />
                 </View>
                 <Text className="text-3xl font-bold text-gray-900">
-                  {userStats.flowersToday}
+                  {userStats.totalFlowers}
                 </Text>
                 <Text className="text-gray-600 font-medium">Total Flowers</Text>
+              </View>
+
+              <View className="w-40 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <View className="w-12 h-12 bg-orange-50 rounded-xl items-center justify-center mb-3">
+                  <Package size={24} color="#F97316" />
+                </View>
+                <Text className="text-3xl font-bold text-gray-900">
+                  {userStats.totalFruits}
+                </Text>
+                <Text className="text-gray-600 font-medium">Total Fruits</Text>
               </View>
 
               {/* Harvest Card */}

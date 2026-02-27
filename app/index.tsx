@@ -153,7 +153,7 @@ export default function Index() {
     try {
       setInitProgress("Syncing trees from server...");
 
-      // ===== TREE SYNC (FROM SERVER) =====
+      // ===== TREE SYNC =====
       const { needsSync: treesNeedSync, treeCount } =
         await treeService.checkAndSync();
 
@@ -189,18 +189,14 @@ export default function Index() {
         setInitProgress("Trees are up to date");
       }
 
-      // ===== FLOWER SYNC (FROM SERVER) WITH CHECK =====
+      // ===== FLOWER SYNC =====
       setInitProgress("Checking flowers...");
-
       try {
-        // Check if flower sync is needed
         const { needsSync: flowersNeedSync, flowerCount } =
           await flowerService.checkAndSync();
 
         if (flowersNeedSync) {
           setInitProgress(`Downloading ${flowerCount} flowers from server...`);
-
-          // Download flowers from server
           const flowerResult = await flowerService.syncFlowersFromServer();
 
           if (flowerResult.synced > 0) {
@@ -217,28 +213,78 @@ export default function Index() {
         }
       } catch (flowerError) {
         console.error("❌ Flower sync from server failed:", flowerError);
-        // Continue even if flower sync fails
       }
 
-      // ===== UPLOAD LOCAL CHANGES TO SERVER =====
+      // ===== FRUIT SYNC (NEW!) =====
+      setInitProgress("Checking fruits...");
+      try {
+        const { needsSync: fruitsNeedSync, fruitCount } =
+          await fruitService.checkAndSync(); // <- CHECK muna
+
+        if (fruitsNeedSync) {
+          setInitProgress(`Downloading ${fruitCount} fruits from server...`);
+          const fruitResult = await fruitService.syncFruitsFromServer(); // <- DOWNLOAD kung kailangan
+
+          if (fruitResult.synced > 0) {
+            console.log(`✅ Synced ${fruitResult.synced} fruits from server`);
+            setInitProgress(`Downloaded ${fruitResult.synced} fruits...`);
+          }
+
+          if (fruitResult.errors.length > 0) {
+            console.warn("Fruit sync errors:", fruitResult.errors);
+          }
+        } else {
+          console.log("✅ Fruits are up to date");
+          setInitProgress("Fruits up to date");
+        }
+      } catch (fruitError) {
+        console.error("❌ Fruit sync from server failed:", fruitError);
+      }
+
+      // ===== HARVEST SYNC (UPLOAD ONLY) =====
+      // setInitProgress("Checking harvest data...");
+      // try {
+      //   // Get unsynced harvests count
+      //   const unsyncedCount = (await HarvestService.getUnsyncedCount?.()) || 0;
+
+      //   if (unsyncedCount > 0) {
+      //     setInitProgress(`Uploading ${unsyncedCount} unsynced harvests...`);
+
+      //     // Use existing syncAll method to upload all unsynced harvests
+      //     const syncResult = await HarvestService.syncAll();
+
+      //     if (syncResult.synced > 0) {
+      //       console.log(`✅ Uploaded ${syncResult.synced} harvests to server`);
+      //       setInitProgress(`Uploaded ${syncResult.synced} harvests...`);
+      //     }
+
+      //     if (syncResult.errors.length > 0) {
+      //       console.warn(
+      //         `Harvest upload completed with ${syncResult.errors.length} errors`,
+      //       );
+      //     }
+      //   } else {
+      //     console.log("✅ All harvests are synced");
+      //     setInitProgress("Harvests up to date");
+      //   }
+      // } catch (harvestError) {
+      //   console.error("❌ Harvest sync failed:", harvestError);
+      //   // Don't stop the whole sync, just log the error
+      //   setInitProgress("Harvest sync failed - continuing...");
+      // }
+
+      // ===== UPLOAD LOCAL CHANGES =====
       setInitProgress("Uploading local changes...");
 
-      // Upload unsynced trees
       await treeService.syncAll();
-
-      // Upload unsynced flowers
       await flowerService.syncAll();
-
-      // Upload unsynced fruits
-      setInitProgress("Syncing fruits...");
-      await fruitService.syncAll();
+      await fruitService.syncAll(); // <- UPLOAD unsynced fruits
 
       console.log("✅ All sync operations completed");
       setInitProgress("Sync complete!");
     } catch (error: any) {
       console.error("❌ Sync failed:", error);
       setInitProgress("Sync failed - Using local data");
-      // Don't throw, continue with local data
     }
   };
 

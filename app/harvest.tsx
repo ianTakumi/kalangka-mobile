@@ -13,11 +13,12 @@ import {
   WifiOff,
   X,
 } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -32,6 +33,7 @@ export default function Harvest() {
 
   const [fruit, setFruit] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
 
@@ -63,6 +65,13 @@ export default function Harvest() {
 
       const netInfo = await NetInfo.fetch();
       setIsOnline(netInfo.isConnected ?? false);
+
+      // Listen for network changes
+      const unsubscribe = NetInfo.addEventListener((state) => {
+        setIsOnline(state.isConnected ?? false);
+      });
+
+      return () => unsubscribe();
     };
 
     init();
@@ -102,6 +111,130 @@ export default function Harvest() {
       setCheckingHarvest(false);
     }
   };
+
+  const syncUnsyncedHarvests = async () => {
+    try {
+      // Get all unsynced harvests
+      const unsyncedHarvests = await HarvestService.getAllUnsyncedHarvests();
+
+      if (unsyncedHarvests.length === 0) {
+        console.log("No unsynced harvests to sync");
+        return { synced: 0, failed: 0 };
+      }
+
+      console.log(`Found ${unsyncedHarvests.length} unsynced harvests to sync`);
+
+      let syncedCount = 0;
+      let failedCount = 0;
+
+      // Sync each unsynced harvest
+      for (const harvestData of unsyncedHarvests) {
+        try {
+          const success = await HarvestService.syncCompleteHarvest(
+            harvestData.harvest.id,
+          );
+          if (success) {
+            syncedCount++;
+            console.log(
+              `Successfully synced harvest: ${harvestData.harvest.id}`,
+            );
+          } else {
+            failedCount++;
+            console.log(`Failed to sync harvest: ${harvestData.harvest.id}`);
+          }
+        } catch (error) {
+          failedCount++;
+          console.error(
+            `Error syncing harvest ${harvestData.harvest.id}:`,
+            error,
+          );
+        }
+      }
+
+      return { synced: syncedCount, failed: failedCount };
+    } catch (error) {
+      console.error("Error in syncUnsyncedHarvests:", error);
+      return { synced: 0, failed: 0 };
+    }
+  };
+
+  // Refresh function
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      // Check network status
+      const netInfo = await NetInfo.fetch();
+      setIsOnline(netInfo.isConnected ?? false);
+
+      let syncResults = { synced: 0, failed: 0 };
+
+      // If online, sync unsynced harvests first
+      if (netInfo.isConnected) {
+        console.log("Online - syncing unsynced harvests...");
+        syncResults = await syncUnsyncedHarvests();
+      }
+
+      // Refresh existing harvest data if fruit exists
+      if (fruit?.id) {
+        console.log("Refreshing harvest data for fruit:", fruit.id);
+        const harvestDetails = await HarvestService.getHarvestDetailsByFruitId(
+          fruit.id,
+        );
+
+        if (harvestDetails.harvest) {
+          setExistingHarvest(harvestDetails);
+        }
+
+        // Show toast based on online status and sync results
+        if (netInfo.isConnected) {
+          if (syncResults.synced > 0) {
+            Toast.show({
+              type: "success",
+              text1: "Sync Complete",
+              text2: `Synced ${syncResults.synced} harvest${syncResults.synced > 1 ? "s" : ""} to server`,
+              position: "bottom",
+              visibilityTime: 3000,
+            });
+          } else if (syncResults.failed > 0) {
+            Toast.show({
+              type: "warning",
+              text1: "Sync Partial",
+              text2: `${syncResults.synced} synced, ${syncResults.failed} failed`,
+              position: "bottom",
+              visibilityTime: 3000,
+            });
+          } else {
+            Toast.show({
+              type: "success",
+              text1: "Refreshed",
+              text2: "All data is up to date",
+              position: "bottom",
+              visibilityTime: 2000,
+            });
+          }
+        } else {
+          Toast.show({
+            type: "info",
+            text1: "Offline Mode",
+            text2: "Showing locally saved data",
+            position: "bottom",
+            visibilityTime: 2000,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing harvest:", error);
+      Toast.show({
+        type: "error",
+        text1: "Refresh Failed",
+        text2: "Could not refresh harvest data",
+        position: "bottom",
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fruit?.id, isOnline]);
 
   // Compute days remaining for harvest
   const getHarvestStatus = () => {
@@ -415,7 +548,19 @@ export default function Harvest() {
           </View>
         </View>
 
-        <ScrollView className="flex-1 p-4">
+        <ScrollView
+          className="flex-1 p-4"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#059669"]} // Android
+              tintColor="#059669" // iOS
+              title="Pull to refresh" // iOS
+              titleColor="#059669" // iOS
+            />
+          }
+        >
           {/* Fruit Info Card */}
           <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
             <Text className="text-gray-500 text-sm mb-3">FRUIT DETAILS</Text>
@@ -447,11 +592,17 @@ export default function Harvest() {
                   {new Date().toLocaleDateString()}
                 </Text>
               </View>
-              <View className="flex-row justify-between">
+              <View className="flex-row justify-between items-center">
                 <Text className="text-gray-600">Synced:</Text>
-                <Text className="text-gray-800">
-                  {harvest.is_synced ? "Yes" : "No"}
-                </Text>
+                <View
+                  className={`px-3 py-1 rounded-full ${harvest.is_synced ? "bg-green-100" : "bg-red-100"}`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${harvest.is_synced ? "text-green-800" : "text-red-800"}`}
+                  >
+                    {harvest.is_synced ? "Yes" : "No"}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -616,7 +767,19 @@ export default function Harvest() {
         </View>
       </View>
 
-      <ScrollView className="flex-1 p-4">
+      <ScrollView
+        className="flex-1 p-4"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#059669"]} // Android
+            tintColor="#059669" // iOS
+            title="Pull to refresh" // iOS
+            titleColor="#059669" // iOS
+          />
+        }
+      >
         {/* Fruit Info Card */}
         <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
           <Text className="text-gray-500 text-sm mb-3">FRUIT DETAILS</Text>

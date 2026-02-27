@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 export default function About() {
   const [language, setLanguage] = useState("english");
@@ -98,28 +98,28 @@ export default function About() {
           {current.mission}
         </Text>
 
-        <Text className="text-lg font-bold text-green-600 mt-6 mb-3">
+        {/* <Text className="text-lg font-bold text-green-600 mt-6 mb-3">
           {language === "english" ? "About the Team:" : "Tungkol sa Grupo:"}
         </Text>
         <Text className="text-base text-gray-800 leading-relaxed mb-4">
           {current.team}
-        </Text>
+        </Text> */}
 
-        <View className="mt-6 p-4 bg-green-50 rounded-lg border-l-4 border-green-600">
+        {/* <View className="mt-6 p-4 bg-green-50 rounded-lg border-l-4 border-green-600">
           <Text className="text-base text-green-900 italic">
             {language === "english"
               ? "📍 Currently being piloted in Leyte, Philippines"
               : "📍 Kasalukuyang pilot testing sa Leyte, Pilipinas"}
           </Text>
-        </View>
+        </View> */}
       </View>
 
       {/* Footer Note */}
       <View className="mx-5 mt-6 mb-8 p-4 bg-blue-50 rounded-lg border border-blue-100">
         <Text className="text-sm text-blue-800 text-center">
           {language === "english"
-            ? "Kalangka v1.0 • January 2026 • For jackfruit farmers"
-            : "Kalangka v1.0 • Enero 2026 • Para sa mga magsasaka ng langka"}
+            ? "Kalangka v1.0 • February 2026 • For jackfruit farmers"
+            : "Kalangka v1.0 • Pebrero 2026 • Para sa mga magsasaka ng langka"}
         </Text>
       </View>
     </ScrollView>

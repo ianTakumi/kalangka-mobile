@@ -347,6 +347,81 @@ class FruitService {
   }
 
   // Public CRUD Methods
+  async getFruitCount(): Promise<number> {
+    await this.ensureDatabaseReady();
+    try {
+      const result = await this.db!.getFirstAsync(
+        "SELECT COUNT(*) as count FROM fruits WHERE deleted_at IS NULL",
+      );
+      return result?.count || 0;
+    } catch (error) {
+      console.error("Error counting fruits:", error);
+      return 0;
+    }
+  }
+  async checkAndSync(): Promise<{ needsSync: boolean; fruitCount: number }> {
+    try {
+      // Get fruits from Laravel API
+      const response = await client.get("/fruits");
+
+      if (!response.data.success || !response.data.data) {
+        console.log("No fruits found on server or invalid response");
+      }
+
+      const remoteFruits = response.data.data; // Array of fruits from Laravel
+
+      if (!remoteFruits || remoteFruits.length === 0) {
+        return { needsSync: false, fruitCount: 0 };
+      }
+
+      // Get local fruits count (include deleted for accurate comparison)
+      const localFruits = await this.getFruits(true);
+
+      // Compare counts and latest timestamps
+      let needsSync = false;
+
+      if (remoteFruits.length !== localFruits.length) {
+        // Different count = need sync
+        needsSync = true;
+        console.log(
+          `📊 Fruit count mismatch: Server has ${remoteFruits.length}, Local has ${localFruits.length}`,
+        );
+      } else {
+        // Same count, check if any fruit has newer timestamp
+        // Get latest local update
+        const latestLocal = localFruits.reduce((latest, fruit) => {
+          const fruitTime = fruit.updated_at?.getTime() || 0;
+          return fruitTime > latest ? fruitTime : latest;
+        }, 0);
+
+        // Get latest remote update
+        const latestRemote = remoteFruits.reduce(
+          (latest: number, fruit: any) => {
+            const fruitTime = new Date(fruit.updated_at).getTime();
+            return fruitTime > latest ? fruitTime : latest;
+          },
+          0,
+        );
+
+        // If remote has newer data, need sync
+        if (latestRemote > latestLocal) {
+          needsSync = true;
+          console.log(
+            `📊 Newer fruits on server: Server ${new Date(latestRemote)}, Local ${new Date(latestLocal)}`,
+          );
+        }
+      }
+
+      return {
+        needsSync,
+        fruitCount: remoteFruits.length,
+      };
+    } catch (error: any) {
+      console.error("Error checking fruit sync status:", error);
+      // If error (like network), assume no sync needed
+      return { needsSync: false, fruitCount: 0 };
+    }
+  }
 
   async createFruit(
     fruitData: Omit<
@@ -390,6 +465,117 @@ class FruitService {
     } catch (error) {
       console.error("Error creating fruit:", error);
       throw new Error("Failed to create fruit record. Please try again.");
+    }
+  }
+
+  async syncFruitsFromServer(): Promise<{ synced: number; errors: string[] }> {
+    try {
+      console.log("🔄 Syncing fruits from server...");
+      await this.ensureDatabaseReady();
+      if (!this.db) throw new Error("DB not ready");
+
+      const errors: string[] = [];
+      let synced = 0;
+
+      // Create images directory if not exists
+      const imgDir = `${FileSystem.documentDirectory}fruits/`;
+      const dirInfo = await FileSystem.getInfoAsync(imgDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(imgDir, { intermediates: true });
+      }
+
+      // Get from Laravel
+      const res = await client.get("/fruits");
+      if (!res.data.success || !res.data.data?.length) {
+        return { synced: 0, errors: ["No fruits"] };
+      }
+
+      // Get local fruits
+      const localFruits = await this.getFruits(true);
+      const localMap = new Map(localFruits.map((f) => [f.id, f]));
+
+      console.log(
+        `📥 Server: ${res.data.data.length} fruits, Local: ${localFruits.length} fruits`,
+      );
+
+      // Process each fruit
+      for (const rf of res.data.data) {
+        try {
+          const existing = localMap.get(rf.id);
+
+          // DOWNLOAD IMAGE if it's a URL
+          let imagePath = rf.image_uri || "";
+          if (rf.image_uri?.startsWith("http")) {
+            try {
+              const filename = `fruit_${rf.id}_${Date.now()}.jpg`;
+              const localPath = imgDir + filename;
+              const { uri } = await FileSystem.downloadAsync(
+                rf.image_uri,
+                localPath,
+              );
+              imagePath = uri;
+              console.log(`✅ Downloaded image for fruit ${rf.id}`);
+            } catch (err) {
+              console.warn(
+                `⚠️ Image download failed for fruit ${rf.id}, using URL`,
+              );
+              imagePath = rf.image_uri; // fallback to URL
+            }
+          }
+
+          if (!existing) {
+            // Insert new with downloaded image
+            await this.db.runAsync(
+              `INSERT INTO fruits (id, flower_id, tree_id, quantity, bagged_at, image_uri, status, is_synced, created_at, updated_at) 
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+              [
+                rf.id,
+                rf.flower_id,
+                rf.tree_id,
+                rf.quantity || 1,
+                rf.bagged_at,
+                imagePath,
+                rf.status || "active",
+                1,
+                rf.created_at,
+                rf.updated_at || rf.created_at,
+              ],
+            );
+            synced++;
+            console.log(`✅ Added fruit ${rf.id}`);
+          } else {
+            // Update if newer
+            const remoteTime = new Date(rf.updated_at).getTime();
+            const localTime = existing.updated_at?.getTime() || 0;
+
+            if (remoteTime > localTime) {
+              await this.db.runAsync(
+                `UPDATE fruits SET flower_id=?, tree_id=?, quantity=?, bagged_at=?, 
+               image_uri=?, status=?, is_synced=1, updated_at=? WHERE id=?`,
+                [
+                  rf.flower_id,
+                  rf.tree_id,
+                  rf.quantity || 1,
+                  rf.bagged_at,
+                  imagePath,
+                  rf.status || "active",
+                  rf.updated_at,
+                  rf.id,
+                ],
+              );
+              synced++;
+              console.log(`✅ Updated fruit ${rf.id}`);
+            }
+          }
+        } catch (e: any) {
+          errors.push(e.message);
+        }
+      }
+
+      console.log(`✅ Fruit sync: ${synced} synced, ${errors.length} errors`);
+      return { synced, errors };
+    } catch (error: any) {
+      throw new Error(`Sync failed: ${error.message}`);
     }
   }
 

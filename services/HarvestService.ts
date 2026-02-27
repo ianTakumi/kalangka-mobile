@@ -394,29 +394,62 @@ class HarvestService {
    *  Sync complete harvest data to server (harvest + weights + wastes)
    *  @returns boolean - true if sync successful, false otherwise
    */
+  /**
+   * Sync complete harvest data to server (harvest + weights + wastes)
+   * @returns boolean - true if sync successful, false otherwise
+   */
   async syncCompleteHarvest(harvestId: string): Promise<boolean> {
     await this.ensureDatabaseReady();
 
     if (this.syncInProgress.has(harvestId)) {
-      console.warn(`Sync already in progress for harvest ID: ${harvestId}`);
+      console.warn(`⚠️ Sync already in progress for harvest ID: ${harvestId}`);
       return false;
     }
 
     this.syncInProgress.add(harvestId);
 
     try {
+      console.log(`🔍 Fetching harvest data for ID: ${harvestId}`);
       const harvest = await this.db!.getFirstAsync<Harvest>(
         `SELECT * FROM harvests WHERE id = ? AND deleted_at IS NULL`,
         [harvestId],
       );
 
       if (!harvest) {
-        console.warn(`No harvest found for sync with ID: ${harvestId}`);
+        console.warn(`❌ No harvest found for sync with ID: ${harvestId}`);
         return false;
       }
 
+      console.log(`📦 Harvest found:`, {
+        id: harvest.id,
+        fruit_id: harvest.fruit_id,
+        ripe_quantity: harvest.ripe_quantity,
+        is_synced: harvest.is_synced,
+      });
+
       const fruitWeights = await this.getFruitWeightsByHarvestId(harvestId);
       const wastes = await this.getWastesByHarvestId(harvestId);
+
+      console.log(`⚖️ Found ${fruitWeights.length} fruit weights`);
+      console.log(`🗑️ Found ${wastes.length} wastes`);
+
+      // Log fruit weights details
+      fruitWeights.forEach((w, index) => {
+        console.log(`  Weight ${index + 1}:`, {
+          id: w.id,
+          weight: w.weight,
+          status: w.status,
+        });
+      });
+
+      // Log wastes details
+      wastes.forEach((w, index) => {
+        console.log(`  Waste ${index + 1}:`, {
+          id: w.id,
+          quantity: w.waste_quantity,
+          reason: w.reason,
+        });
+      });
 
       // Prepare payload in the exact format your API expects
       const payload = {
@@ -436,50 +469,134 @@ class HarvestService {
         })),
       };
 
-      // Send to server using axios client
-      const response = await client.post("/harvests", payload);
+      console.log(
+        `📤 Sending payload to server:`,
+        JSON.stringify(payload, null, 2),
+      );
 
-      if (response.data.success) {
-        // Mark as synced in local database
-        await this.db!.execAsync("BEGIN TRANSACTION");
-        try {
-          // Update harvest sync status
-          await this.db!.runAsync(
-            `UPDATE harvests SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-            [harvestId],
+      // Send to server using axios client
+      try {
+        const response = await client.post("/harvests", payload);
+
+        console.log(`📥 Server response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          data: response.data,
+        });
+
+        if (response.data.success) {
+          console.log(`✅ Server accepted the harvest data`);
+
+          // Mark as synced in local database
+          await this.db!.execAsync("BEGIN TRANSACTION");
+          try {
+            // Update harvest sync status
+            await this.db!.runAsync(
+              `UPDATE harvests SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [harvestId],
+            );
+            console.log(`✅ Marked harvest as synced in local DB`);
+
+            // Update fruit weights sync status
+            for (const weight of fruitWeights) {
+              await this.db!.runAsync(
+                `UPDATE fruit_weights SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [weight.id],
+              );
+            }
+            console.log(
+              `✅ Marked ${fruitWeights.length} fruit weights as synced`,
+            );
+
+            // Update wastes sync status
+            for (const waste of wastes) {
+              await this.db!.runAsync(
+                `UPDATE wastes SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [waste.id],
+              );
+            }
+            console.log(`✅ Marked ${wastes.length} wastes as synced`);
+
+            await this.db!.execAsync("COMMIT");
+            console.log(`🎉 Successfully synced harvest ID: ${harvestId}`);
+            return true;
+          } catch (error) {
+            await this.db!.execAsync("ROLLBACK");
+            console.error(`❌ Error updating local sync status:`, error);
+            throw error;
+          }
+        } else {
+          console.error(`❌ Server returned success: false`, response.data);
+          return false;
+        }
+      } catch (apiError: any) {
+        console.error(`❌ API Error:`);
+
+        // Log detailed error information
+        if (apiError.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          console.error(`  Status: ${apiError.response.status}`);
+          console.error(`  Status Text: ${apiError.response.statusText}`);
+          console.error(
+            `  Response Data:`,
+            JSON.stringify(apiError.response.data, null, 2),
           );
 
-          // Update fruit weights sync status
-          for (const weight of fruitWeights) {
-            await this.db!.runAsync(
-              `UPDATE fruit_weights SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-              [weight.id],
+          // Log validation errors specifically for 422
+          if (apiError.response.status === 422) {
+            console.error(`  🔍 VALIDATION ERRORS (422):`);
+            const errors =
+              apiError.response.data.errors || apiError.response.data;
+
+            if (typeof errors === "object") {
+              Object.keys(errors).forEach((key) => {
+                console.error(`    ${key}:`, errors[key]);
+              });
+            }
+
+            // Check for specific field issues
+            console.error(`  📋 Payload structure check:`);
+            console.error(
+              `    - id: ${payload.id ? "✓ present" : "✗ missing"}`,
+            );
+            console.error(
+              `    - fruit_id: ${payload.fruit_id ? "✓ present" : "✗ missing"}`,
+            );
+            console.error(
+              `    - ripe_quantity: ${payload.ripe_quantity !== undefined ? "✓ present" : "✗ missing"}`,
+            );
+            console.error(
+              `    - harvest_at: ${payload.harvest_at ? "✓ present" : "✗ missing"}`,
+            );
+            console.error(
+              `    - fruit_weights: array with ${payload.fruit_weights.length} items`,
+            );
+            console.error(
+              `    - wastes: array with ${payload.wastes.length} items`,
             );
           }
-
-          // Update wastes sync status
-          for (const waste of wastes) {
-            await this.db!.runAsync(
-              `UPDATE wastes SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-              [waste.id],
-            );
-          }
-
-          await this.db!.execAsync("COMMIT");
-          console.log(`Successfully synced harvest ID: ${harvestId}`);
-          return true;
-        } catch (error) {
-          await this.db!.execAsync("ROLLBACK");
-          throw error;
+        } else if (apiError.request) {
+          // The request was made but no response was received
+          console.error(`  No response received:`, apiError.request);
+        } else {
+          // Something happened in setting up the request that triggered an Error
+          console.error(`  Request setup error:`, apiError.message);
         }
+
+        return false;
       }
 
       return false;
     } catch (err) {
-      console.error(`Error syncing harvest (ID: ${harvestId}):`, err);
+      console.error(
+        `💥 Unexpected error syncing harvest (ID: ${harvestId}):`,
+        err,
+      );
       return false;
     } finally {
       this.syncInProgress.delete(harvestId);
+      console.log(`🔓 Sync lock released for harvest ID: ${harvestId}`);
     }
   }
 
@@ -557,6 +674,115 @@ class HarvestService {
       await this.db!.execAsync("ROLLBACK");
       console.error("Error in deleteCompleteHarvest:", error);
       throw new Error("Failed to delete harvest");
+    }
+  }
+
+  /**
+   * Get all unsynced harvests with their weights and wastes for syncing
+   */
+  async getAllUnsyncedHarvests(): Promise<
+    {
+      harvest: Harvest;
+      fruitWeights: FruitWeight[];
+      wastes: Waste[];
+    }[]
+  > {
+    await this.ensureDatabaseReady();
+
+    try {
+      // Get all unsynced harvests (is_synced = 0 or NULL)
+      const unsyncedHarvests = await this.db!.getAllAsync<Harvest>(
+        `SELECT * FROM harvests 
+       WHERE (is_synced = 0 OR is_synced IS NULL) 
+       AND deleted_at IS NULL 
+       ORDER BY created_at ASC`,
+      );
+
+      if (unsyncedHarvests.length === 0) {
+        return [];
+      }
+
+      const result: {
+        harvest: Harvest;
+        fruitWeights: FruitWeight[];
+        wastes: Waste[];
+      }[] = [];
+
+      // For each unsynced harvest, get its fruit weights and wastes
+      for (const harvest of unsyncedHarvests) {
+        // Get unsynced fruit weights for this harvest
+        const fruitWeights = await this.db!.getAllAsync<FruitWeight>(
+          `SELECT * FROM fruit_weights 
+         WHERE harvest_id = ? 
+         AND (is_synced = 0 OR is_synced IS NULL)
+         AND deleted_at IS NULL 
+         ORDER BY created_at ASC`,
+          [harvest.id],
+        );
+
+        // Get unsynced wastes for this harvest
+        const wastes = await this.db!.getAllAsync<Waste>(
+          `SELECT * FROM wastes 
+         WHERE harvest_id = ? 
+         AND (is_synced = 0 OR is_synced IS NULL)
+         AND deleted_at IS NULL 
+         ORDER BY created_at ASC`,
+          [harvest.id],
+        );
+
+        // Convert date strings to Date objects and boolean conversion
+        const processedHarvest: Harvest = {
+          ...harvest,
+          created_at: harvest.created_at
+            ? new Date(harvest.created_at)
+            : new Date(),
+          updated_at: harvest.updated_at
+            ? new Date(harvest.updated_at)
+            : new Date(),
+          deleted_at: harvest.deleted_at ? new Date(harvest.deleted_at) : null,
+          is_synced: Boolean(harvest.is_synced),
+        };
+
+        const processedFruitWeights: FruitWeight[] = fruitWeights.map(
+          (weight) => ({
+            ...weight,
+            created_at: weight.created_at
+              ? new Date(weight.created_at)
+              : new Date(),
+            updated_at: weight.updated_at
+              ? new Date(weight.updated_at)
+              : new Date(),
+            deleted_at: weight.deleted_at ? new Date(weight.deleted_at) : null,
+            is_synced: Boolean(weight.is_synced),
+          }),
+        );
+
+        const processedWastes: Waste[] = wastes.map((waste) => ({
+          ...waste,
+          reported_at: waste.reported_at
+            ? new Date(waste.reported_at)
+            : new Date(),
+          created_at: waste.created_at
+            ? new Date(waste.created_at)
+            : new Date(),
+          updated_at: waste.updated_at
+            ? new Date(waste.updated_at)
+            : new Date(),
+          deleted_at: waste.deleted_at ? new Date(waste.deleted_at) : null,
+          is_synced: Boolean(waste.is_synced),
+        }));
+
+        result.push({
+          harvest: processedHarvest,
+          fruitWeights: processedFruitWeights,
+          wastes: processedWastes,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Error fetching unsynced harvests:", error);
+      return [];
     }
   }
 
