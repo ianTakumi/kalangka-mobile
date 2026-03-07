@@ -135,6 +135,130 @@ class HarvestService {
     );
   }
 
+  /**
+   * Update existing harvest with weights and wastes
+   * This updates an existing harvest record (not creates a new one)
+   */
+  async updateHarvest(
+    harvestId: string,
+    ripeQuantity: number,
+    weights: number[],
+    wastesData?: { quantity: number; reason: string }[],
+  ): Promise<{
+    harvest: Harvest;
+    fruitWeights: FruitWeight[];
+    wastes: Waste[];
+    synced: boolean;
+  }> {
+    await this.ensureDatabaseReady();
+
+    // Start transaction
+    await this.db!.execAsync("BEGIN TRANSACTION");
+
+    try {
+      // 1. Check if harvest exists
+      const existingHarvest = await this.db!.getFirstAsync<Harvest>(
+        `SELECT * FROM harvests WHERE id = ? AND deleted_at IS NULL`,
+        [harvestId],
+      );
+
+      if (!existingHarvest) {
+        throw new Error(`Harvest with ID ${harvestId} not found`);
+      }
+
+      // 2. Update harvest
+      await this.db!.runAsync(
+        `UPDATE harvests 
+       SET ripe_quantity = ?, 
+           harvest_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP,
+           is_synced = 0
+       WHERE id = ? AND deleted_at IS NULL`,
+        [ripeQuantity, harvestId],
+      );
+
+      // Get updated harvest
+      const updatedHarvest = await this.db!.getFirstAsync<Harvest>(
+        `SELECT * FROM harvests WHERE id = ?`,
+        [harvestId],
+      );
+
+      if (!updatedHarvest) {
+        throw new Error("Failed to retrieve updated harvest");
+      }
+
+      // 3. Delete existing fruit weights (optional - depends on your business logic)
+      // You might want to keep existing ones or replace them
+      await this.db!.runAsync(
+        `UPDATE fruit_weights SET deleted_at = ? WHERE harvest_id = ? AND deleted_at IS NULL`,
+        [new Date().toISOString(), harvestId],
+      );
+
+      // 4. Create new fruit weights
+      const fruitWeights: FruitWeight[] = [];
+      for (let i = 0; i < weights.length; i++) {
+        const weight = await this.createFruitWeight({
+          harvest_id: harvestId,
+          weight: weights[i],
+        });
+        fruitWeights.push(weight);
+      }
+
+      // 5. Delete existing wastes (optional)
+      await this.db!.runAsync(
+        `UPDATE wastes SET deleted_at = ? WHERE harvest_id = ? AND deleted_at IS NULL`,
+        [new Date().toISOString(), harvestId],
+      );
+
+      // 6. Create new wastes if provided
+      const wastes: Waste[] = [];
+      if (wastesData && wastesData.length > 0) {
+        for (const wasteItem of wastesData) {
+          if (wasteItem.quantity > 0) {
+            const waste = await this.createWaste({
+              harvest_id: harvestId,
+              waste_quantity: wasteItem.quantity,
+              reason: wasteItem.reason,
+            });
+            wastes.push(waste);
+          }
+        }
+      }
+
+      // Commit transaction
+      await this.db!.execAsync("COMMIT");
+
+      let synced = false;
+
+      const networkState = await NetInfo.fetch();
+      console.log("Network state on harvest update:", networkState);
+      if (networkState.isConnected && networkState.isInternetReachable) {
+        synced = await this.syncCompleteHarvest(harvestId);
+        console.log(
+          `Harvest ${synced ? "synced" : "failed to sync"} automatically`,
+        );
+      } else {
+        console.log("Device is offline, harvest updated locally");
+      }
+
+      // Get fresh data with weights and wastes
+      const freshWeights = await this.getFruitWeightsByHarvestId(harvestId);
+      const freshWastes = await this.getWastesByHarvestId(harvestId);
+
+      return {
+        harvest: updatedHarvest,
+        fruitWeights: freshWeights,
+        wastes: freshWastes,
+        synced,
+      };
+    } catch (error) {
+      // Rollback on error
+      await this.db!.execAsync("ROLLBACK");
+      console.error("Error in updateHarvest:", error);
+      throw new Error("Failed to update harvest");
+    }
+  }
+
   // Update Harvest
   async updateHarvestRipeQuantity(
     id: string,
@@ -158,6 +282,429 @@ class HarvestService {
       `UPDATE harvests SET deleted_at = ?, updated_at = ? WHERE id = ?`,
       [new Date().toISOString(), new Date().toISOString(), id],
     );
+  }
+
+  /**
+   * Create harvest assignments for bagged fruits
+   * This creates new harvest records with just fruit_id and user_id
+   * Other fields (ripe_quantity, weights, wastes) will be filled during actual harvest
+   */
+  async createHarvestAssignments(
+    fruitIds: string[],
+    userId: string,
+  ): Promise<{
+    success: boolean;
+    createdCount: number;
+    harvests: Harvest[];
+    errors: string[];
+  }> {
+    await this.ensureDatabaseReady();
+
+    const results: Harvest[] = [];
+    const errors: string[] = [];
+    let createdCount = 0;
+
+    // Start transaction
+    await this.db!.execAsync("BEGIN TRANSACTION");
+
+    try {
+      for (const fruitId of fruitIds) {
+        try {
+          // Check if harvest already exists for this fruit
+          const existingHarvest = await this.getHarvestByFruitId(fruitId);
+
+          if (existingHarvest) {
+            // If harvest exists but no user assigned, update it
+            if (!existingHarvest.user_id) {
+              await this.db!.runAsync(
+                `UPDATE harvests 
+               SET user_id = ?, updated_at = CURRENT_TIMESTAMP, is_synced = 0
+               WHERE id = ? AND deleted_at IS NULL`,
+                [userId, existingHarvest.id],
+              );
+
+              const updatedHarvest = await this.db!.getFirstAsync<Harvest>(
+                `SELECT * FROM harvests WHERE id = ?`,
+                [existingHarvest.id],
+              );
+
+              if (updatedHarvest) {
+                results.push(updatedHarvest);
+                createdCount++;
+              }
+            } else {
+              errors.push(`Fruit ${fruitId} already has a harvester assigned`);
+            }
+          } else {
+            // Create NEW harvest record with just fruit_id and user_id
+            const id = this.generateUUID();
+            const now = new Date().toISOString();
+
+            await this.db!.runAsync(
+              `INSERT INTO harvests (
+              id, 
+              fruit_id, 
+              user_id, 
+              ripe_quantity, 
+              is_synced, 
+              created_at, 
+              updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [
+                id,
+                fruitId,
+                userId,
+                0, // ripe_quantity set to 0 initially (will be updated during actual harvest)
+                0, // is_synced = false
+                now,
+                now,
+              ],
+            );
+
+            // Get created harvest
+            const newHarvest = await this.db!.getFirstAsync<Harvest>(
+              `SELECT * FROM harvests WHERE id = ?`,
+              [id],
+            );
+
+            if (newHarvest) {
+              results.push(newHarvest);
+              createdCount++;
+            }
+          }
+        } catch (error: any) {
+          errors.push(`Fruit ${fruitId}: ${error.message}`);
+          console.error(
+            `Error creating harvest assignment for fruit ${fruitId}:`,
+            error,
+          );
+        }
+      }
+
+      if (createdCount > 0) {
+        await this.db!.execAsync("COMMIT");
+
+        // Try to sync assignments to server if online
+        try {
+          const netInfo = await NetInfo.fetch();
+          if (netInfo.isConnected) {
+            for (const harvest of results) {
+              await this.syncHarvestAssignment(harvest.id);
+            }
+          }
+        } catch (syncError) {
+          console.error("Error syncing assignments:", syncError);
+        }
+      } else {
+        await this.db!.execAsync("ROLLBACK");
+      }
+
+      return {
+        success: createdCount > 0,
+        createdCount,
+        harvests: results,
+        errors,
+      };
+    } catch (error: any) {
+      await this.db!.execAsync("ROLLBACK");
+      console.error("Error in createHarvestAssignments:", error);
+      throw new Error(`Failed to create harvest assignments: ${error.message}`);
+    }
+  }
+
+  /**
+   * Sync a harvest assignment to server
+   */
+  async syncHarvestAssignment(harvestId: string): Promise<boolean> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const harvest = await this.db!.getFirstAsync<Harvest>(
+        `SELECT * FROM harvests WHERE id = ? AND deleted_at IS NULL`,
+        [harvestId],
+      );
+
+      if (!harvest) {
+        console.warn(`No harvest found for sync with ID: ${harvestId}`);
+        return false;
+      }
+
+      // Prepare payload for assignment only
+      const payload = {
+        id: harvest.id,
+        fruit_id: harvest.fruit_id,
+        user_id: harvest.user_id,
+        harvest_at: new Date().toISOString().split("T")[0],
+        ripe_quantity: 0, // Will be updated during actual harvest
+        status: "assigned", // Mark as assigned, not yet harvested
+      };
+
+      const response = await client.post("/harvest/assign", payload);
+
+      if (response.data.success) {
+        // Mark as synced
+        await this.db!.runAsync(
+          `UPDATE harvests SET is_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [harvestId],
+        );
+        console.log(`✅ Harvest assignment ${harvestId} synced successfully`);
+        return true;
+      }
+
+      return false;
+    } catch (error: any) {
+      console.error(`Error syncing harvest assignment ${harvestId}:`, error);
+      return false;
+    }
+  }
+  /**
+   * Get assigned harvests with fruit and tree details
+   * Aligned with actual schema
+   */
+  async getAssignedHarvests(): Promise<any[]> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const query = `
+      SELECT 
+        h.*,
+        f.id as fruit_id,
+        f.flower_id as fruit_flower_id,
+        f.tree_id as fruit_tree_id,
+        f.quantity as fruit_quantity,
+        f.bagged_at as fruit_bagged_at,
+        f.image_uri as fruit_image_uri,
+        f.status as fruit_status,
+        f.created_at as fruit_created_at,
+        f.updated_at as fruit_updated_at,
+        f.deleted_at as fruit_deleted_at,
+        t.id as tree_uuid,
+        t.description as tree_description,
+        t.latitude as tree_latitude,
+        t.longitude as tree_longitude,
+        t.status as tree_status,
+        t.created_at as tree_created_at,
+        t.updated_at as tree_updated_at
+      FROM harvests h
+      LEFT JOIN fruits f ON h.fruit_id = f.id AND f.deleted_at IS NULL
+      LEFT JOIN trees t ON f.tree_id = t.id AND t.deleted_at IS NULL
+      WHERE h.user_id IS NOT NULL 
+        AND h.user_id != '' 
+        AND (h.ripe_quantity = 0 OR h.ripe_quantity IS NULL)
+        AND h.deleted_at IS NULL 
+      ORDER BY h.created_at DESC
+    `;
+
+      const results = await this.db!.getAllAsync(query);
+
+      // Transform the results to include nested objects
+      return results.map((row: any) => ({
+        id: row.id,
+        fruit_id: row.fruit_id,
+        user_id: row.user_id,
+        ripe_quantity: row.ripe_quantity,
+        harvest_at: row.harvest_at,
+        is_synced: Boolean(row.is_synced),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+        // Fruit details
+        fruit: row.fruit_id
+          ? {
+              id: row.fruit_id,
+              flower_id: row.fruit_flower_id,
+              tree_id: row.fruit_tree_id,
+              quantity: row.fruit_quantity,
+              bagged_at: row.fruit_bagged_at,
+              image_uri: row.fruit_image_uri,
+              status: row.fruit_status,
+              created_at: row.fruit_created_at,
+              updated_at: row.fruit_updated_at,
+              deleted_at: row.fruit_deleted_at,
+              // Tree details nested inside fruit
+              tree: row.tree_uuid
+                ? {
+                    uuid: row.tree_uuid,
+                    description: row.tree_description,
+                    latitude: row.tree_latitude,
+                    longitude: row.tree_longitude,
+                    status: row.tree_status,
+                    created_at: row.tree_created_at,
+                    updated_at: row.tree_updated_at,
+                  }
+                : null,
+            }
+          : null,
+      }));
+    } catch (error) {
+      console.error("Error fetching assigned harvests:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get assigned harvests by user ID with fruit and tree details
+   */
+  async getAssignmentsByUserId(userId: string): Promise<any[]> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const query = `
+      SELECT 
+        h.*,
+        f.id as fruit_id,
+        f.flower_id as fruit_flower_id,
+        f.tree_id as fruit_tree_id,
+        f.quantity as fruit_quantity,
+        f.bagged_at as fruit_bagged_at,
+        f.image_uri as fruit_image_uri,
+        f.status as fruit_status,
+        f.created_at as fruit_created_at,
+        f.updated_at as fruit_updated_at,
+        f.deleted_at as fruit_deleted_at,
+        t.id as tree_uuid,
+        t.description as tree_description,
+        t.latitude as tree_latitude,
+        t.longitude as tree_longitude,
+        t.status as tree_status,
+        t.created_at as tree_created_at,
+        t.updated_at as tree_updated_at
+      FROM harvests h
+      LEFT JOIN fruits f ON h.fruit_id = f.id AND f.deleted_at IS NULL
+      LEFT JOIN trees t ON f.tree_id = t.id 
+      WHERE h.user_id = ? 
+        AND h.deleted_at IS NULL 
+      ORDER BY 
+        -- Show pending first, then harvested
+        CASE WHEN h.harvest_at IS NULL OR h.harvest_at = '' THEN 0 ELSE 1 END,
+        h.created_at DESC
+    `;
+
+      const results = await this.db!.getAllAsync(query, [userId]);
+
+      return results.map((row: any) => ({
+        id: row.id,
+        fruit_id: row.fruit_id,
+        user_id: row.user_id,
+        ripe_quantity: row.ripe_quantity,
+        harvest_at: row.harvest_at,
+        is_synced: Boolean(row.is_synced),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+        fruit: row.fruit_id
+          ? {
+              id: row.fruit_id,
+              flower_id: row.fruit_flower_id,
+              tree_id: row.fruit_tree_id,
+              quantity: row.fruit_quantity,
+              bagged_at: row.fruit_bagged_at,
+              image_uri: row.fruit_image_uri,
+              status: row.fruit_status,
+              created_at: row.fruit_created_at,
+              updated_at: row.fruit_updated_at,
+              deleted_at: row.fruit_deleted_at,
+              tree: row.tree_uuid
+                ? {
+                    uuid: row.tree_uuid,
+                    description: row.tree_description,
+                    latitude: row.tree_latitude,
+                    longitude: row.tree_longitude,
+                    status: row.tree_status,
+                    created_at: row.tree_created_at,
+                    updated_at: row.tree_updated_at,
+                  }
+                : null,
+            }
+          : null,
+      }));
+    } catch (error) {
+      console.error(
+        `Error fetching assigned harvests for user ${userId}:`,
+        error,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get a single assigned harvest by ID with fruit and tree details
+   */
+  async getAssignedHarvestById(harvestId: string): Promise<any | null> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const query = `
+      SELECT 
+        h.*,
+        f.id as fruit_id,
+        f.flower_id as fruit_flower_id,
+        f.tree_id as fruit_tree_id,
+        f.quantity as fruit_quantity,
+        f.bagged_at as fruit_bagged_at,
+        f.image_uri as fruit_image_uri,
+        f.status as fruit_status,
+        f.created_at as fruit_created_at,
+        f.updated_at as fruit_updated_at,
+        f.deleted_at as fruit_deleted_at,
+        t.uuid as tree_uuid,
+        t.description as tree_description,
+        t.latitude as tree_latitude,
+        t.longitude as tree_longitude,
+        t.status as tree_status,
+        t.created_at as tree_created_at,
+        t.updated_at as tree_updated_at
+      FROM harvests h
+      LEFT JOIN fruits f ON h.fruit_id = f.id AND f.deleted_at IS NULL
+      LEFT JOIN trees t ON f.tree_id = t.uuid AND t.deleted_at IS NULL
+      WHERE h.id = ? 
+        AND h.deleted_at IS NULL
+    `;
+
+      const row = await this.db!.getFirstAsync(query, [harvestId]);
+
+      if (!row) return null;
+
+      return {
+        id: row.id,
+        fruit_id: row.fruit_id,
+        user_id: row.user_id,
+        ripe_quantity: row.ripe_quantity,
+        harvest_at: row.harvest_at,
+        is_synced: Boolean(row.is_synced),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+        fruit: row.fruit_id
+          ? {
+              id: row.fruit_id,
+              flower_id: row.fruit_flower_id,
+              tree_id: row.fruit_tree_id,
+              quantity: row.fruit_quantity,
+              bagged_at: row.fruit_bagged_at,
+              image_uri: row.fruit_image_uri,
+              status: row.fruit_status,
+              created_at: row.fruit_created_at,
+              updated_at: row.fruit_updated_at,
+              deleted_at: row.fruit_deleted_at,
+              tree: row.tree_uuid
+                ? {
+                    uuid: row.tree_uuid,
+                    description: row.tree_description,
+                    latitude: row.tree_latitude,
+                    longitude: row.tree_longitude,
+                    status: row.tree_status,
+                    created_at: row.tree_created_at,
+                    updated_at: row.tree_updated_at,
+                  }
+                : null,
+            }
+          : null,
+      };
+    } catch (error) {
+      console.error(`Error fetching assigned harvest ${harvestId}:`, error);
+      return null;
+    }
   }
 
   // ==================== FRUIT WEIGHTS METHODS ====================
@@ -583,8 +1130,6 @@ class HarvestService {
           // Something happened in setting up the request that triggered an Error
           console.error(`  Request setup error:`, apiError.message);
         }
-
-        return false;
       }
 
       return false;

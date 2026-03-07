@@ -1,54 +1,52 @@
-import React, { useState, useEffect } from "react";
+import HarvestService from "@/services/HarvestService";
+import { User as UserType } from "@/types/index";
+import { getTimeBasedGreeting } from "@/utils/helpers";
+import NetInfo from "@react-native-community/netinfo";
+import axios from "axios";
+import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StatusBar,
-  RefreshControl,
-  Animated,
-  Dimensions,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  BarChart3,
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
   Camera,
-  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
   Cloud,
   CloudOff,
-  Download,
-  Flower2,
-  MapPin,
+  CloudRain,
+  CloudSnow,
+  CloudSun,
+  Cloudy,
+  Droplets,
+  Package,
   QrCode,
   RefreshCw,
-  Shield,
-  Trees,
-  Upload,
-  User,
-  AlertCircle,
-  Zap,
-  ArrowRight,
-  TrendingUp,
-  Package,
-  ChevronRight,
-  Thermometer,
-  Droplets,
-  Wind,
-  CloudRain,
   Sun,
-  Cloudy,
-  CloudSun,
+  Thermometer,
+  Trees,
   Umbrella,
-  AlertTriangle,
-  CloudSnow,
+  User,
+  Wind,
+  Zap,
 } from "lucide-react-native";
-import NetInfo from "@react-native-community/netinfo";
-import * as Location from "expo-location";
-import axios from "axios";
-import { useRouter } from "expo-router";
-import { getTimeBasedGreeting } from "@/utils/helpers";
-
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 const { width } = Dimensions.get("window");
 
 export default function FarmerHomeScreen() {
@@ -58,6 +56,10 @@ export default function FarmerHomeScreen() {
   const scanButtonScale = new Animated.Value(1);
   const pulseAnim = new Animated.Value(1);
   const [location, setLocation] = useState(null);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [assignedHarvests, setAssignedHarvests] = useState([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const user = useSelector((state) => state.auth.user);
 
   // Weather state with actual data fetching
   const [weather, setWeather] = useState({
@@ -105,8 +107,34 @@ export default function FarmerHomeScreen() {
     // Fetch weather data on component mount
     fetchLocationAndWeather();
 
+    // Get current user and assigned harvests
+    fetchCurrentUserAndAssignments();
+
     return () => unsubscribe();
   }, []);
+
+  const fetchCurrentUserAndAssignments = async () => {
+    try {
+      if (user) {
+        await fetchAssignedHarvests(user.id);
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    }
+  };
+
+  const fetchAssignedHarvests = async (userId: string) => {
+    setLoadingAssignments(true);
+    try {
+      // Get harvests assigned to this user that are not yet completed
+      const harvests = await HarvestService.getAssignmentsByUserId(userId);
+      setAssignedHarvests(harvests);
+    } catch (error) {
+      console.error("Error fetching assigned harvests:", error);
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
 
   const fetchLocationAndWeather = async () => {
     setWeather((prev) => ({ ...prev, loading: true, error: null }));
@@ -302,7 +330,10 @@ export default function FarmerHomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchLocationAndWeather();
+    await Promise.all([
+      fetchLocationAndWeather(),
+      fetchCurrentUserAndAssignments(),
+    ]);
     setRefreshing(false);
   };
 
@@ -335,6 +366,57 @@ export default function FarmerHomeScreen() {
       return <Cloud size={32} color="#6B7280" />;
     }
   };
+
+  const renderAssignedHarvestItem = ({ item }) => (
+    <TouchableOpacity
+      className="bg-white rounded-xl p-4 mb-3 border border-gray-200 flex-row items-center"
+      onPress={() => {
+        if (item.fruit) {
+          router.push({
+            pathname: "/harvest",
+            params: {
+              fruitData: JSON.stringify(item.fruit),
+              harvestId: item.id,
+            },
+          });
+        } else {
+          Alert.alert("Error", "Fruit details not available");
+        }
+      }}
+      activeOpacity={0.7}
+    >
+      <View className="w-12 h-12 bg-orange-100 rounded-full items-center justify-center mr-3">
+        <Package size={24} color="#F97316" />
+      </View>
+      <View className="flex-1">
+        <Text className="font-bold text-gray-900">
+          {item.fruit?.treeName || `Fruit #${item.fruit_id?.substring(0, 8)}`}
+        </Text>
+        <View className="flex-row items-center mt-1">
+          <Clock size={14} color="#6B7280" />
+          <Text className="text-xs text-gray-600 ml-1">
+            Assigned: {new Date(item.created_at).toLocaleDateString()}
+          </Text>
+        </View>
+        <View className="flex-row mt-2">
+          <View
+            className={`rounded-full px-2 py-1 ${
+              item.harvest_at ? "bg-green-100" : "bg-blue-100"
+            }`}
+          >
+            <Text
+              className={`text-xs ${
+                item.harvest_at ? "text-green-700" : "text-blue-700"
+              }`}
+            >
+              {item.harvest_at ? "Harvested" : "Pending Harvest"}
+            </Text>
+          </View>
+        </View>
+      </View>
+      <ChevronRight size={20} color="#9CA3AF" />
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -390,7 +472,7 @@ export default function FarmerHomeScreen() {
               color="#059669"
               className={`mr-1 ${weather.loading ? "animate-spin" : ""}`}
             />
-            <Text className="text-sm text-emerald-600">Refresh Weather</Text>
+            <Text className="text-sm text-emerald-600">Refresh</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -408,7 +490,7 @@ export default function FarmerHomeScreen() {
         }
       >
         {/* Full Weather & Conditions Section */}
-        <View className="px-6 mb-6">
+        <View className="px-6 mt-4 mb-6">
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-2xl font-bold text-gray-900">
               Weather & Conditions
@@ -518,22 +600,6 @@ export default function FarmerHomeScreen() {
                   </Text>
                 </View>
 
-                {/* Location Info */}
-                {/* {location && (
-                  <View className="mt-4 bg-blue-50 rounded-xl p-3">
-                    <View className="flex-row items-center mb-1">
-                      <MapPin size={16} color="#3B82F6" />
-                      <Text className="ml-2 text-sm font-medium text-gray-900">
-                        Your Location
-                      </Text>
-                    </View>
-                    <Text className="text-xs text-gray-600">
-                      {location.coords.latitude.toFixed(4)},{" "}
-                      {location.coords.longitude.toFixed(4)}
-                    </Text>
-                  </View>
-                )} */}
-
                 <Text className="text-sm text-gray-500 text-center mt-4">
                   {weather.forecast}
                 </Text>
@@ -542,8 +608,69 @@ export default function FarmerHomeScreen() {
           </View>
         </View>
 
+        {/* ASSIGNED HARVESTS SECTION - NEW */}
+        {user && (
+          <View className="px-6 mb-6">
+            <View className="flex-row justify-between items-center mb-4">
+              <View className="flex-row items-center">
+                <Package size={24} color="#F97316" />
+                <Text className="text-2xl font-bold text-gray-900 ml-2">
+                  My Assigned Harvests
+                </Text>
+              </View>
+              {assignedHarvests.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => router.push("/users/assigned")}
+                >
+                  <Text className="text-emerald-600 font-medium">View All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {loadingAssignments ? (
+              <View className="bg-white rounded-xl p-8 items-center">
+                <ActivityIndicator size="large" color="#F97316" />
+                <Text className="text-gray-600 mt-3">
+                  Loading assignments...
+                </Text>
+              </View>
+            ) : assignedHarvests.length === 0 ? (
+              <View className="bg-white rounded-xl p-8 items-center border border-gray-200">
+                <View className="w-16 h-16 bg-orange-50 rounded-full items-center justify-center mb-3">
+                  <CheckCircle2 size={32} color="#F97316" />
+                </View>
+                <Text className="text-lg font-medium text-gray-900 mb-1">
+                  No Assigned Harvests
+                </Text>
+                <Text className="text-gray-500 text-center">
+                  You don't have any pending harvest assignments.
+                </Text>
+              </View>
+            ) : (
+              <View>
+                <FlatList
+                  data={assignedHarvests.slice(0, 5)}
+                  renderItem={renderAssignedHarvestItem}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                />
+                {assignedHarvests.length > 3 && (
+                  <TouchableOpacity
+                    className="mt-2 bg-orange-50 rounded-xl p-3 items-center"
+                    onPress={() => router.push("/users/assigned")}
+                  >
+                    <Text className="text-orange-700 font-medium">
+                      View {assignedHarvests.length - 3} More Assignments
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* QR Scan Section - Main Feature */}
-        <View className="px-6 pt-6 pb-4">
+        <View className="px-6 pt-2 pb-4">
           <Text className="text-2xl font-bold text-gray-900 mb-2">
             Quick Tree Access
           </Text>

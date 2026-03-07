@@ -241,6 +241,29 @@ export default function Index() {
         console.error("❌ Fruit sync from server failed:", fruitError);
       }
 
+      // ===== USER SYNC (ADD THIS) =====
+      setInitProgress("Checking users...");
+      try {
+        // Use the syncUsersFromServer method directly
+        const userResult = await userService.syncUsersFromServer();
+
+        if (userResult.synced > 0) {
+          console.log(`✅ Synced ${userResult.synced} users from server`);
+          setInitProgress(`Downloaded ${userResult.synced} users...`);
+        } else {
+          console.log("✅ Users are up to date");
+          setInitProgress("Users up to date");
+        }
+
+        if (userResult.errors.length > 0) {
+          console.warn("User sync errors:", userResult.errors);
+        }
+      } catch (userError) {
+        console.error("❌ User sync from server failed:", userError);
+        // Don't stop the whole sync, just log the error
+        setInitProgress("User sync failed - continuing...");
+      }
+
       // ===== HARVEST SYNC (UPLOAD ONLY) =====
       // setInitProgress("Checking harvest data...");
       // try {

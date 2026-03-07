@@ -152,13 +152,13 @@ class UserService {
       // Call Laravel endpoint to get users
       const response = await client.get("/users");
 
-      // Check response structure for Laravel pagination
+      // Check response structure
       if (!response.data.success || !response.data.data) {
         throw new Error("Invalid response from server");
       }
 
-      // Extract the users array from pagination data
-      const remoteUsers = response.data.data.data; // response.data.data.data ang users array
+      // ✅ TAMA NA ITO: Direct array na ang data
+      const remoteUsers = response.data.data; // ← isang beses lang!
 
       console.log(`📥 Found ${remoteUsers?.length || 0} users on server`);
 
@@ -188,7 +188,7 @@ class UserService {
                 remoteUser.gender,
                 remoteUser.password || "",
                 remoteUser.role || "user",
-                1, // is_synced = true (from server)
+                1,
                 remoteUser.created_at,
                 remoteUser.updated_at || remoteUser.created_at,
                 null,
@@ -211,16 +211,15 @@ class UserService {
                 email = ?, 
                 gender = ?, 
                 role = ?,
-                is_synced = ?, 
+                is_synced = 1, 
                 updated_at = ?
               WHERE id = ?`,
                 [
-                  remoteUser.first_name || existingUser.first_name,
-                  remoteUser.last_name || existingUser.last_name,
-                  remoteUser.email || existingUser.email,
-                  remoteUser.gender || existingUser.gender,
-                  remoteUser.role || existingUser.role || "user",
-                  1, // Mark as synced
+                  remoteUser.first_name,
+                  remoteUser.last_name,
+                  remoteUser.email,
+                  remoteUser.gender,
+                  remoteUser.role || "user",
                   remoteUser.updated_at,
                   remoteUser.id,
                 ],
@@ -291,6 +290,21 @@ class UserService {
     } catch (error) {
       console.error("Error fetching users:", error);
       throw new Error("Failed to fetch users. Please try again.");
+    }
+  }
+
+  // Get total user count
+  async getUserCount(): Promise<number> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const result = await this.db!.getFirstAsync(
+        "SELECT COUNT(*) as count FROM users",
+      );
+      return result?.count || 0;
+    } catch (error) {
+      console.error("Error counting users:", error);
+      return 0;
     }
   }
 

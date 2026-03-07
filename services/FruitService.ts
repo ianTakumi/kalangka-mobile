@@ -597,6 +597,33 @@ class FruitService {
     }
   }
 
+  async getFruitsWithoutHarvest(
+    includeDeleted: boolean = false,
+  ): Promise<Fruit[]> {
+    await this.ensureDatabaseReady();
+
+    try {
+      let query = `
+      SELECT f.* 
+      FROM fruits f
+      LEFT JOIN harvests h ON f.id = h.fruit_id AND h.deleted_at IS NULL
+      WHERE h.id IS NULL
+    `;
+
+      if (!includeDeleted) {
+        query += " AND f.deleted_at IS NULL";
+      }
+
+      query += " ORDER BY f.created_at DESC";
+
+      const result = await this.db!.getAllAsync(query);
+      return result.map((fruit: any) => this.mapFruitFromDB(fruit));
+    } catch (error) {
+      console.error("Error fetching fruits without harvest:", error);
+      throw new Error("Failed to fetch fruits without harvest.");
+    }
+  }
+
   async getFruitsByFlowerId(
     flowerId: string,
     includeDeleted: boolean = false,

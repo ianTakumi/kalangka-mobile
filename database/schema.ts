@@ -78,14 +78,16 @@ export const CREATE_USERS_TABLE_AND_INDEXES = `
 export const CREATE_HARVESTS_TABLE = `
   CREATE TABLE IF NOT EXISTS harvests (
     id TEXT PRIMARY KEY,
-    fruit_id TEXT NOT NULL,
-    ripe_quantity INTEGER NOT NULL DEFAULT 1,
-    harvest_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fruit_id TEXT,
+    user_id TEXT,
+    ripe_quantity INTEGER ,
+    harvest_at DATETIME,
     is_synced BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,
-    FOREIGN KEY (fruit_id) REFERENCES fruits(id) ON DELETE CASCADE
+    FOREIGN KEY (fruit_id) REFERENCES fruits(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
   );
 `;
 
@@ -136,4 +138,31 @@ export const CREATE_WASTE_INDEXES = `
   CREATE INDEX IF NOT EXISTS idx_wastes_reported_at ON wastes(reported_at);
   CREATE INDEX IF NOT EXISTS idx_wastes_synced ON wastes(is_synced);
   CREATE INDEX IF NOT EXISTS idx_wastes_deleted ON wastes(deleted_at);
+`;
+
+export const CREATE_NOTIFICATIONS_TABLE = `
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    harvest_id TEXT,
+    fruit_id TEXT,
+    type TEXT DEFAULT 'reminder', -- 'reminder', 'alert', 'info'
+    title TEXT,
+    message TEXT,
+    scheduled_for DATETIME,       -- When to show the notification
+    days_until_return INTEGER,    -- Number of days set by user
+    is_read BOOLEAN DEFAULT 0,
+    is_sent BOOLEAN DEFAULT 0,
+    is_synced BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (harvest_id) REFERENCES harvests(id) ON DELETE CASCADE,
+    FOREIGN KEY (fruit_id) REFERENCES fruits(id) ON DELETE CASCADE
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_notifications_scheduled_for ON notifications(scheduled_for);
+  CREATE INDEX IF NOT EXISTS idx_notifications_is_sent ON notifications(is_sent);
 `;

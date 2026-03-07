@@ -765,34 +765,81 @@ class TreeService {
   }
 
   // Clear all data (for testing)
+  // async clearDatabase(): Promise<void> {
+  //   await this.ensureDatabaseReady();
+
+  //   try {
+  //     console.log("Starting database cleanup...");
+
+  //     // Step 1: DELETE muna lahat ng records
+  //     const deleteResult = await this.db?.execAsync("DELETE FROM trees");
+  //     console.log("All records deleted from trees table");
+
+  //     // Step 2: DROP the table completely
+  //     const dropResult = await this.db?.execAsync("DROP TABLE IF EXISTS trees");
+  //     console.log("Table 'trees' dropped");
+
+  //     // Step 3: Drop indexes din kung meron
+  //     try {
+  //       await this.db?.execAsync("DROP INDEX IF EXISTS idx_trees_status");
+  //       await this.db?.execAsync("DROP INDEX IF EXISTS idx_trees_synced");
+  //       await this.db?.execAsync("DROP INDEX IF EXISTS idx_trees_created");
+  //       console.log("Indexes dropped");
+  //     } catch (indexError) {
+  //       console.log("No indexes to drop or already dropped");
+  //     }
+
+  //     console.log("Database completely cleared - table structure removed");
+  //   } catch (error) {
+  //     console.error("Error clearing database:", error);
+  //     throw new Error("Failed to clear database.");
+  //   }
+  // }
+
   async clearDatabase(): Promise<void> {
     await this.ensureDatabaseReady();
 
     try {
-      console.log("Starting database cleanup...");
+      console.log("🗑️ Starting complete database cleanup...");
 
-      // Step 1: DELETE muna lahat ng records
-      const deleteResult = await this.db?.execAsync("DELETE FROM trees");
-      console.log("All records deleted from trees table");
+      // Get all table names from sqlite_master
+      const tables = await this.db!.getAllAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'android_%'",
+      );
 
-      // Step 2: DROP the table completely
-      const dropResult = await this.db?.execAsync("DROP TABLE IF EXISTS trees");
-      console.log("Table 'trees' dropped");
+      console.log(
+        `📋 Found ${tables.length} tables to delete:`,
+        tables.map((t) => t.name),
+      );
 
-      // Step 3: Drop indexes din kung meron
-      try {
-        await this.db?.execAsync("DROP INDEX IF EXISTS idx_trees_status");
-        await this.db?.execAsync("DROP INDEX IF EXISTS idx_trees_synced");
-        await this.db?.execAsync("DROP INDEX IF EXISTS idx_trees_created");
-        console.log("Indexes dropped");
-      } catch (indexError) {
-        console.log("No indexes to drop or already dropped");
+      // Disable foreign key constraints temporarily
+      await this.db!.execAsync("PRAGMA foreign_keys = OFF;");
+
+      // Drop each table
+      for (const table of tables) {
+        try {
+          await this.db!.execAsync(`DROP TABLE IF EXISTS ${table.name}`);
+          console.log(`✅ Dropped table: ${table.name}`);
+        } catch (tableError) {
+          console.warn(`⚠️ Could not drop table ${table.name}:`, tableError);
+        }
       }
 
-      console.log("Database completely cleared - table structure removed");
+      // Re-enable foreign key constraints
+      await this.db!.execAsync("PRAGMA foreign_keys = ON;");
+
+      console.log("✅ All tables cleared successfully");
     } catch (error) {
-      console.error("Error clearing database:", error);
-      throw new Error("Failed to clear database.");
+      console.error("❌ Error clearing all tables:", error);
+
+      // Make sure to re-enable foreign keys even if there's an error
+      try {
+        await this.db!.execAsync("PRAGMA foreign_keys = ON;");
+      } catch (e) {
+        // Ignore
+      }
+
+      throw new Error("Failed to clear all tables.");
     }
   }
 

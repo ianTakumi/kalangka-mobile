@@ -11,6 +11,7 @@ export default function _layout() {
       <Stack.Screen name="qrcam" options={{ headerShown: false }} />
       <Stack.Screen name="about" options={{ headerShown: false }} />
       <Stack.Screen name="treeinfo" options={{ headerShown: false }} />
+      <Stack.Screen name="assigned" options={{ headerShown: false }} />
     </Stack>
   );
 }

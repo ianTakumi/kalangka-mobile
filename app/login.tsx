@@ -162,6 +162,7 @@ export default function LoginScreen() {
                         }`}
                         placeholder="your.email@example.com"
                         value={value}
+                        placeholderTextColor={"#1f2937"}
                         onChangeText={onChange}
                         onBlur={onBlur}
                         keyboardType="email-address"
@@ -209,6 +210,7 @@ export default function LoginScreen() {
                             : "border-gray-300 bg-gray-50"
                         }`}
                         placeholder="Enter your password"
+                        placeholderTextColor={"#1f2937"}
                         value={value}
                         onChangeText={onChange}
                         onBlur={onBlur}

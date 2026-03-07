@@ -1,6 +1,8 @@
 import FlowerService from "@/services/FlowerService";
 import FruitService from "@/services/FruitService";
 import treeService from "@/services/treeService";
+import UserService from "@/services/UserService";
+import { Fruit } from "@/types";
 import { getTimeBasedGreeting } from "@/utils/helpers";
 import NetInfo from "@react-native-community/netinfo";
 import axios from "axios";
@@ -9,6 +11,7 @@ import { Link } from "expo-router";
 import {
   AlertCircle,
   AlertTriangle,
+  CalendarCheck,
   Cloud,
   CloudOff,
   CloudRain,
@@ -47,11 +50,14 @@ export default function FarmerHomeScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [location, setLocation] = useState(null);
+  const [fruitsWithoutHarvest, setFruitsWithoutHarvest] = useState<Fruit[]>([]);
+  const [loadingFruits, setLoadingFruits] = useState(false);
 
   const [userStats, setUserStats] = useState({
     totalTrees: treeService.getTreeCount(),
     totalFlowers: FlowerService.getFlowerCount(),
     totalFruits: FruitService.getFruitCount(),
+    totalUsers: UserService.getUserCount(),
     harvestThisWeek: 125,
     totalLoss: 12,
   });
@@ -93,6 +99,15 @@ export default function FarmerHomeScreen() {
       iconColor: "text-violet-600",
       route: "/admin/users",
     },
+    {
+      id: 5,
+      title: "Assign Harvest",
+      description: "Schedule harvest",
+      icon: <CalendarCheck size={28} color="#E67E22" />, // Best for scheduling
+      bgColor: "bg-orange-50",
+      iconColor: "text-orange-600",
+      route: "/admin/assign",
+    },
   ]);
 
   // Weather state with actual data fetching
@@ -109,6 +124,19 @@ export default function FarmerHomeScreen() {
     error: null,
   });
 
+  const fetchFruitsWithoutHarvest = async () => {
+    setLoadingFruits(true);
+    try {
+      // Using your existing getFruitsWithoutHarvest method
+      const fruits = await FruitService.getFruitsWithoutHarvest(false); // false = exclude deleted
+      setFruitsWithoutHarvest(fruits);
+    } catch (error) {
+      console.error("Error fetching fruits without harvest:", error);
+    } finally {
+      setLoadingFruits(false);
+    }
+  };
+
   useEffect(() => {
     // Network check
     const checkNetwork = async () => {
@@ -117,6 +145,7 @@ export default function FarmerHomeScreen() {
     };
 
     checkNetwork();
+    fetchFruitsWithoutHarvest();
 
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsOnline(state.isConnected ?? false);
@@ -488,6 +517,19 @@ export default function FarmerHomeScreen() {
             className="mb-6"
           >
             <View className="flex-row gap-2">
+              <View className="w-40 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <View className="w-12 h-12 bg-violet-50 rounded-xl items-center justify-center mb-3">
+                  <User size={24} color="#7C3AED" />
+                </View>
+                <Text className="text-3xl font-bold text-gray-900">
+                  {userStats.totalUsers}
+                </Text>
+                <Text className="text-gray-600 font-medium">Total Users</Text>
+                <Text className="text-xs text-violet-600 mt-1">
+                  Farm Workers
+                </Text>
+              </View>
+
               {/* Total Trees Card */}
               <View className="w-40 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <View className="w-12 h-12 bg-emerald-50 rounded-xl items-center justify-center mb-3">
@@ -586,6 +628,127 @@ export default function FarmerHomeScreen() {
                 </TouchableOpacity>
               </Link>
             ))}
+          </View>
+        </View>
+
+        {/* Bagged Fruits Pending Assignment Section */}
+        <View className="px-6 mb-6">
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-2xl font-bold text-gray-900">
+              Bagged Fruits Pending Assignment
+            </Text>
+            {loadingFruits && (
+              <ActivityIndicator size="small" color="#F97316" />
+            )}
+          </View>
+
+          <View className="bg-white rounded-2xl p-5 border border-orange-100 shadow-sm">
+            {loadingFruits ? (
+              <View className="items-center py-8">
+                <ActivityIndicator size="large" color="#F97316" />
+                <Text className="text-gray-600 mt-3">
+                  Checking bagged fruits...
+                </Text>
+              </View>
+            ) : fruitsWithoutHarvest.length === 0 ? (
+              <View className="items-center py-8">
+                <View className="w-16 h-16 bg-orange-50 rounded-full items-center justify-center mb-3">
+                  <Package size={32} color="#F97316" />
+                </View>
+                <Text className="text-lg font-medium text-gray-900 mb-1">
+                  No Pending Assignments
+                </Text>
+                <Text className="text-gray-500 text-center">
+                  All bagged fruits have been assigned to harvesters.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View className="flex-row items-center justify-between mb-4">
+                  <View className="flex-row items-center">
+                    <View className="w-12 h-12 bg-orange-100 rounded-xl items-center justify-center mr-3">
+                      <Package size={24} color="#F97316" />
+                    </View>
+                    <View>
+                      <Text className="text-3xl font-bold text-gray-900">
+                        {fruitsWithoutHarvest.length}
+                      </Text>
+                      <Text className="text-gray-600">
+                        {fruitsWithoutHarvest.length === 1
+                          ? "Bagged fruit needs harvester"
+                          : "Bagged fruits need harvesters"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Link href="/admin/assign" asChild>
+                    <TouchableOpacity className="bg-orange-50 px-1 py-2 rounded-lg">
+                      <Text className="text-orange-700 font-medium">
+                        View All
+                      </Text>
+                    </TouchableOpacity>
+                  </Link>
+                </View>
+
+                {/* Fruit List Preview */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="mb-2"
+                >
+                  <View className="flex-row gap-3">
+                    {fruitsWithoutHarvest.slice(0, 5).map((fruit, index) => (
+                      <Link
+                        key={fruit.id || index}
+                        href={`/admin/fruits/${fruit.id}`}
+                        asChild
+                      >
+                        <TouchableOpacity>
+                          <View className="bg-gray-50 rounded-xl p-3 w-32 border border-gray-100">
+                            <View className="w-10 h-10 bg-orange-100 rounded-full items-center justify-center mb-2">
+                              <Package size={20} color="#F97316" />
+                            </View>
+                            <Text
+                              className="font-medium text-gray-900 text-sm"
+                              numberOfLines={1}
+                            >
+                              {fruit.treeName || `Fruit #${fruit.id}`}
+                            </Text>
+                            <Text className="text-xs text-gray-500 mt-1">
+                              Bagged:{" "}
+                              {fruit.bagged_at
+                                ? new Date(fruit.bagged_at).toLocaleDateString()
+                                : fruit.created_at
+                                  ? new Date(
+                                      fruit.created_at,
+                                    ).toLocaleDateString()
+                                  : "N/A"}
+                            </Text>
+                            <View className="bg-orange-100 rounded-full px-2 py-0.5 mt-2 self-start">
+                              <Text className="text-xs text-orange-700">
+                                Unassigned
+                              </Text>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      </Link>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                {/* Quick Action Button */}
+                <Link href="/admin/assign" asChild>
+                  <TouchableOpacity className="mt-4 bg-orange-600 rounded-xl p-3 flex-row items-center justify-center">
+                    <User size={20} color="#FFFFFF" />
+                    <Text className="text-white font-medium ml-2">
+                      Assign Harvester
+                      {fruitsWithoutHarvest.length > 1 ? "s" : ""} for{" "}
+                      {fruitsWithoutHarvest.length} Bagged Fruit
+                      {fruitsWithoutHarvest.length !== 1 ? "s" : ""}
+                    </Text>
+                  </TouchableOpacity>
+                </Link>
+              </>
+            )}
           </View>
         </View>
 
