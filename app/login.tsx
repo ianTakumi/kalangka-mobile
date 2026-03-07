@@ -59,8 +59,13 @@ export default function LoginScreen() {
   const handleLogin = async (data: LoginFormData) => {
     setLoading(true);
 
+    const trimmedData = {
+      ...data,
+      password: data.password.trim(),
+    };
+
     await client
-      .post("/auth/login", data)
+      .post("/auth/login", trimmedData)
       .then((res) => {
         if (res.status === 200) {
           console.log("Login successful:", res.data);

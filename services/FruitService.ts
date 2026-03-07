@@ -1,3 +1,4 @@
+import { CREATE_FRUITS_INDEXES, CREATE_FRUITS_TABLE } from "@/database/schema";
 import { Fruit } from "@/types/index";
 import client from "@/utils/axiosInstance";
 import { supabase } from "@/utils/supabase";
@@ -29,32 +30,9 @@ class FruitService {
       console.log("Initializing SQLite database for fruits...");
       this.db = await SQLite.openDatabaseAsync("kalangka.db");
 
-      await this.db.execAsync(`
-        CREATE TABLE IF NOT EXISTS fruits (
-          id TEXT PRIMARY KEY,
-          flower_id TEXT NOT NULL,
-          tree_id TEXT NOT NULL,
-          quantity INTEGER NOT NULL DEFAULT 1,
-          bagged_at TEXT NOT NULL,
-          image_uri TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'active',
-          is_synced INTEGER DEFAULT 0,
-          created_at TEXT,
-          updated_at TEXT,
-          deleted_at TEXT,
-          FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE,
-          FOREIGN KEY (tree_id) REFERENCES trees(id) ON DELETE CASCADE
-        );
-      `);
+      await this.db.execAsync(CREATE_FRUITS_TABLE);
 
-      await this.db.execAsync(`
-        CREATE INDEX IF NOT EXISTS idx_fruits_flower_id ON fruits(flower_id);
-        CREATE INDEX IF NOT EXISTS idx_fruits_tree_id ON fruits(tree_id);
-        CREATE INDEX IF NOT EXISTS idx_fruits_status ON fruits(status);
-        CREATE INDEX IF NOT EXISTS idx_fruits_synced ON fruits(is_synced);
-        CREATE INDEX IF NOT EXISTS idx_fruits_created ON fruits(created_at);
-        CREATE INDEX IF NOT EXISTS idx_fruits_bagged ON fruits(bagged_at);
-      `);
+      await this.db.execAsync(CREATE_FRUITS_INDEXES);
 
       console.log("Fruits SQLite database initialized successfully");
       this.isInitializing = false;

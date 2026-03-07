@@ -141,9 +141,9 @@ class HarvestService {
    */
   async updateHarvest(
     harvestId: string,
-    ripeQuantity: number,
-    weights: number[],
-    wastesData?: { quantity: number; reason: string }[],
+    ripeQuantity: number, // Total ripe fruits (lahat ng nasa UI)
+    weights: number[], // Lahat ng weights (existing + new)
+    wastesData?: { quantity: number; reason: string }[], // Lahat ng wastes (existing + new)
   ): Promise<{
     harvest: Harvest;
     fruitWeights: FruitWeight[];
@@ -166,15 +166,59 @@ class HarvestService {
         throw new Error(`Harvest with ID ${harvestId} not found`);
       }
 
-      // 2. Update harvest
+      // 2. Get fruit details para malaman ang total quantity at remaining
+      const fruit = await this.db!.getFirstAsync<{
+        quantity: number;
+        remaining_quantity: number;
+      }>(`SELECT quantity, remaining_quantity FROM fruits WHERE id = ?`, [
+        existingHarvest.fruit_id,
+      ]);
+
+      if (!fruit) {
+        throw new Error("Fruit not found");
+      }
+
+      // 3. I-DELETE MUNA LAHAT ng existing weights at wastes (hard delete)
+      await this.db!.runAsync(
+        `DELETE FROM fruit_weights WHERE harvest_id = ?`,
+        [harvestId],
+      );
+
+      await this.db!.runAsync(`DELETE FROM wastes WHERE harvest_id = ?`, [
+        harvestId,
+      ]);
+
+      // 4. Determine harvest status based on remaining fruits
+      const totalProcessed =
+        weights.length +
+        (wastesData?.reduce((sum, w) => sum + w.quantity, 0) || 0);
+
+      const remainingAfterHarvest =
+        (fruit.remaining_quantity || fruit.quantity) - totalProcessed;
+
+      let status: "pending" | "partial" | "harvested" | "wasted" = "partial";
+
+      if (remainingAfterHarvest <= 0) {
+        // All fruits are either harvested or wasted
+        status = "harvested";
+      } else if (weights.length === 0 && wastesData?.length > 0) {
+        // All fruits are wasted
+        status = "wasted";
+      } else if (weights.length > 0) {
+        // Some fruits harvested, some remaining
+        status = "partial";
+      }
+
+      // 5. Update harvest
       await this.db!.runAsync(
         `UPDATE harvests 
        SET ripe_quantity = ?, 
+           status = ?,
            harvest_at = CURRENT_TIMESTAMP,
            updated_at = CURRENT_TIMESTAMP,
            is_synced = 0
        WHERE id = ? AND deleted_at IS NULL`,
-        [ripeQuantity, harvestId],
+        [ripeQuantity, status, harvestId],
       );
 
       // Get updated harvest
@@ -187,14 +231,7 @@ class HarvestService {
         throw new Error("Failed to retrieve updated harvest");
       }
 
-      // 3. Delete existing fruit weights (optional - depends on your business logic)
-      // You might want to keep existing ones or replace them
-      await this.db!.runAsync(
-        `UPDATE fruit_weights SET deleted_at = ? WHERE harvest_id = ? AND deleted_at IS NULL`,
-        [new Date().toISOString(), harvestId],
-      );
-
-      // 4. Create new fruit weights
+      // 6. Mag-INSERT ng bagong fruit weights (lahat ng nasa UI)
       const fruitWeights: FruitWeight[] = [];
       for (let i = 0; i < weights.length; i++) {
         const weight = await this.createFruitWeight({
@@ -204,13 +241,7 @@ class HarvestService {
         fruitWeights.push(weight);
       }
 
-      // 5. Delete existing wastes (optional)
-      await this.db!.runAsync(
-        `UPDATE wastes SET deleted_at = ? WHERE harvest_id = ? AND deleted_at IS NULL`,
-        [new Date().toISOString(), harvestId],
-      );
-
-      // 6. Create new wastes if provided
+      // 7. Mag-INSERT ng bagong wastes (lahat ng nasa UI)
       const wastes: Waste[] = [];
       if (wastesData && wastesData.length > 0) {
         for (const wasteItem of wastesData) {
@@ -228,50 +259,24 @@ class HarvestService {
       // Commit transaction
       await this.db!.execAsync("COMMIT");
 
+      // Sync if online
       let synced = false;
-
       const networkState = await NetInfo.fetch();
-      console.log("Network state on harvest update:", networkState);
       if (networkState.isConnected && networkState.isInternetReachable) {
         synced = await this.syncCompleteHarvest(harvestId);
-        console.log(
-          `Harvest ${synced ? "synced" : "failed to sync"} automatically`,
-        );
-      } else {
-        console.log("Device is offline, harvest updated locally");
       }
-
-      // Get fresh data with weights and wastes
-      const freshWeights = await this.getFruitWeightsByHarvestId(harvestId);
-      const freshWastes = await this.getWastesByHarvestId(harvestId);
 
       return {
         harvest: updatedHarvest,
-        fruitWeights: freshWeights,
-        wastes: freshWastes,
+        fruitWeights,
+        wastes,
         synced,
       };
     } catch (error) {
-      // Rollback on error
       await this.db!.execAsync("ROLLBACK");
       console.error("Error in updateHarvest:", error);
       throw new Error("Failed to update harvest");
     }
-  }
-
-  // Update Harvest
-  async updateHarvestRipeQuantity(
-    id: string,
-    newRipeQuantity: number,
-  ): Promise<void> {
-    await this.ensureDatabaseReady();
-
-    await this.db!.runAsync(
-      `UPDATE harvests 
-     SET ripe_quantity = ?, updated_at = CURRENT_TIMESTAMP 
-     WHERE id = ? AND deleted_at IS NULL`,
-      [newRipeQuantity, id],
-    );
   }
 
   // Delete Harvest (Soft Delete)
@@ -318,7 +323,7 @@ class HarvestService {
             if (!existingHarvest.user_id) {
               await this.db!.runAsync(
                 `UPDATE harvests 
-               SET user_id = ?, updated_at = CURRENT_TIMESTAMP, is_synced = 0
+               SET user_id = ?, updated_at = CURRENT_TIMESTAMP,status = 'pending', is_synced = 0
                WHERE id = ? AND deleted_at IS NULL`,
                 [userId, existingHarvest.id],
               );
@@ -587,6 +592,7 @@ class HarvestService {
         fruit_id: row.fruit_id,
         user_id: row.user_id,
         ripe_quantity: row.ripe_quantity,
+        status: row.status,
         harvest_at: row.harvest_at,
         is_synced: Boolean(row.is_synced),
         created_at: row.created_at,
@@ -860,83 +866,6 @@ class HarvestService {
   }
 
   // ==================== COMBINED METHODS ====================
-
-  /**
-   * Complete Harvest Process - Create harvest with weights and optional waste
-   */
-  async completeHarvest(
-    fruitId: string,
-    ripeQuantity: number,
-    weights: number[],
-    wastesData?: { quantity: number; reason: string }[], // Changed to array
-  ): Promise<{
-    harvest: Harvest;
-    fruitWeights: FruitWeight[];
-    wastes: Waste[]; // Changed to array
-    synced: boolean;
-  }> {
-    await this.ensureDatabaseReady();
-
-    // Start transaction
-    await this.db!.execAsync("BEGIN TRANSACTION");
-
-    try {
-      // 1. Create harvest
-      const harvest = await this.createHarvest({
-        fruit_id: fruitId,
-        ripe_quantity: ripeQuantity,
-      });
-
-      // 2. Create fruit weights
-      const fruitWeights: FruitWeight[] = [];
-      for (let i = 0; i < weights.length; i++) {
-        const weight = await this.createFruitWeight({
-          harvest_id: harvest.id,
-          weight: weights[i],
-        });
-        fruitWeights.push(weight);
-      }
-
-      // 3. Create wastes if provided (multiple)
-      const wastes: Waste[] = [];
-      if (wastesData && wastesData.length > 0) {
-        for (const wasteItem of wastesData) {
-          if (wasteItem.quantity > 0) {
-            const waste = await this.createWaste({
-              harvest_id: harvest.id,
-              waste_quantity: wasteItem.quantity,
-              reason: wasteItem.reason,
-            });
-            wastes.push(waste);
-          }
-        }
-      }
-
-      // Commit transaction
-      await this.db!.execAsync("COMMIT");
-
-      let synced = false;
-
-      const networkState = await NetInfo.fetch();
-      console.log("Network state on harvest completion:", networkState);
-      if (networkState.isConnected && networkState.isInternetReachable) {
-        synced = await this.syncCompleteHarvest(harvest.id);
-        console.log(
-          `Harvest ${synced ? "synced" : "failed to sync"} automatically`,
-        );
-      } else {
-        console.log("Device is offline, harvest saved locally");
-      }
-
-      return { harvest, fruitWeights, wastes, synced };
-    } catch (error) {
-      // Rollback on error
-      await this.db!.execAsync("ROLLBACK");
-      console.error("Error in completeHarvest:", error);
-      throw new Error("Failed to complete harvest process");
-    }
-  }
-
   /**
    *  Sync complete harvest data to server (harvest + weights + wastes)
    *  @returns boolean - true if sync successful, false otherwise

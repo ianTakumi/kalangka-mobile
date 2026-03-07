@@ -127,15 +127,39 @@ export default function AssignedHarvestsScreen() {
 
               <View
                 className={`px-3 py-1 rounded-full ${
-                  isHarvested ? "bg-green-100" : "bg-blue-100"
+                  item.status === "pending"
+                    ? "bg-blue-100"
+                    : item.status === "partial"
+                      ? "bg-yellow-100"
+                      : item.status === "harvested"
+                        ? "bg-green-100"
+                        : item.status === "wasted"
+                          ? "bg-red-100"
+                          : "bg-gray-100"
                 }`}
               >
                 <Text
                   className={`text-xs font-medium ${
-                    isHarvested ? "text-green-700" : "text-blue-700"
+                    item.status === "pending"
+                      ? "text-blue-700"
+                      : item.status === "partial"
+                        ? "text-yellow-700"
+                        : item.status === "harvested"
+                          ? "text-green-700"
+                          : item.status === "wasted"
+                            ? "text-red-700"
+                            : "text-gray-700"
                   }`}
                 >
-                  {isHarvested ? "Harvested" : "Pending"}
+                  {item.status === "pending"
+                    ? "Pending Harvest"
+                    : item.status === "partial"
+                      ? "Partial Harvest"
+                      : item.status === "harvested"
+                        ? "Harvested"
+                        : item.status === "wasted"
+                          ? "Wasted"
+                          : "Unknown"}
                 </Text>
               </View>
             </View>

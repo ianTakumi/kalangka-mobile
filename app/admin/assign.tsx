@@ -29,6 +29,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 export default function AssignHarvestScreen() {
   const [fruits, setFruits] = useState<Fruit[]>([]);
@@ -145,22 +146,20 @@ export default function AssignHarvestScreen() {
             ? `Successfully assigned ${result.createdCount} fruit(s) to ${selectedHarvester.first_name} ${selectedHarvester.last_name}.\n\nEncountered ${result.errors.length} error(s).`
             : `Successfully assigned ${result.createdCount} fruit(s) to ${selectedHarvester.first_name} ${selectedHarvester.last_name}.`;
 
-        Alert.alert(
-          result.errors.length > 0 ? "Partial Success" : "Success",
-          message,
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                setModalVisible(false);
-                setSelectedFruits(new Set());
-                setSelectedHarvester(null);
-                setUserDropdownVisible(false);
-                fetchUnassignedFruits(); // Refresh the list
-              },
-            },
-          ],
-        );
+        Toast.show({
+          type: result.errors.length > 0 ? "warning" : "success",
+          text1: result.errors.length > 0 ? "Partial Success" : "Success",
+          text2: message,
+          visibilityTime: 4000,
+        });
+
+        setTimeout(() => {
+          setModalVisible(false);
+          setSelectedFruits(new Set());
+          setSelectedHarvester(null);
+          setUserDropdownVisible(false);
+          fetchUnassignedFruits(); // Refresh the list
+        }, 1500);
 
         // Log errors for debugging
         if (result.errors.length > 0) {

@@ -1,5 +1,5 @@
-// // app/harvest.tsx
 // import HarvestService from "@/services/HarvestService";
+// import FruitService from "@/services/FruitService";
 // import NetInfo from "@react-native-community/netinfo";
 // import { useLocalSearchParams, useRouter } from "expo-router";
 // import {
@@ -9,6 +9,7 @@
 //   Plus,
 //   Scale,
 //   Trash2,
+//   User,
 //   Wifi,
 //   WifiOff,
 //   X,
@@ -29,23 +30,29 @@
 
 // export default function Harvest() {
 //   const router = useRouter();
-//   const { fruitData } = useLocalSearchParams();
+//   const { fruitData, harvestId } = useLocalSearchParams();
 
 //   const [fruit, setFruit] = useState<any>(null);
+//   const [harvestRecord, setHarvestRecord] = useState<any>(null);
 //   const [loading, setLoading] = useState(true);
 //   const [refreshing, setRefreshing] = useState(false);
 //   const [submitting, setSubmitting] = useState(false);
 //   const [isOnline, setIsOnline] = useState(false);
+//   const [showBacklogModal, setShowBacklogModal] = useState(false);
+//   const [backlogDays, setBacklogDays] = useState("");
+//   const [backlogReason, setBacklogReason] = useState("");
+//   const [hasBacklog, setHasBacklog] = useState(false);
+//   const [originalQuantity, setOriginalQuantity] = useState(0);
 
-//   // Check for existing harvest
-//   const [existingHarvest, setExistingHarvest] = useState<any>(null);
-//   const [checkingHarvest, setCheckingHarvest] = useState(true);
-
-//   // Form states
+//   // Form states - for editing existing or creating new
 //   const [ripeFruits, setRipeFruits] = useState<string[]>([]); // weights ng ripe fruits
 //   const [wasteItems, setWasteItems] = useState<
 //     { quantity: string; reason: string }[]
 //   >([]);
+
+//   // For tracking existing data
+//   const [existingFruitWeights, setExistingFruitWeights] = useState<any[]>([]);
+//   const [existingWastes, setExistingWastes] = useState<any[]>([]);
 
 //   // Modal states
 //   const [showWasteModal, setShowWasteModal] = useState(false);
@@ -54,9 +61,6 @@
 //   );
 //   const [wasteQuantity, setWasteQuantity] = useState("");
 //   const [wasteReason, setWasteReason] = useState("");
-
-//   // View mode modal
-//   const [showViewModal, setShowViewModal] = useState(false);
 
 //   // Initialize service and check network
 //   useEffect(() => {
@@ -89,32 +93,98 @@
 //       } catch (error) {
 //         console.error("Error parsing fruitData:", error);
 //         setLoading(false);
-//         setCheckingHarvest(false);
+//       }
+//     } else if (harvestId) {
+//       // If harvestId is provided directly, fetch harvest details
+//       fetchHarvestById(harvestId as string);
+//     }
+//   }, [fruitData, harvestId]);
+
+//   // In your useEffect when fruit is loaded
+//   useEffect(() => {
+//     if (fruit) {
+//       setOriginalQuantity(fruit.quantity);
+//       // Check if this fruit already has remaining_quantity (backlog)
+//       setHasBacklog(fruit.remaining_quantity > 0);
+
+//       // If there's backlog, set the remaining as the current quantity to harvest
+//       if (fruit.remaining_quantity > 0) {
+//         // You might want to show a message that there's pending backlog
+//         console.log(`This fruit has ${fruit.remaining_quantity} backlog items`);
 //       }
 //     }
-//   }, [fruitData]);
+//   }, [fruit]);
+
+//   const fetchHarvestById = async (id: string) => {
+//     try {
+//       setLoading(true);
+//       const harvest = await HarvestService.getAssignedHarvestById(id);
+
+//       if (harvest) {
+//         setHarvestRecord(harvest);
+//         setFruit(harvest.fruit);
+
+//         // Load existing data into form
+//         await loadExistingHarvestData(harvest.id);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching harvest:", error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
 
 //   const checkExistingHarvest = async (fruitId: string) => {
 //     try {
-//       setCheckingHarvest(true);
 //       const harvestDetails =
 //         await HarvestService.getHarvestDetailsByFruitId(fruitId);
 
 //       if (harvestDetails.harvest) {
-//         setExistingHarvest(harvestDetails);
+//         setHarvestRecord(harvestDetails);
 //         console.log("Existing harvest found:", harvestDetails);
+
+//         // Load existing data into form
+//         await loadExistingHarvestData(harvestDetails.harvest.id);
 //       }
 //     } catch (error) {
 //       console.error("Error checking existing harvest:", error);
 //     } finally {
 //       setLoading(false);
-//       setCheckingHarvest(false);
+//     }
+//   };
+
+//   const loadExistingHarvestData = async (harvestId: string) => {
+//     try {
+//       // Get fruit weights
+//       const fruitWeights =
+//         await HarvestService.getFruitWeightsByHarvestId(harvestId);
+//       setExistingFruitWeights(fruitWeights);
+
+//       // Convert to form format
+//       if (fruitWeights.length > 0) {
+//         setRipeFruits(fruitWeights.map((fw: any) => fw.weight.toString()));
+//       }
+
+//       // Get wastes
+//       const wastes = await HarvestService.getWastesByHarvestId(harvestId);
+//       setExistingWastes(wastes);
+
+//       // Convert to form format
+//       if (wastes.length > 0) {
+//         setWasteItems(
+//           wastes.map((w: any) => ({
+//             quantity: w.waste_quantity.toString(),
+//             reason: w.reason,
+//           })),
+//         );
+//       }
+//     } catch (error) {
+//       console.error("Error loading existing harvest data:", error);
 //     }
 //   };
 
 //   const syncUnsyncedHarvests = async () => {
 //     try {
-//       // Get all unsynced harvests
 //       const unsyncedHarvests = await HarvestService.getAllUnsyncedHarvests();
 
 //       if (unsyncedHarvests.length === 0) {
@@ -127,7 +197,6 @@
 //       let syncedCount = 0;
 //       let failedCount = 0;
 
-//       // Sync each unsynced harvest
 //       for (const harvestData of unsyncedHarvests) {
 //         try {
 //           const success = await HarvestService.syncCompleteHarvest(
@@ -158,85 +227,50 @@
 //     }
 //   };
 
-//   // Refresh function
 //   const onRefresh = useCallback(async () => {
 //     setRefreshing(true);
 
 //     try {
-//       // Check network status
 //       const netInfo = await NetInfo.fetch();
 //       setIsOnline(netInfo.isConnected ?? false);
 
 //       let syncResults = { synced: 0, failed: 0 };
 
-//       // If online, sync unsynced harvests first
 //       if (netInfo.isConnected) {
 //         console.log("Online - syncing unsynced harvests...");
 //         syncResults = await syncUnsyncedHarvests();
 //       }
 
-//       // Refresh existing harvest data if fruit exists
-//       if (fruit?.id) {
-//         console.log("Refreshing harvest data for fruit:", fruit.id);
+//       // Refresh current harvest data
+//       if (harvestRecord?.harvest?.id) {
 //         const harvestDetails = await HarvestService.getHarvestDetailsByFruitId(
 //           fruit.id,
 //         );
 
 //         if (harvestDetails.harvest) {
-//           setExistingHarvest(harvestDetails);
+//           setHarvestRecord(harvestDetails);
+//           await loadExistingHarvestData(harvestDetails.harvest.id);
 //         }
+//       }
 
-//         // Show toast based on online status and sync results
-//         if (netInfo.isConnected) {
-//           if (syncResults.synced > 0) {
-//             Toast.show({
-//               type: "success",
-//               text1: "Sync Complete",
-//               text2: `Synced ${syncResults.synced} harvest${syncResults.synced > 1 ? "s" : ""} to server`,
-//               position: "bottom",
-//               visibilityTime: 3000,
-//             });
-//           } else if (syncResults.failed > 0) {
-//             Toast.show({
-//               type: "warning",
-//               text1: "Sync Partial",
-//               text2: `${syncResults.synced} synced, ${syncResults.failed} failed`,
-//               position: "bottom",
-//               visibilityTime: 3000,
-//             });
-//           } else {
-//             Toast.show({
-//               type: "success",
-//               text1: "Refreshed",
-//               text2: "All data is up to date",
-//               position: "bottom",
-//               visibilityTime: 2000,
-//             });
-//           }
-//         } else {
+//       if (netInfo.isConnected) {
+//         if (syncResults.synced > 0) {
 //           Toast.show({
-//             type: "info",
-//             text1: "Offline Mode",
-//             text2: "Showing locally saved data",
+//             type: "success",
+//             text1: "Sync Complete",
+//             text2: `Synced ${syncResults.synced} harvest${syncResults.synced > 1 ? "s" : ""} to server`,
 //             position: "bottom",
-//             visibilityTime: 2000,
+//             visibilityTime: 3000,
 //           });
 //         }
 //       }
 //     } catch (error) {
 //       console.error("Error refreshing harvest:", error);
-//       Toast.show({
-//         type: "error",
-//         text1: "Refresh Failed",
-//         text2: "Could not refresh harvest data",
-//         position: "bottom",
-//       });
 //     } finally {
 //       setRefreshing(false);
 //     }
-//   }, [fruit?.id, isOnline]);
+//   }, [fruit?.id, harvestRecord]);
 
-//   // Compute days remaining for harvest
 //   const getHarvestStatus = () => {
 //     const baggedDate = new Date(fruit?.bagged_at);
 //     const harvestDate = new Date(baggedDate);
@@ -279,7 +313,6 @@
 //     ]);
 //   };
 
-//   // Waste handlers
 //   const handleAddWaste = () => {
 //     setEditingWasteIndex(null);
 //     setWasteQuantity("");
@@ -334,7 +367,6 @@
 //     }
 
 //     if (editingWasteIndex !== null) {
-//       // Edit existing
 //       const newWasteItems = [...wasteItems];
 //       newWasteItems[editingWasteIndex] = {
 //         quantity: wasteQuantity,
@@ -342,7 +374,6 @@
 //       };
 //       setWasteItems(newWasteItems);
 //     } else {
-//       // Add new
 //       setWasteItems([
 //         ...wasteItems,
 //         { quantity: wasteQuantity, reason: wasteReason },
@@ -366,10 +397,9 @@
 //     ]);
 //   };
 
-//   const handleSubmitHarvest = async () => {
-//     if (!fruit) return;
+//   const handleUpdateHarvest = async () => {
+//     if (!fruit || !harvestRecord?.harvest) return;
 
-//     // Validate
 //     if (ripeFruits.length === 0 && wasteItems.length === 0) {
 //       Toast.show({
 //         type: "error",
@@ -379,7 +409,6 @@
 //       return;
 //     }
 
-//     // Validate weights
 //     for (let i = 0; i < ripeFruits.length; i++) {
 //       if (!ripeFruits[i] || parseFloat(ripeFruits[i]) <= 0) {
 //         Toast.show({
@@ -394,44 +423,39 @@
 //     try {
 //       setSubmitting(true);
 
-//       // Convert data for service
 //       const weightNumbers = ripeFruits.map((w) => parseFloat(w));
-
-//       // Prepare wastes data as array
 //       const wastesData = wasteItems.map((item) => ({
 //         quantity: parseInt(item.quantity),
 //         reason: item.reason,
 //       }));
 
-//       console.log("Wastes data to save:", wastesData); // Debug log
-
 //       const ripeQuantity = ripeFruits.length;
 
-//       const result = await HarvestService.completeHarvest(
-//         fruit.id,
+//       // Use the new updateHarvest method
+//       const result = await HarvestService.updateHarvest(
+//         harvestRecord.harvest.id, // Pass the existing harvest ID
 //         ripeQuantity,
 //         weightNumbers,
-//         wastesData, // Pass the array directly
+//         wastesData,
 //       );
 
-//       console.log("Harvest result:", result); // Debug log
+//       console.log("Harvest update result:", result);
 
 //       Toast.show({
 //         type: "success",
 //         text1: "Success",
-//         text2: `Harvest recorded successfully${!result.synced ? " (offline mode)" : ""}`,
+//         text2: `Harvest updated successfully${!result.synced ? " (offline mode)" : ""}`,
 //       });
 
-//       // Navigate back after success
 //       setTimeout(() => {
 //         router.back();
 //       }, 1500);
 //     } catch (error: any) {
-//       console.error("Error saving harvest:", error);
+//       console.error("Error updating harvest:", error);
 //       Toast.show({
 //         type: "error",
 //         text1: "Failed",
-//         text2: error.response?.data?.message || "Could not save harvest",
+//         text2: error.response?.data?.message || "Could not update harvest",
 //       });
 //     } finally {
 //       setSubmitting(false);
@@ -449,15 +473,11 @@
 //     ? getHarvestStatus()
 //     : { isReady: false, daysLeft: 0, harvestDate: "" };
 
-//   if (loading || checkingHarvest) {
+//   if (loading) {
 //     return (
 //       <View className="flex-1 justify-center items-center bg-gray-50">
 //         <ActivityIndicator size="large" color="#059669" />
-//         <Text className="mt-4 text-gray-600">
-//           {checkingHarvest
-//             ? "Checking existing harvest..."
-//             : "Loading fruit data..."}
-//         </Text>
+//         <Text className="mt-4 text-gray-600">Loading harvest data...</Text>
 //       </View>
 //     );
 //   }
@@ -477,259 +497,6 @@
 //     );
 //   }
 
-//   // If harvest already exists, show view-only mode
-//   if (existingHarvest?.harvest) {
-//     const {
-//       harvest,
-//       fruitWeights,
-//       wastes,
-//       totalWeight,
-//       averageWeight,
-//       totalWaste,
-//     } = existingHarvest;
-
-//     const allFruitWeightsSynced = fruitWeights.every(
-//       (fw: any) => fw.is_synced === 1,
-//     );
-//     const allWastesSynced = wastes.every((w: any) => w.is_synced === 1);
-//     const harvestSynced = harvest.is_synced === 1;
-//     const allSynced = allFruitWeightsSynced && allWastesSynced && harvestSynced;
-
-//     return (
-//       <View className="flex-1 bg-gray-50">
-//         {/* Header */}
-//         <View className="bg-white pt-12 pb-4 px-4 shadow-sm border-b border-gray-200">
-//           <View className="flex-row items-center justify-between">
-//             <View className="flex-row items-center">
-//               <TouchableOpacity
-//                 onPress={() => router.back()}
-//                 className="mr-3 p-2"
-//               >
-//                 <ArrowLeft size={24} color="#4b5563" />
-//               </TouchableOpacity>
-//               <View>
-//                 <Text className="text-2xl font-bold text-gray-800">
-//                   Harvest
-//                 </Text>
-//                 <Text className="text-gray-500 text-sm">
-//                   View harvest record
-//                 </Text>
-//               </View>
-//             </View>
-
-//             {/* Status Badges - Online/Offline + Sync Status */}
-//             <View className="flex-row items-center gap-2">
-//               {/* Online/Offline Status */}
-//               <View className="flex-row items-center bg-gray-100 px-3 py-1 rounded-full">
-//                 {isOnline ? (
-//                   <>
-//                     <Wifi size={16} color="#059669" />
-//                     <Text className="text-green-600 text-xs ml-1">Online</Text>
-//                   </>
-//                 ) : (
-//                   <>
-//                     <WifiOff size={16} color="#6b7280" />
-//                     <Text className="text-gray-500 text-xs ml-1">Offline</Text>
-//                   </>
-//                 )}
-//               </View>
-
-//               {/* Sync Status Badge */}
-//               <View
-//                 className={`px-3 py-1 rounded-full ${allSynced ? "bg-green-100" : "bg-yellow-100"}`}
-//               >
-//                 <Text
-//                   className={`text-xs font-medium ${allSynced ? "text-green-700" : "text-yellow-700"}`}
-//                 >
-//                   {allSynced ? "✓ All Synced" : "⏳ Pending Sync"}
-//                 </Text>
-//               </View>
-//             </View>
-//           </View>
-//         </View>
-
-//         <ScrollView
-//           className="flex-1 p-4"
-//           refreshControl={
-//             <RefreshControl
-//               refreshing={refreshing}
-//               onRefresh={onRefresh}
-//               colors={["#059669"]} // Android
-//               tintColor="#059669" // iOS
-//               title="Pull to refresh" // iOS
-//               titleColor="#059669" // iOS
-//             />
-//           }
-//         >
-//           {/* Fruit Info Card */}
-//           <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-//             <Text className="text-gray-500 text-sm mb-3">FRUIT DETAILS</Text>
-
-//             <View className="flex-row items-center mb-3">
-//               <View className="bg-green-100 p-3 rounded-full">
-//                 <Package size={24} color="#059669" />
-//               </View>
-//               <View className="ml-3 flex-1">
-//                 <Text className="text-gray-800 font-semibold text-lg">
-//                   {fruit.quantity} Fruit{fruit.quantity !== 1 ? "s" : ""}
-//                 </Text>
-//                 <Text className="text-gray-500 text-xs">
-//                   Bagged: {new Date(fruit.bagged_at).toLocaleDateString()}
-//                 </Text>
-//               </View>
-//             </View>
-
-//             <View className="bg-gray-50 p-4 rounded-xl mt-2">
-//               <View className="flex-row justify-between mb-2">
-//                 <Text className="text-gray-600">Harvest ID:</Text>
-//                 <Text className="text-gray-800 font-mono text-xs">
-//                   {harvest.id.substring(0, 8)}...
-//                 </Text>
-//               </View>
-//               <View className="flex-row justify-between mb-2">
-//                 <Text className="text-gray-600">Harvest Date:</Text>
-//                 <Text className="text-gray-800">
-//                   {new Date().toLocaleDateString()}
-//                 </Text>
-//               </View>
-//               <View className="flex-row justify-between items-center">
-//                 <Text className="text-gray-600">Synced:</Text>
-//                 <View
-//                   className={`px-3 py-1 rounded-full ${harvest.is_synced ? "bg-green-100" : "bg-red-100"}`}
-//                 >
-//                   <Text
-//                     className={`text-sm font-medium ${harvest.is_synced ? "text-green-800" : "text-red-800"}`}
-//                   >
-//                     {harvest.is_synced ? "Yes" : "No"}
-//                   </Text>
-//                 </View>
-//               </View>
-//             </View>
-//           </View>
-
-//           {/* Summary Card */}
-//           <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-//             <Text className="text-gray-500 text-sm mb-3">HARVEST SUMMARY</Text>
-
-//             <View className="flex-row justify-between mb-2">
-//               <Text className="text-gray-600">Total Fruits:</Text>
-//               <Text className="font-semibold">{fruit.quantity}</Text>
-//             </View>
-//             <View className="flex-row justify-between mb-2">
-//               <Text className="text-gray-600">Ripe Fruits:</Text>
-//               <Text className="font-medium text-green-600">
-//                 {fruitWeights.length}
-//               </Text>
-//             </View>
-//             <View className="flex-row justify-between mb-2">
-//               <Text className="text-gray-600">Total Weight:</Text>
-//               <Text className="font-medium text-blue-600">
-//                 {totalWeight.toFixed(2)} kg
-//               </Text>
-//             </View>
-//             <View className="flex-row justify-between mb-2">
-//               <Text className="text-gray-600">Average Weight:</Text>
-//               <Text className="font-medium text-purple-600">
-//                 {averageWeight.toFixed(2)} kg
-//               </Text>
-//             </View>
-
-//             <View className="flex-row justify-between pt-2 border-t border-gray-200">
-//               <Text className="text-gray-800 font-medium">Waste:</Text>
-//               <Text className="font-bold text-red-600">{totalWaste}</Text>
-//             </View>
-//           </View>
-
-//           {/* Ripe Fruits List */}
-//           <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-//             <View className="flex-row items-center mb-4">
-//               <View className="bg-green-100 p-2 rounded-full mr-2">
-//                 <Scale size={18} color="#059669" />
-//               </View>
-//               <Text className="text-gray-800 font-semibold">
-//                 Ripe Fruits ({fruitWeights.length})
-//               </Text>
-//             </View>
-
-//             {fruitWeights.map((weight: any, index: number) => (
-//               <View
-//                 key={`view-ripe-${index}`}
-//                 className="flex-row items-center mb-3 p-2 bg-gray-50 rounded-xl"
-//               >
-//                 <View className="bg-green-100 w-8 h-8 rounded-full items-center justify-center mr-2">
-//                   <Text className="text-green-700 font-medium text-xs">
-//                     {index + 1}
-//                   </Text>
-//                 </View>
-//                 <View className="flex-1 flex-row justify-between">
-//                   <Text className="text-gray-700">Weight:</Text>
-//                   <Text className="font-medium">{weight.weight} kg</Text>
-//                 </View>
-//                 <View className="ml-2 px-2 py-1 bg-gray-200 rounded-full">
-//                   <Text className="text-xs">{weight.status}</Text>
-//                 </View>
-//               </View>
-//             ))}
-//           </View>
-
-//           {/* Wastes List */}
-//           {wastes.length > 0 && (
-//             <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-//               <View className="flex-row items-center mb-4">
-//                 <View className="bg-red-100 p-2 rounded-full mr-2">
-//                   <AlertCircle size={18} color="#ef4444" />
-//                 </View>
-//                 <Text className="text-gray-800 font-semibold">
-//                   Wastes ({wastes.length})
-//                 </Text>
-//               </View>
-
-//               {wastes.map((waste: any, index: number) => (
-//                 <View
-//                   key={`view-waste-${index}`}
-//                   className="mb-3 p-3 bg-red-50 rounded-xl"
-//                 >
-//                   <View className="flex-row justify-between items-center">
-//                     <View className="flex-row items-center flex-1">
-//                       <View className="bg-red-200 w-6 h-6 rounded-full items-center justify-center mr-2">
-//                         <Text className="text-red-700 font-medium text-xs">
-//                           {index + 1}
-//                         </Text>
-//                       </View>
-//                       <View className="flex-1">
-//                         <Text className="text-gray-800 font-medium">
-//                           {waste.waste_quantity} fruit
-//                           {waste.waste_quantity !== 1 ? "s" : ""}
-//                         </Text>
-//                         <Text
-//                           className="text-gray-600 text-xs"
-//                           numberOfLines={1}
-//                         >
-//                           {waste.reason}
-//                         </Text>
-//                       </View>
-//                     </View>
-//                   </View>
-//                 </View>
-//               ))}
-//             </View>
-//           )}
-
-//           {/* Back Button */}
-//           <TouchableOpacity
-//             onPress={() => router.back()}
-//             className="py-4 rounded-xl mt-2 bg-gray-600 mb-6"
-//           >
-//             <Text className="text-center font-semibold text-white text-lg">
-//               Go Back
-//             </Text>
-//           </TouchableOpacity>
-//         </ScrollView>
-//       </View>
-//     );
-//   }
-
-//   // If no existing harvest, show the harvest form
 //   return (
 //     <View className="flex-1 bg-gray-50">
 //       {/* Header */}
@@ -743,9 +510,11 @@
 //               <ArrowLeft size={24} color="#4b5563" />
 //             </TouchableOpacity>
 //             <View>
-//               <Text className="text-2xl font-bold text-gray-800">Harvest</Text>
+//               <Text className="text-2xl font-bold text-gray-800">
+//                 {harvestRecord ? "Update Harvest" : "New Harvest"}
+//               </Text>
 //               <Text className="text-gray-500 text-sm">
-//                 Record fruit harvest
+//                 {harvestRecord ? "Edit harvest record" : "Record fruit harvest"}
 //               </Text>
 //             </View>
 //           </View>
@@ -765,6 +534,21 @@
 //             )}
 //           </View>
 //         </View>
+
+//         {/* Assignment Info - if exists */}
+//         {harvestRecord?.harvest?.user_id && (
+//           <View className="mt-3 bg-blue-50 p-3 rounded-xl">
+//             <View className="flex-row items-center">
+//               <User size={16} color="#3b82f6" />
+//               <Text className="text-blue-700 text-sm ml-2 font-medium">
+//                 Assigned Harvest
+//               </Text>
+//             </View>
+//             <Text className="text-gray-600 text-xs mt-1">
+//               You are harvesting this fruit
+//             </Text>
+//           </View>
+//         )}
 //       </View>
 
 //       <ScrollView
@@ -773,10 +557,10 @@
 //           <RefreshControl
 //             refreshing={refreshing}
 //             onRefresh={onRefresh}
-//             colors={["#059669"]} // Android
-//             tintColor="#059669" // iOS
-//             title="Pull to refresh" // iOS
-//             titleColor="#059669" // iOS
+//             colors={["#059669"]}
+//             tintColor="#059669"
+//             title="Pull to refresh"
+//             titleColor="#059669"
 //           />
 //         }
 //       >
@@ -805,6 +589,17 @@
 //                 {fruit.id.substring(0, 8)}...
 //               </Text>
 //             </View>
+
+//             {fruit.tree && (
+//               <View className="flex-row justify-between mb-2">
+//                 <Text className="text-gray-600">Tree:</Text>
+//                 <Text className="text-gray-800">
+//                   {fruit.tree.description ||
+//                     `Tree #${fruit.tree_id.substring(0, 6)}`}
+//                 </Text>
+//               </View>
+//             )}
+
 //             <View className="flex-row justify-between">
 //               <Text className="text-gray-600">Status:</Text>
 //               <View
@@ -992,9 +787,9 @@
 //           )}
 //         </View>
 
-//         {/* Submit Button */}
+//         {/* Update Button */}
 //         <TouchableOpacity
-//           onPress={handleSubmitHarvest}
+//           onPress={handleUpdateHarvest}
 //           disabled={submitting || totalNow === 0}
 //           className={`py-4 rounded-xl mt-2 ${
 //             totalNow > 0 ? "bg-green-600" : "bg-gray-400"
@@ -1003,11 +798,11 @@
 //           {submitting ? (
 //             <View className="flex-row items-center justify-center">
 //               <ActivityIndicator size="small" color="white" />
-//               <Text className="text-white font-semibold ml-2">Saving...</Text>
+//               <Text className="text-white font-semibold ml-2">Updating...</Text>
 //             </View>
 //           ) : (
 //             <Text className="text-center font-semibold text-white text-lg">
-//               ✓ Record Harvest
+//               ✓ Update Harvest
 //             </Text>
 //           )}
 //         </TouchableOpacity>
@@ -1081,6 +876,7 @@
 // }
 
 // app/harvest.tsx
+import FruitService from "@/services/FruitService";
 import HarvestService from "@/services/HarvestService";
 import NetInfo from "@react-native-community/netinfo";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -1110,7 +906,7 @@ import {
 } from "react-native";
 import Toast from "react-native-toast-message";
 
-export default function Harvest() {
+export default function HarvestScreen() {
   const router = useRouter();
   const { fruitData, harvestId } = useLocalSearchParams();
 
@@ -1121,8 +917,8 @@ export default function Harvest() {
   const [submitting, setSubmitting] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
 
-  // Form states - for editing existing or creating new
-  const [ripeFruits, setRipeFruits] = useState<string[]>([]); // weights ng ripe fruits
+  // Form states
+  const [ripeFruits, setRipeFruits] = useState<string[]>([]);
   const [wasteItems, setWasteItems] = useState<
     { quantity: string; reason: string }[]
   >([]);
@@ -1130,6 +926,13 @@ export default function Harvest() {
   // For tracking existing data
   const [existingFruitWeights, setExistingFruitWeights] = useState<any[]>([]);
   const [existingWastes, setExistingWastes] = useState<any[]>([]);
+
+  // Backlog states
+  const [showBacklogModal, setShowBacklogModal] = useState(false);
+  const [backlogDays, setBacklogDays] = useState("");
+  const [backlogReason, setBacklogReason] = useState("");
+  const [remainingAfterHarvest, setRemainingAfterHarvest] = useState(0);
+  const [hasBacklog, setHasBacklog] = useState(false);
 
   // Modal states
   const [showWasteModal, setShowWasteModal] = useState(false);
@@ -1147,7 +950,6 @@ export default function Harvest() {
       const netInfo = await NetInfo.fetch();
       setIsOnline(netInfo.isConnected ?? false);
 
-      // Listen for network changes
       const unsubscribe = NetInfo.addEventListener((state) => {
         setIsOnline(state.isConnected ?? false);
       });
@@ -1163,16 +965,21 @@ export default function Harvest() {
       try {
         const parsedFruit = JSON.parse(fruitData as string);
         setFruit(parsedFruit);
-        console.log("Fruit data:", parsedFruit);
 
-        // Check for existing harvest
+        // Check if this fruit has backlog
+        if (
+          parsedFruit.remaining_quantity &&
+          parsedFruit.remaining_quantity > 0
+        ) {
+          setHasBacklog(true);
+        }
+
         checkExistingHarvest(parsedFruit.id);
       } catch (error) {
         console.error("Error parsing fruitData:", error);
         setLoading(false);
       }
     } else if (harvestId) {
-      // If harvestId is provided directly, fetch harvest details
       fetchHarvestById(harvestId as string);
     }
   }, [fruitData, harvestId]);
@@ -1186,7 +993,13 @@ export default function Harvest() {
         setHarvestRecord(harvest);
         setFruit(harvest.fruit);
 
-        // Load existing data into form
+        if (
+          harvest.fruit?.remaining_quantity &&
+          harvest.fruit.remaining_quantity > 0
+        ) {
+          setHasBacklog(true);
+        }
+
         await loadExistingHarvestData(harvest.id);
       }
     } catch (error) {
@@ -1203,10 +1016,10 @@ export default function Harvest() {
 
       if (harvestDetails.harvest) {
         setHarvestRecord(harvestDetails);
-        console.log("Existing harvest found:", harvestDetails);
-
-        // Load existing data into form
         await loadExistingHarvestData(harvestDetails.harvest.id);
+      } else {
+        // No existing harvest, create one?
+        console.log("No existing harvest found for this fruit");
       }
     } catch (error) {
       console.error("Error checking existing harvest:", error);
@@ -1217,21 +1030,17 @@ export default function Harvest() {
 
   const loadExistingHarvestData = async (harvestId: string) => {
     try {
-      // Get fruit weights
       const fruitWeights =
         await HarvestService.getFruitWeightsByHarvestId(harvestId);
       setExistingFruitWeights(fruitWeights);
 
-      // Convert to form format
       if (fruitWeights.length > 0) {
         setRipeFruits(fruitWeights.map((fw: any) => fw.weight.toString()));
       }
 
-      // Get wastes
       const wastes = await HarvestService.getWastesByHarvestId(harvestId);
       setExistingWastes(wastes);
 
-      // Convert to form format
       if (wastes.length > 0) {
         setWasteItems(
           wastes.map((w: any) => ({
@@ -1250,11 +1059,8 @@ export default function Harvest() {
       const unsyncedHarvests = await HarvestService.getAllUnsyncedHarvests();
 
       if (unsyncedHarvests.length === 0) {
-        console.log("No unsynced harvests to sync");
         return { synced: 0, failed: 0 };
       }
-
-      console.log(`Found ${unsyncedHarvests.length} unsynced harvests to sync`);
 
       let syncedCount = 0;
       let failedCount = 0;
@@ -1266,25 +1072,16 @@ export default function Harvest() {
           );
           if (success) {
             syncedCount++;
-            console.log(
-              `Successfully synced harvest: ${harvestData.harvest.id}`,
-            );
           } else {
             failedCount++;
-            console.log(`Failed to sync harvest: ${harvestData.harvest.id}`);
           }
         } catch (error) {
           failedCount++;
-          console.error(
-            `Error syncing harvest ${harvestData.harvest.id}:`,
-            error,
-          );
         }
       }
 
       return { synced: syncedCount, failed: failedCount };
     } catch (error) {
-      console.error("Error in syncUnsyncedHarvests:", error);
       return { synced: 0, failed: 0 };
     }
   };
@@ -1296,14 +1093,10 @@ export default function Harvest() {
       const netInfo = await NetInfo.fetch();
       setIsOnline(netInfo.isConnected ?? false);
 
-      let syncResults = { synced: 0, failed: 0 };
-
       if (netInfo.isConnected) {
-        console.log("Online - syncing unsynced harvests...");
-        syncResults = await syncUnsyncedHarvests();
+        await syncUnsyncedHarvests();
       }
 
-      // Refresh current harvest data
       if (harvestRecord?.harvest?.id) {
         const harvestDetails = await HarvestService.getHarvestDetailsByFruitId(
           fruit.id,
@@ -1312,18 +1105,6 @@ export default function Harvest() {
         if (harvestDetails.harvest) {
           setHarvestRecord(harvestDetails);
           await loadExistingHarvestData(harvestDetails.harvest.id);
-        }
-      }
-
-      if (netInfo.isConnected) {
-        if (syncResults.synced > 0) {
-          Toast.show({
-            type: "success",
-            text1: "Sync Complete",
-            text2: `Synced ${syncResults.synced} harvest${syncResults.synced > 1 ? "s" : ""} to server`,
-            position: "bottom",
-            visibilityTime: 3000,
-          });
         }
       }
     } catch (error) {
@@ -1412,6 +1193,8 @@ export default function Harvest() {
       (sum, item) => sum + parseInt(item.quantity || "0"),
       0,
     );
+
+    const availableQuantity = getAvailableQuantity();
     const newTotalWaste =
       totalWaste -
       (editingWasteIndex !== null
@@ -1419,11 +1202,11 @@ export default function Harvest() {
         : 0) +
       parseInt(wasteQuantity);
 
-    if (ripeFruits.length + newTotalWaste > fruit.quantity) {
+    if (ripeFruits.length + newTotalWaste > availableQuantity) {
       Toast.show({
         type: "error",
         text1: "Exceeds Limit",
-        text2: `Total (${ripeFruits.length} ripe + ${newTotalWaste} waste) exceeds ${fruit.quantity} fruits`,
+        text2: `Total (${ripeFruits.length} ripe + ${newTotalWaste} waste) exceeds ${availableQuantity} fruits`,
       });
       return;
     }
@@ -1459,8 +1242,35 @@ export default function Harvest() {
     ]);
   };
 
-  const handleUpdateHarvest = async () => {
-    if (!fruit || !harvestRecord?.harvest) return;
+  const getAvailableQuantity = () => {
+    if (hasBacklog && fruit?.remaining_quantity) {
+      return fruit.remaining_quantity;
+    }
+    return fruit?.quantity || 0;
+  };
+
+  const updateFruitRemainingQuantity = async (
+    fruitId: string,
+    remaining: number,
+  ) => {
+    try {
+      const currentFruit = await FruitService.getFruit(fruitId);
+
+      if (currentFruit) {
+        await FruitService.updateFruit(fruitId, {
+          remaining_quantity: remaining,
+        });
+        console.log(
+          `Updated fruit ${fruitId} remaining quantity to ${remaining}`,
+        );
+      }
+    } catch (error) {
+      console.error("Error updating fruit remaining quantity:", error);
+    }
+  };
+
+  const handleSubmitHarvest = async () => {
+    if (!fruit) return;
 
     if (ripeFruits.length === 0 && wasteItems.length === 0) {
       Toast.show({
@@ -1471,6 +1281,7 @@ export default function Harvest() {
       return;
     }
 
+    // Validate weights
     for (let i = 0; i < ripeFruits.length; i++) {
       if (!ripeFruits[i] || parseFloat(ripeFruits[i]) <= 0) {
         Toast.show({
@@ -1485,42 +1296,110 @@ export default function Harvest() {
     try {
       setSubmitting(true);
 
-      const weightNumbers = ripeFruits.map((w) => parseFloat(w));
-      const wastesData = wasteItems.map((item) => ({
+      // Kunin lahat ng weights at wastes (kung ano nasa UI, yun lang)
+      const allWeights = ripeFruits.map((w) => parseFloat(w));
+      const allWastes = wasteItems.map((item) => ({
         quantity: parseInt(item.quantity),
         reason: item.reason,
       }));
 
-      const ripeQuantity = ripeFruits.length;
+      const totalProcessed =
+        allWeights.length + allWastes.reduce((sum, w) => sum + w.quantity, 0);
 
-      // Use the new updateHarvest method
-      const result = await HarvestService.updateHarvest(
-        harvestRecord.harvest.id, // Pass the existing harvest ID
-        ripeQuantity,
-        weightNumbers,
-        wastesData,
-      );
+      const availableQuantity = getAvailableQuantity();
+      const remaining = availableQuantity - totalProcessed;
+      setRemainingAfterHarvest(remaining);
 
-      console.log("Harvest update result:", result);
+      if (harvestRecord?.harvest) {
+        // I-pasa lahat ng nasa UI (i-replace ang old data)
+        const result = await HarvestService.updateHarvest(
+          harvestRecord.harvest.id,
+          allWeights.length, // Total ripe fruits
+          allWeights, // Lahat ng weights
+          allWastes, // Lahat ng wastes
+        );
 
-      Toast.show({
-        type: "success",
-        text1: "Success",
-        text2: `Harvest updated successfully${!result.synced ? " (offline mode)" : ""}`,
-      });
+        // Show different messages based on status
+        let statusMessage = "";
+        switch (result.harvest.status) {
+          case "partial":
+            statusMessage = `${remaining} fruit(s) remaining`;
+            break;
+          case "harvested":
+            statusMessage = "All fruits harvested!";
+            break;
+          case "wasted":
+            statusMessage = "All fruits marked as waste";
+            break;
+        }
 
-      setTimeout(() => {
-        router.back();
-      }, 1500);
+        Toast.show({
+          type: "success",
+          text1: "Success",
+          text2: `Harvest updated - ${statusMessage}${!result.synced ? " (offline mode)" : ""}`,
+        });
+      }
+
+      // Update fruit's remaining quantity
+      await updateFruitRemainingQuantity(fruit.id, remaining);
+
+      // If there are remaining fruits, show backlog modal
+      if (remaining > 0) {
+        setShowBacklogModal(true);
+      } else {
+        setTimeout(() => {
+          router.back();
+        }, 1500);
+      }
     } catch (error: any) {
-      console.error("Error updating harvest:", error);
+      console.error("Error saving harvest:", error);
       Toast.show({
         type: "error",
         text1: "Failed",
-        text2: error.response?.data?.message || "Could not update harvest",
+        text2: error.response?.data?.message || "Could not save harvest",
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleBacklogSubmit = async () => {
+    if (!backlogDays || parseInt(backlogDays) <= 0) {
+      Toast.show({
+        type: "error",
+        text1: "Invalid",
+        text2: "Please enter valid number of days",
+      });
+      return;
+    }
+
+    try {
+      // Update fruit with next check date
+      await FruitService.updateFruit(fruit.id, {
+        farmer_extra_days: parseInt(backlogDays),
+        farmer_notes: backlogReason,
+        next_check_date: new Date(
+          Date.now() + parseInt(backlogDays) * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Reminder Set",
+        text2: `We'll remind you in ${backlogDays} days to check remaining fruits`,
+      });
+
+      setShowBacklogModal(false);
+      setTimeout(() => {
+        router.back();
+      }, 1500);
+    } catch (error) {
+      console.error("Error setting backlog reminder:", error);
+      Toast.show({
+        type: "error",
+        text1: "Failed",
+        text2: "Could not set reminder",
+      });
     }
   };
 
@@ -1530,7 +1409,8 @@ export default function Harvest() {
     0,
   );
   const totalNow = totalRipe + totalWaste;
-  const remaining = fruit ? fruit.quantity - totalNow : 0;
+  const availableQuantity = getAvailableQuantity();
+  const remaining = availableQuantity - totalNow;
   const harvestStatus = fruit
     ? getHarvestStatus()
     : { isReady: false, daysLeft: 0, harvestDate: "" };
@@ -1621,8 +1501,6 @@ export default function Harvest() {
             onRefresh={onRefresh}
             colors={["#059669"]}
             tintColor="#059669"
-            title="Pull to refresh"
-            titleColor="#059669"
           />
         }
       >
@@ -1687,20 +1565,76 @@ export default function Harvest() {
         <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
           <Text className="text-gray-500 text-sm mb-3">HARVEST PROGRESS</Text>
 
+          {/* Backlog Banner */}
+          {hasBacklog && fruit.remaining_quantity > 0 && (
+            <View className="bg-yellow-50 p-3 rounded-lg mb-3 border border-yellow-200">
+              <View className="flex-row items-center">
+                <AlertCircle size={18} color="#D97706" />
+                <Text className="text-yellow-700 font-medium ml-2">
+                  📋 Backlog Harvest
+                </Text>
+              </View>
+              <Text className="text-yellow-600 text-sm mt-1">
+                This fruit has {fruit.remaining_quantity} pending item(s) from
+                previous harvest
+              </Text>
+              {existingFruitWeights.length > 0 && (
+                <Text className="text-yellow-600 text-xs mt-1">
+                  Previously harvested: {existingFruitWeights.length} fruits
+                </Text>
+              )}
+            </View>
+          )}
+
           <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-600">Total Fruits:</Text>
-            <Text className="font-semibold">{fruit.quantity}</Text>
+            <Text className="text-gray-600">
+              {hasBacklog ? "Remaining from backlog:" : "Total Fruits:"}
+            </Text>
+            <Text className="font-semibold">{availableQuantity}</Text>
           </View>
+
+          {/* Show total harvested including previous */}
+          {hasBacklog && existingFruitWeights.length > 0 && (
+            <View className="flex-row justify-between mb-2">
+              <Text className="text-gray-600">Previously harvested:</Text>
+              <Text className="font-medium text-blue-600">
+                {existingFruitWeights.length}
+              </Text>
+            </View>
+          )}
+
           <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-600">Ripe Fruits:</Text>
+            <Text className="text-gray-600">Ripe Fruits :</Text>
             <Text className="font-medium text-green-600">{totalRipe}</Text>
           </View>
           <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-600">Wasted Fruits:</Text>
+            {/* (this session) */}
+            <Text className="text-gray-600">Wasted Fruits :</Text>
             <Text className="font-medium text-red-600">{totalWaste}</Text>
           </View>
+
+          {/* Total this session */}
+          {/* <View className="flex-row justify-between pt-2 border-t border-gray-200">
+            <Text className="text-gray-800 font-medium">
+              Total this session:
+            </Text>
+            <Text className="font-bold text-orange-600">{totalNow}</Text>
+          </View> */}
+
+          {/* Overall total */}
+          <View className="flex-row justify-between pt-2 border-t border-gray-200 mt-2">
+            <Text className="text-gray-800 font-medium">
+              Overall harvested:
+            </Text>
+            <Text className="font-bold text-purple-600">
+              {(hasBacklog ? existingFruitWeights.length : 0) + totalNow}
+            </Text>
+          </View>
+
           <View className="flex-row justify-between pt-2 border-t border-gray-200">
-            <Text className="text-gray-800 font-medium">Remaining:</Text>
+            <Text className="text-gray-800 font-medium">
+              Remaining after this:
+            </Text>
             <Text
               className={`font-bold ${remaining > 0 ? "text-blue-600" : "text-gray-400"}`}
             >
@@ -1712,7 +1646,9 @@ export default function Harvest() {
           <View className="h-2 bg-gray-200 rounded-full mt-3 overflow-hidden">
             <View
               className="h-full bg-green-500"
-              style={{ width: `${(totalNow / fruit.quantity) * 100}%` }}
+              style={{
+                width: `${(((hasBacklog ? existingFruitWeights.length : 0) + totalNow) / fruit.quantity) * 100}%`,
+              }}
             />
           </View>
         </View>
@@ -1725,7 +1661,7 @@ export default function Harvest() {
                 <Scale size={18} color="#059669" />
               </View>
               <Text className="text-gray-800 font-semibold">
-                Ripe Fruits (with weights)
+                Ripe Fruits (this session)
               </Text>
             </View>
             <TouchableOpacity
@@ -1740,10 +1676,37 @@ export default function Harvest() {
             </TouchableOpacity>
           </View>
 
+          {/* Show previous harvests */}
+          {hasBacklog && existingFruitWeights.length > 0 && (
+            <View className="mb-3 p-2 bg-blue-50 rounded-lg">
+              <Text className="text-blue-700 font-medium text-sm mb-2">
+                Previously harvested fruits:
+              </Text>
+              {existingFruitWeights.map((weight, index) => (
+                <View
+                  key={`prev-${index}`}
+                  className="flex-row items-center mb-1"
+                >
+                  <View className="bg-blue-100 w-6 h-6 rounded-full items-center justify-center mr-2">
+                    <Text className="text-blue-700 font-medium text-xs">
+                      {index + 1}
+                    </Text>
+                  </View>
+                  <Text className="text-gray-700">{weight.weight} kg</Text>
+                  <Text className="text-xs text-gray-500 ml-2">
+                    ({weight.status})
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           {ripeFruits.length === 0 ? (
             <View className="border-2 border-dashed border-gray-200 rounded-xl p-6 items-center">
               <Scale size={32} color="#9ca3af" />
-              <Text className="text-gray-500 mt-2">No ripe fruits added</Text>
+              <Text className="text-gray-500 mt-2">
+                No ripe fruits added this session
+              </Text>
               <Text className="text-gray-400 text-xs mt-1">
                 Tap Add to record ripe fruits
               </Text>
@@ -1756,7 +1719,7 @@ export default function Harvest() {
               >
                 <View className="bg-green-100 w-8 h-8 rounded-full items-center justify-center mr-2">
                   <Text className="text-green-700 font-medium text-xs">
-                    R{index + 1}
+                    {index + 1}
                   </Text>
                 </View>
                 <TextInput
@@ -1785,7 +1748,9 @@ export default function Harvest() {
               <View className="bg-red-100 p-2 rounded-full mr-2">
                 <AlertCircle size={18} color="#ef4444" />
               </View>
-              <Text className="text-gray-800 font-semibold">Wasted Fruits</Text>
+              <Text className="text-gray-800 font-semibold">
+                Wasted Fruits (this session)
+              </Text>
             </View>
             <TouchableOpacity
               onPress={handleAddWaste}
@@ -1799,10 +1764,28 @@ export default function Harvest() {
             </TouchableOpacity>
           </View>
 
+          {/* Show previous wastes */}
+          {hasBacklog && existingWastes.length > 0 && (
+            <View className="mb-3 p-2 bg-red-50 rounded-lg">
+              <Text className="text-red-700 font-medium text-sm mb-2">
+                Previously recorded waste:
+              </Text>
+              {existingWastes.map((waste, index) => (
+                <View key={`prev-waste-${index}`} className="mb-1">
+                  <Text className="text-gray-700">
+                    {waste.waste_quantity} fruit(s) - {waste.reason}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           {wasteItems.length === 0 ? (
             <View className="border-2 border-dashed border-red-200 rounded-xl p-6 items-center">
               <AlertCircle size={32} color="#9ca3af" />
-              <Text className="text-gray-500 mt-2">No waste recorded</Text>
+              <Text className="text-gray-500 mt-2">
+                No waste recorded this session
+              </Text>
               <Text className="text-gray-400 text-xs mt-1">
                 Tap Add to record wasted fruits
               </Text>
@@ -1817,7 +1800,7 @@ export default function Harvest() {
                   <View className="flex-row items-center flex-1">
                     <View className="bg-red-200 w-6 h-6 rounded-full items-center justify-center mr-2">
                       <Text className="text-red-700 font-medium text-xs">
-                        W{index + 1}
+                        {index + 1}
                       </Text>
                     </View>
                     <View className="flex-1">
@@ -1850,30 +1833,53 @@ export default function Harvest() {
         </View>
 
         {/* Update Button */}
-        <TouchableOpacity
-          onPress={handleUpdateHarvest}
-          disabled={submitting || totalNow === 0}
-          className={`py-4 rounded-xl mt-2 ${
-            totalNow > 0 ? "bg-green-600" : "bg-gray-400"
-          }`}
-        >
-          {submitting ? (
-            <View className="flex-row items-center justify-center">
-              <ActivityIndicator size="small" color="white" />
-              <Text className="text-white font-semibold ml-2">Updating...</Text>
-            </View>
-          ) : (
-            <Text className="text-center font-semibold text-white text-lg">
-              ✓ Update Harvest
+        {harvestRecord?.harvest?.status !== "harvested" ? (
+          <TouchableOpacity
+            onPress={handleSubmitHarvest}
+            disabled={submitting || totalNow === 0}
+            className={`py-4 rounded-xl mt-2 ${
+              totalNow > 0 ? "bg-green-600" : "bg-gray-400"
+            }`}
+          >
+            {submitting ? (
+              <View className="flex-row items-center justify-center">
+                <ActivityIndicator size="small" color="white" />
+                <Text className="text-white font-semibold ml-2">
+                  {harvestRecord ? "Updating..." : "Saving..."}
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-center font-semibold text-white text-lg">
+                ✓ {harvestRecord ? "Update Harvest" : "Record Harvest"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        ) : (
+          // Show a message or alternative when harvested
+          <View className="py-4 rounded-xl mt-2 bg-green-100 border border-green-300">
+            <Text className="text-center font-semibold text-green-700 text-lg">
+              ✓ Harvest Complete
             </Text>
-          )}
-        </TouchableOpacity>
+            <Text className="text-center text-green-600 text-sm mt-1">
+              All fruits have been harvested
+            </Text>
+          </View>
+        )}
 
         {/* Info Note */}
         <View className="mt-4 px-2 mb-6">
           <Text className="text-xs text-gray-500 text-center">
-            Total ripe + waste should not exceed {fruit.quantity} fruits.
-            Remaining fruits can be harvested later.
+            Total ripe + waste should not exceed {availableQuantity} fruits this
+            session. Overall progress:{" "}
+            {(
+              (((hasBacklog ? existingFruitWeights.length : 0) + totalNow) /
+                fruit.quantity) *
+              100
+            ).toFixed(0)}
+            % complete.
+            {remaining > 0
+              ? ` ${remaining} fruit(s) will remain for later harvest.`
+              : ""}
           </Text>
         </View>
       </ScrollView>
@@ -1928,6 +1934,84 @@ export default function Harvest() {
                 {editingWasteIndex !== null ? "Update" : "Add"} Waste
               </Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Backlog Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showBacklogModal}
+        onRequestClose={() => setShowBacklogModal(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="bg-white rounded-xl p-6 w-11/12 max-w-md">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-xl font-bold text-gray-800">
+                Backlog Harvest
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowBacklogModal(false);
+                  router.back();
+                }}
+              >
+                <X size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text className="text-gray-600 mb-4">
+              You have {remainingAfterHarvest} fruit
+              {remainingAfterHarvest !== 1 ? "s" : ""} left to harvest. When
+              should we remind you to check them again?
+            </Text>
+
+            <Text className="text-gray-700 font-medium mb-2">
+              Days until next check <Text className="text-red-500">*</Text>
+            </Text>
+            <TextInput
+              className="border border-gray-300 rounded-xl px-4 py-3 mb-4"
+              placeholder="e.g., 7"
+              value={backlogDays}
+              onChangeText={setBacklogDays}
+              keyboardType="numeric"
+            />
+
+            <Text className="text-gray-700 font-medium mb-2">
+              Reason (Optional)
+            </Text>
+            <TextInput
+              className="border border-gray-300 rounded-xl px-4 py-3 mb-6"
+              placeholder="e.g., Still developing, weather condition"
+              value={backlogReason}
+              onChangeText={setBacklogReason}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+
+            <View className="flex-row space-x-3">
+              <TouchableOpacity
+                className="flex-1 bg-gray-300 py-3 rounded-xl mr-2"
+                onPress={() => {
+                  setShowBacklogModal(false);
+                  router.back();
+                }}
+              >
+                <Text className="text-center font-semibold text-gray-700">
+                  Skip
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 bg-orange-500 py-3 rounded-xl ml-2"
+                onPress={handleBacklogSubmit}
+              >
+                <Text className="text-center font-semibold text-white">
+                  Set Reminder
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

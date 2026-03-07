@@ -49,12 +49,17 @@ export interface Fruit {
   flower_id: string;
   tree_id: string;
   quantity: number;
+  remaining_quantity?: number;
   bagged_at: Date;
   image_uri: string;
   created_at: Date | null;
   updated_at: Date | null;
   deleted_at: Date | null;
   is_synced?: boolean;
+  farmer_extra_days?: number;
+  farmer_assessed_at?: Date;
+  next_check_date?: Date;
+  farmer_notes?: string;
 }
 
 export interface FruitWeight {

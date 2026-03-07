@@ -40,6 +40,8 @@ export const CREATE_FRUITS_TABLE = `
           flower_id TEXT NOT NULL,
           tree_id TEXT NOT NULL,
           quantity INTEGER NOT NULL DEFAULT 1,
+          remaining_quantity INTEGER DEFAULT 0,          -- Ilan ang natitira (backlog)
+
           bagged_at TEXT NOT NULL,
           image_uri TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'active',
@@ -47,9 +49,28 @@ export const CREATE_FRUITS_TABLE = `
           created_at TEXT,
           updated_at TEXT,
           deleted_at TEXT,
+
+          -- For farmer assessment (kapag may backlog at overdue)
+          farmer_extra_days INTEGER DEFAULT 0,           -- Ilang araw dagdag sabi ni farmer
+          farmer_assessed_at DATETIME,                    -- Kelan huling nag-assess
+          next_check_date DATETIME,                       -- Kelan ulit mag-notify
+          farmer_notes TEXT,                              -- Bakit di pa ready (weather, pest, etc.)
           FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE,
           FOREIGN KEY (tree_id) REFERENCES trees(id) ON DELETE CASCADE
         );
+`;
+
+// Fruits indexes creation
+export const CREATE_FRUITS_INDEXES = `
+  CREATE INDEX IF NOT EXISTS idx_fruits_flower_id ON fruits(flower_id);
+  CREATE INDEX IF NOT EXISTS idx_fruits_tree_id ON fruits(tree_id);
+  CREATE INDEX IF NOT EXISTS idx_fruits_status ON fruits(status);
+  CREATE INDEX IF NOT EXISTS idx_fruits_synced ON fruits(is_synced);
+  CREATE INDEX IF NOT EXISTS idx_fruits_created ON fruits(created_at);
+  CREATE INDEX IF NOT EXISTS idx_fruits_bagged ON fruits(bagged_at);
+  CREATE INDEX IF NOT EXISTS idx_fruits_remaining ON fruits(remaining_quantity);
+  CREATE INDEX IF NOT EXISTS idx_fruits_next_check ON fruits(next_check_date);
+  CREATE INDEX IF NOT EXISTS idx_fruits_farmer ON fruits(farmer_extra_days);
 `;
 
 export const CREATE_USERS_TABLE_AND_INDEXES = `
@@ -81,6 +102,7 @@ export const CREATE_HARVESTS_TABLE = `
     fruit_id TEXT,
     user_id TEXT,
     ripe_quantity INTEGER ,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'partial', 'harvested', 'wasted')),
     harvest_at DATETIME,
     is_synced BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

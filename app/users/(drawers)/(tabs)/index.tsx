@@ -367,56 +367,119 @@ export default function FarmerHomeScreen() {
     }
   };
 
-  const renderAssignedHarvestItem = ({ item }) => (
-    <TouchableOpacity
-      className="bg-white rounded-xl p-4 mb-3 border border-gray-200 flex-row items-center"
-      onPress={() => {
-        if (item.fruit) {
-          router.push({
-            pathname: "/harvest",
-            params: {
-              fruitData: JSON.stringify(item.fruit),
-              harvestId: item.id,
-            },
-          });
-        } else {
-          Alert.alert("Error", "Fruit details not available");
-        }
-      }}
-      activeOpacity={0.7}
-    >
-      <View className="w-12 h-12 bg-orange-100 rounded-full items-center justify-center mr-3">
-        <Package size={24} color="#F97316" />
-      </View>
-      <View className="flex-1">
-        <Text className="font-bold text-gray-900">
-          {item.fruit?.treeName || `Fruit #${item.fruit_id?.substring(0, 8)}`}
-        </Text>
-        <View className="flex-row items-center mt-1">
-          <Clock size={14} color="#6B7280" />
-          <Text className="text-xs text-gray-600 ml-1">
-            Assigned: {new Date(item.created_at).toLocaleDateString()}
-          </Text>
+  const renderAssignedHarvestItem = ({ item }) => {
+    // Function to get status style and label
+    const getStatusStyle = (status: string) => {
+      switch (status) {
+        case "pending":
+          return {
+            container: "bg-blue-100",
+            text: "text-blue-700",
+            label: "Pending Harvest",
+          };
+        case "partial":
+          return {
+            container: "bg-yellow-100",
+            text: "text-yellow-700",
+            label: "Partial Harvest",
+          };
+        case "harvested":
+          return {
+            container: "bg-green-100",
+            text: "text-green-700",
+            label: "Harvested",
+          };
+        case "wasted":
+          return {
+            container: "bg-red-100",
+            text: "text-red-700",
+            label: "Wasted",
+          };
+        default:
+          return {
+            container: "bg-gray-100",
+            text: "text-gray-700",
+            label: "Unknown",
+          };
+      }
+    };
+
+    const statusStyle = getStatusStyle(item.status);
+
+    return (
+      <TouchableOpacity
+        className="bg-white rounded-xl p-4 mb-3 border border-gray-200 flex-row items-center"
+        onPress={() => {
+          if (item.fruit) {
+            router.push({
+              pathname: "/harvest",
+              params: {
+                fruitData: JSON.stringify(item.fruit),
+                harvestId: item.id,
+              },
+            });
+          } else {
+            Alert.alert("Error", "Fruit details not available");
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <View className="w-12 h-12 bg-orange-100 rounded-full items-center justify-center mr-3">
+          <Package size={24} color="#F97316" />
         </View>
-        <View className="flex-row mt-2">
-          <View
-            className={`rounded-full px-2 py-1 ${
-              item.harvest_at ? "bg-green-100" : "bg-blue-100"
-            }`}
-          >
-            <Text
-              className={`text-xs ${
-                item.harvest_at ? "text-green-700" : "text-blue-700"
-              }`}
-            >
-              {item.harvest_at ? "Harvested" : "Pending Harvest"}
+        <View className="flex-1">
+          <Text className="font-bold text-gray-900">
+            {item.fruit?.tree?.description ||
+              item.fruit?.treeName ||
+              `Fruit #${item.fruit_id?.substring(0, 8)}`}
+          </Text>
+          <View className="flex-row items-center mt-1">
+            <Clock size={14} color="#6B7280" />
+            <Text className="text-xs text-gray-600 ml-1">
+              Assigned: {new Date(item.created_at).toLocaleDateString()}
             </Text>
           </View>
+
+          {/* Show bagged date if available */}
+          {item.fruit?.bagged_at && (
+            <View className="flex-row items-center mt-1">
+              <Clock size={14} color="#6B7280" />
+              <Text className="text-xs text-gray-600 ml-1">
+                Bagged: {new Date(item.fruit.bagged_at).toLocaleDateString()}
+              </Text>
+            </View>
+          )}
+
+          {/* Status Badge with proper styling */}
+          <View className="flex-row mt-2">
+            <View className={`rounded-full px-2 py-1 ${statusStyle.container}`}>
+              <Text className={`text-xs ${statusStyle.text}`}>
+                {statusStyle.label}
+              </Text>
+            </View>
+
+            {/* Show remaining quantity if partial */}
+            {item.status === "partial" &&
+              item.fruit?.remaining_quantity > 0 && (
+                <View className="ml-2 rounded-full px-2 py-1 bg-orange-100">
+                  <Text className="text-xs text-orange-700">
+                    {item.fruit.remaining_quantity} remaining
+                  </Text>
+                </View>
+              )}
+          </View>
+
+          {/* Show harvest date if harvested */}
+          {item.harvest_at && (
+            <Text className="text-xs text-gray-500 mt-1">
+              Harvested: {new Date(item.harvest_at).toLocaleDateString()}
+            </Text>
+          )}
         </View>
-      </View>
-      <ChevronRight size={20} color="#9CA3AF" />
-    </TouchableOpacity>
-  );
+        <ChevronRight size={20} color="#9CA3AF" />
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -643,7 +706,7 @@ export default function FarmerHomeScreen() {
                   No Assigned Harvests
                 </Text>
                 <Text className="text-gray-500 text-center">
-                  You don't have any pending harvest assignments.
+                  You don&apos;t have any pending harvest assignments.
                 </Text>
               </View>
             ) : (
@@ -675,7 +738,7 @@ export default function FarmerHomeScreen() {
             Quick Tree Access
           </Text>
           <Text className="text-gray-600 mb-6">
-            Scan any tree's QR code to instantly access its details
+            Scan any tree&apos;s QR code to instantly access its details
           </Text>
 
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
