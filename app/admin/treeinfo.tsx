@@ -1,42 +1,39 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  Modal,
-  Platform,
-  ActivityIndicator,
-} from "react-native";
-import { useLocalSearchParams, Stack, useRouter } from "expo-router";
-import QRCode from "react-native-qrcode-svg";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import Toast from "react-native-toast-message";
-import { GoogleMaps } from "expo-maps";
+import FlowerService from "@/services/FlowerService";
+import treeService from "@/services/treeService";
+import { Flower as FlowerType } from "@/types/index";
+import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
+import { GoogleMaps } from "expo-maps";
+import * as MediaLibrary from "expo-media-library";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
-  Leaf,
-  MapPin,
+  Camera as CameraIcon,
   Clock,
+  Leaf,
+  Locate,
+  MapPin,
+  Navigation,
+  QrCode,
   Tag,
   UploadCloud,
-  QrCode,
-  Plus,
-  Flower,
-  Camera as CameraIcon,
   X,
-  Locate,
-  Navigation,
 } from "lucide-react-native";
-import { Flower as FlowerType } from "@/types/index";
-import FlowerService from "@/services/FlowerService";
-import * as MediaLibrary from "expo-media-library";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import { captureRef } from "react-native-view-shot";
-import treeService from "@/services/treeService";
 
 export default function TreeInfoScreen() {
   const params = useLocalSearchParams();
@@ -142,8 +139,8 @@ export default function TreeInfoScreen() {
 
   const calculateDistance = async () => {
     const distanceText = await treeService.getTreeDistance(
-      treeData?.latitude,
-      treeData?.longitude,
+      treeData?.coordinates.latitude,
+      treeData?.coordinates.longitude,
     );
     setDistance(distanceText);
   };
@@ -228,7 +225,7 @@ export default function TreeInfoScreen() {
   }, [showDateModal]);
 
   useEffect(() => {
-    if (treeData?.latitude && treeData?.longitude) {
+    if (treeData?.coordinates.latitude && treeData?.coordinates.longitude) {
       calculateDistance();
     }
   }, [treeData]);
@@ -709,16 +706,16 @@ export default function TreeInfoScreen() {
 
                 <View
                   className={`px-3 py-1 rounded-full ${
-                    treeData?.status === "Healthy"
+                    treeData?.status === "active"
                       ? "bg-green-100"
-                      : "bg-amber-100"
+                      : "bg-red-100"
                   }`}
                 >
                   <Text
                     className={`font-semibold ${
-                      treeData?.status === "Healthy"
+                      treeData?.status === "active"
                         ? "text-green-800"
-                        : "text-amber-800"
+                        : "text-red-800"
                     }`}
                   >
                     {treeData?.status
@@ -816,10 +813,7 @@ export default function TreeInfoScreen() {
                     <Text className="text-xl font-bold text-gray-900">
                       Tree Location
                     </Text>
-                    <Text className="text-gray-500">
-                      {treeData?.latitude?.toFixed(6)},{" "}
-                      {treeData?.longitude?.toFixed(6)}
-                    </Text>
+                    <Text className="text-gray-500">{distance}</Text>
                   </View>
                 </View>
 
@@ -903,67 +897,6 @@ export default function TreeInfoScreen() {
                   </View>
                 )}
               </View>
-            </View>
-
-            {/* Flower Section */}
-            <View className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-              <View className="flex-row justify-between items-center mb-4">
-                <View className="flex-row items-center">
-                  <View className="bg-pink-50 p-2 rounded-lg mr-3">
-                    <Flower size={24} color="#db2777" />
-                  </View>
-                  <View>
-                    <Text className="text-xl font-bold text-gray-900">
-                      Flowers ({flowerCount})
-                    </Text>
-                    <Text className="text-gray-500">
-                      Track flower wrapping and reviews
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {flowerCount > 0 ? (
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push({
-                      pathname: "/admin/flowers",
-                      params: { treeData: JSON.stringify(treeData) },
-                    })
-                  }
-                  className="bg-emerald-50 rounded-xl p-4"
-                >
-                  <View className="flex-row items-center justify-between">
-                    <View>
-                      <Text className="font-semibold text-gray-800">
-                        View All Flowers
-                      </Text>
-                      <Text className="text-gray-600 mt-1">
-                        {flowerCount} flower{flowerCount !== 1 ? "s" : ""}{" "}
-                        recorded
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push({
-                      pathname: "/admin/flowers",
-                      params: { treeData: JSON.stringify(treeData) },
-                    })
-                  }
-                  className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 items-center"
-                >
-                  <Plus size={48} color="#9ca3af" />
-                  <Text className="text-gray-500 mt-4 text-lg font-medium">
-                    Add First Flower
-                  </Text>
-                  <Text className="text-gray-400 text-center mt-2">
-                    Start tracking flower wrapping and reviews
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
 
             {/* QR Code Card */}
