@@ -157,10 +157,15 @@ export default function Users() {
       const allUsers = await userService.getUsers();
       console.log("All users loaded for filtering:", allUsers);
 
+      // Filter out admin users AND apply gender filter if set
+      let filteredUsers = allUsers.filter((user) => user.role !== "admin");
+
       // Apply gender filter if set
-      const filteredUsers = filterGender
-        ? allUsers.filter((user) => user.gender === filterGender)
-        : allUsers;
+      if (filterGender) {
+        filteredUsers = filteredUsers.filter(
+          (user) => user.gender === filterGender,
+        );
+      }
 
       setUsers(filteredUsers);
     } catch (error) {

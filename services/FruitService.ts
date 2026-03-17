@@ -678,10 +678,15 @@ class FruitService {
       const allowedFields = [
         "flower_id",
         "tree_id",
+        "remaining_quantity",
         "quantity",
         "bagged_at",
         "image_uri",
         "status",
+        "farmer_extra_days",
+        "farmer_assessed_at",
+        "next_check_date",
+        "farmer_notes",
       ];
       const fieldsToUpdate = Object.keys(updates).filter((key) =>
         allowedFields.includes(key),

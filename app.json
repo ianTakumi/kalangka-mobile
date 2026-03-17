@@ -17,6 +17,12 @@
       }
     },
     "android": {
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
+        "SCHEDULE_EXACT_ALARM",
+        "VIBRATE"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets//images/adaptive_icon/adaptive-icon.png",
@@ -37,6 +43,9 @@
     },
     "plugins": [
       "expo-router",
+      "expo-background-fetch",
+      "expo-notifications",
+      "expo-task-manager",
       [
         "expo-splash-screen",
         {

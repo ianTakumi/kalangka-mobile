@@ -278,7 +278,8 @@ class UserService {
 
     try {
       const result = await this.db!.getAllAsync(
-        "SELECT * FROM users ORDER BY created_at DESC",
+        "SELECT * FROM users WHERE role != ? ORDER BY created_at DESC",
+        ["admin"], // Parameter to prevent SQL injection
       );
 
       return result.map((user: any) => ({
@@ -432,15 +433,16 @@ class UserService {
 
     try {
       const stats = await this.db!.getAllAsync(`
-        SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN gender = 'male' THEN 1 ELSE 0 END) as male,
-          SUM(CASE WHEN gender = 'female' THEN 1 ELSE 0 END) as female,
-          SUM(CASE WHEN gender NOT IN ('male', 'female') THEN 1 ELSE 0 END) as other,
-          SUM(CASE WHEN is_synced = 1 THEN 1 ELSE 0 END) as synced,
-          SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced
-        FROM users
-      `);
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN gender = 'male' AND role != 'admin' THEN 1 ELSE 0 END) as male,
+        SUM(CASE WHEN gender = 'female' AND role != 'admin' THEN 1 ELSE 0 END) as female,
+        SUM(CASE WHEN gender NOT IN ('male', 'female') AND role != 'admin' THEN 1 ELSE 0 END) as other,
+        SUM(CASE WHEN is_synced = 1 AND role != 'admin' THEN 1 ELSE 0 END) as synced,
+        SUM(CASE WHEN is_synced = 0 AND role != 'admin' THEN 1 ELSE 0 END) as unsynced
+      FROM users
+      WHERE role != 'admin'
+    `);
 
       return {
         total: stats[0]?.total || 0,

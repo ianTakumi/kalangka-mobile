@@ -952,7 +952,7 @@ class HarvestService {
 
       // Send to server using axios client
       try {
-        const response = await client.post("/harvests", payload);
+        const response = await client.put("/harvests/" + harvestId, payload);
 
         console.log(`📥 Server response:`, {
           status: response.status,
