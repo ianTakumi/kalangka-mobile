@@ -8,7 +8,6 @@ import { Controller, useForm } from "react-hook-form";
 import {
   Image,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -118,157 +117,148 @@ export default function LoginScreen() {
   // };
 
   return (
-    <>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1 bg-white"
+    <KeyboardAvoidingView className="flex-1 bg-white">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1 }}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          className="flex-1"
-          contentContainerStyle={{ flexGrow: 1 }}
-        >
-          <View className="flex-1 px-6 justify-center min-h-screen py-8">
-            {/* Header */}
-            <View className="items-center mb-10">
-              <Image
-                source={require("../assets/images/logo/logo.png")}
-                className="w-24 h-24 mb-2"
-                resizeMode="contain"
+        <View className="flex-1 px-6 justify-center min-h-screen py-8">
+          {/* Header */}
+          <View className="items-center mb-10">
+            <Image
+              source={require("../assets/images/logo/logo.png")}
+              className="w-24 h-24 mb-2"
+              resizeMode="contain"
+            />
+            <Text className="text-3xl font-bold text-green-700">WrapCrop</Text>
+            <Text className="text-gray-600 mt-2">Smart Farming Platform</Text>
+          </View>
+
+          {/* Login Form */}
+          <View className="mb-8">
+            <Text className="text-2xl font-bold text-gray-800 mb-2">
+              Welcome Back
+            </Text>
+            <Text className="text-gray-600 mb-6">Sign in to your account</Text>
+
+            {/* Email Input */}
+            <View className="mb-4">
+              <Text className="text-gray-700 mb-2 font-medium">Email *</Text>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <View>
+                    <TextInput
+                      className={`w-full border rounded-xl px-4 py-3 ${
+                        errors.email
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 bg-gray-50"
+                      }`}
+                      placeholder="your.email@example.com"
+                      value={value}
+                      placeholderTextColor={"#1f2937"}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    {errors.email && (
+                      <Text className="text-red-500 text-sm mt-1 ml-1">
+                        {errors.email.message}
+                      </Text>
+                    )}
+                  </View>
+                )}
               />
-              <Text className="text-3xl font-bold text-green-700">
-                WrapCrop
-              </Text>
-              <Text className="text-gray-600 mt-2">Smart Farming Platform</Text>
             </View>
 
-            {/* Login Form */}
-            <View className="mb-8">
-              <Text className="text-2xl font-bold text-gray-800 mb-2">
-                Welcome Back
-              </Text>
-              <Text className="text-gray-600 mb-6">
-                Sign in to your account
-              </Text>
-
-              {/* Email Input */}
-              <View className="mb-4">
-                <Text className="text-gray-700 mb-2 font-medium">Email *</Text>
-                <Controller
-                  control={control}
-                  name="email"
-                  render={({ field: { onChange, value, onBlur } }) => (
-                    <View>
-                      <TextInput
-                        className={`w-full border rounded-xl px-4 py-3 ${
-                          errors.email
-                            ? "border-red-500 bg-red-50"
-                            : "border-gray-300 bg-gray-50"
-                        }`}
-                        placeholder="your.email@example.com"
-                        value={value}
-                        placeholderTextColor={"#1f2937"}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                      {errors.email && (
-                        <Text className="text-red-500 text-sm mt-1 ml-1">
-                          {errors.email.message}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                />
+            {/* Password Input */}
+            <View className="mb-6">
+              <View className="flex-row justify-between items-center mb-2">
+                <Text className="text-gray-700 font-medium">Password *</Text>
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <View className="flex-row items-center">
+                    {showPassword ? (
+                      <EyeOff size={18} color="#059669" />
+                    ) : (
+                      <Eye size={18} color="#059669" />
+                    )}
+                    <Text className="text-green-600 text-sm ml-1">
+                      {showPassword ? "Hide" : "Show"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               </View>
-
-              {/* Password Input */}
-              <View className="mb-6">
-                <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-gray-700 font-medium">Password *</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <View className="flex-row items-center">
-                      {showPassword ? (
-                        <EyeOff size={18} color="#059669" />
-                      ) : (
-                        <Eye size={18} color="#059669" />
-                      )}
-                      <Text className="text-green-600 text-sm ml-1">
-                        {showPassword ? "Hide" : "Show"}
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <View>
+                    <TextInput
+                      className={`w-full border text-black rounded-xl px-4 py-3 ${
+                        errors.password
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 bg-gray-50"
+                      }`}
+                      placeholder="Enter your password"
+                      placeholderTextColor={"#1f2937"}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      secureTextEntry={!showPassword}
+                    />
+                    {errors.password && (
+                      <Text className="text-red-500 text-sm mt-1 ml-1">
+                        {errors.password.message}
                       </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-                <Controller
-                  control={control}
-                  name="password"
-                  render={({ field: { onChange, value, onBlur } }) => (
-                    <View>
-                      <TextInput
-                        className={`w-full border text-black rounded-xl px-4 py-3 ${
-                          errors.password
-                            ? "border-red-500 bg-red-50"
-                            : "border-gray-300 bg-gray-50"
-                        }`}
-                        placeholder="Enter your password"
-                        placeholderTextColor={"#1f2937"}
-                        value={value}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        secureTextEntry={!showPassword}
-                      />
-                      {errors.password && (
-                        <Text className="text-red-500 text-sm mt-1 ml-1">
-                          {errors.password.message}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                />
-              </View>
+                    )}
+                  </View>
+                )}
+              />
+            </View>
 
-              {/* Forgot Password */}
-              {/* <TouchableOpacity onPress={handleForgotPassword} className="mb-6">
+            {/* Forgot Password */}
+            {/* <TouchableOpacity onPress={handleForgotPassword} className="mb-6">
                 <Text className="text-green-600 text-right">
                   Forgot Password?
                 </Text>
               </TouchableOpacity> */}
 
-              {/* Login Button */}
-              <TouchableOpacity
-                className={`w-full rounded-xl py-4 ${
-                  loading || !isValid ? "bg-green-400" : "bg-green-600"
-                }`}
-                onPress={handleSubmit(handleLogin)}
-                disabled={loading || !isValid}
-              >
-                <Text className="text-white text-center font-semibold text-lg">
-                  {loading ? "Signing in..." : "Sign In"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {/* Login Button */}
+            <TouchableOpacity
+              className={`w-full rounded-xl py-4 ${
+                loading || !isValid ? "bg-green-400" : "bg-green-600"
+              }`}
+              onPress={handleSubmit(handleLogin)}
+              disabled={loading || !isValid}
+            >
+              <Text className="text-white text-center font-semibold text-lg">
+                {loading ? "Signing in..." : "Sign In"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-            {/* Register Link */}
-            {/* <View className="flex-row justify-center items-center mt-8">
+          {/* Register Link */}
+          {/* <View className="flex-row justify-center items-center mt-8">
               <Text className="text-gray-600">Don't have an account? </Text>
               <TouchableOpacity onPress={handleRegister}>
                 <Text className="text-green-600 font-semibold"> Sign Up</Text>
               </TouchableOpacity>
             </View> */}
 
-            {/* Footer */}
-            <View className="mt-12 pt-6 border-t border-gray-200">
-              <Text className="text-gray-500 text-center text-sm">
-                By signing in, you agree to our Terms and Privacy Policy
-              </Text>
-            </View>
+          {/* Footer */}
+          <View className="mt-12 pt-6 border-t border-gray-200">
+            <Text className="text-gray-500 text-center text-sm">
+              By signing in, you agree to our Terms and Privacy Policy
+            </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

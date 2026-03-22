@@ -11,6 +11,8 @@ import { Link } from "expo-router";
 import {
   AlertCircle,
   AlertTriangle,
+  Banana,
+  Calendar,
   CalendarCheck,
   Cloud,
   CloudOff,
@@ -557,7 +559,7 @@ export default function FarmerHomeScreen() {
 
               <View className="w-40 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <View className="w-12 h-12 bg-orange-50 rounded-xl items-center justify-center mb-3">
-                  <Package size={24} color="#F97316" />
+                  <Banana size={24} color="#F97316" />
                 </View>
                 <Text className="text-3xl font-bold text-gray-900">
                   {userStats.totalFruits}
@@ -642,114 +644,151 @@ export default function FarmerHomeScreen() {
             )}
           </View>
 
-          <View className="bg-white rounded-2xl p-5 border border-orange-100 shadow-sm">
-            {loadingFruits ? (
-              <View className="items-center py-8">
-                <ActivityIndicator size="large" color="#F97316" />
-                <Text className="text-gray-600 mt-3">
-                  Checking bagged fruits...
-                </Text>
+          {loadingFruits ? (
+            <View className="bg-white rounded-2xl p-8 items-center">
+              <ActivityIndicator size="large" color="#F97316" />
+              <Text className="text-gray-600 mt-3">
+                Checking bagged fruits...
+              </Text>
+            </View>
+          ) : fruitsWithoutHarvest.length === 0 ? (
+            <View className="bg-white rounded-2xl p-8 items-center border border-orange-100">
+              <View className="w-16 h-16 bg-orange-50 rounded-full items-center justify-center mb-3">
+                <Package size={32} color="#F97316" />
               </View>
-            ) : fruitsWithoutHarvest.length === 0 ? (
-              <View className="items-center py-8">
-                <View className="w-16 h-16 bg-orange-50 rounded-full items-center justify-center mb-3">
-                  <Package size={32} color="#F97316" />
-                </View>
-                <Text className="text-lg font-medium text-gray-900 mb-1">
-                  No Pending Assignments
-                </Text>
-                <Text className="text-gray-500 text-center">
-                  All bagged fruits have been assigned to harvesters.
-                </Text>
-              </View>
-            ) : (
-              <>
-                <View className="flex-row items-center justify-between mb-4">
-                  <View className="flex-row items-center">
-                    <View className="w-12 h-12 bg-orange-100 rounded-xl items-center justify-center mr-3">
-                      <Package size={24} color="#F97316" />
-                    </View>
-                    <View>
-                      <Text className="text-3xl font-bold text-gray-900">
-                        {fruitsWithoutHarvest.length}
-                      </Text>
-                      <Text className="text-gray-600">
-                        {fruitsWithoutHarvest.length === 1
-                          ? "Bagged fruit needs harvester"
-                          : "Bagged fruits need harvesters"}
-                      </Text>
-                    </View>
+              <Text className="text-lg font-medium text-gray-900 mb-1">
+                No Pending Assignments
+              </Text>
+              <Text className="text-gray-500 text-center">
+                All bagged fruits have been assigned to harvesters.
+              </Text>
+            </View>
+          ) : (
+            <View className="bg-white rounded-2xl p-4 border border-orange-100">
+              {/* Header with count */}
+              <View className="flex-row items-center justify-between mb-4 px-2">
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 bg-orange-100 rounded-full items-center justify-center mr-3">
+                    <Package size={20} color="#F97316" />
                   </View>
-                  <Link href="/admin/assign" asChild>
-                    <TouchableOpacity className="bg-orange-50 px-1 py-2 rounded-lg">
-                      <Text className="text-orange-700 font-medium">
-                        View All
-                      </Text>
-                    </TouchableOpacity>
-                  </Link>
-                </View>
-
-                {/* Fruit List Preview */}
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  className="mb-2"
-                >
-                  <View className="flex-row gap-3">
-                    {fruitsWithoutHarvest.slice(0, 5).map((fruit, index) => (
-                      <Link
-                        key={fruit.id || index}
-                        href={`/admin/fruits/${fruit.id}`}
-                        asChild
-                      >
-                        <TouchableOpacity>
-                          <View className="bg-gray-50 rounded-xl p-3 w-32 border border-gray-100">
-                            <View className="w-10 h-10 bg-orange-100 rounded-full items-center justify-center mb-2">
-                              <Package size={20} color="#F97316" />
-                            </View>
-                            <Text
-                              className="font-medium text-gray-900 text-sm"
-                              numberOfLines={1}
-                            >
-                              {fruit.treeName || `Fruit #${fruit.id}`}
-                            </Text>
-                            <Text className="text-xs text-gray-500 mt-1">
-                              Bagged:{" "}
-                              {fruit.bagged_at
-                                ? new Date(fruit.bagged_at).toLocaleDateString()
-                                : fruit.created_at
-                                  ? new Date(
-                                      fruit.created_at,
-                                    ).toLocaleDateString()
-                                  : "N/A"}
-                            </Text>
-                            <View className="bg-orange-100 rounded-full px-2 py-0.5 mt-2 self-start">
-                              <Text className="text-xs text-orange-700">
-                                Unassigned
-                              </Text>
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      </Link>
-                    ))}
+                  <View>
+                    <Text className="text-2xl font-bold text-gray-900">
+                      {fruitsWithoutHarvest.length}
+                    </Text>
+                    <Text className="text-xs text-gray-500">
+                      {fruitsWithoutHarvest.length === 1 ? "Fruit" : "Fruits"}{" "}
+                      pending
+                    </Text>
                   </View>
-                </ScrollView>
-
-                {/* Quick Action Button */}
+                </View>
                 <Link href="/admin/assign" asChild>
-                  <TouchableOpacity className="mt-4 bg-orange-600 rounded-xl p-3 flex-row items-center justify-center">
-                    <User size={20} color="#FFFFFF" />
-                    <Text className="text-white font-medium ml-2">
-                      Assign Harvester
-                      {fruitsWithoutHarvest.length > 1 ? "s" : ""} for{" "}
-                      {fruitsWithoutHarvest.length} Bagged Fruit
-                      {fruitsWithoutHarvest.length !== 1 ? "s" : ""}
+                  <TouchableOpacity className="bg-orange-50 px-3 py-2 rounded-lg">
+                    <Text className="text-orange-600 font-medium text-sm">
+                      View All
                     </Text>
                   </TouchableOpacity>
                 </Link>
-              </>
-            )}
-          </View>
+              </View>
+
+              {/* Fruit Cards List */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="mb-3"
+              >
+                <View className="flex-row gap-3 px-2">
+                  {fruitsWithoutHarvest.slice(0, 5).map((fruit) => (
+                    <Link key={fruit.id} href={`/admin/assign`} asChild>
+                      <TouchableOpacity className="w-72 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                        {/* Tree Name and Status */}
+                        <View className="flex-row justify-between items-start mb-2">
+                          <Text
+                            className="font-bold text-gray-900 flex-1 mr-2"
+                            numberOfLines={1}
+                          >
+                            {fruit.treeName ||
+                              fruit.tree?.description ||
+                              `Fruit #${fruit.id.substring(0, 8)}`}
+                          </Text>
+                          <View className="bg-orange-100 px-2 py-0.5 rounded-full">
+                            <Text className="text-xs text-orange-700">
+                              Unassigned
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Flower ID and Tree Type */}
+                        <View className="flex-row gap-2 mb-2">
+                          {fruit.flower_id && (
+                            <View className="bg-blue-50 px-2 py-0.5 rounded-md">
+                              <Text className="text-xs text-blue-700">
+                                🌸 {fruit.flower_id.substring(0, 6)}
+                              </Text>
+                            </View>
+                          )}
+                          {fruit.tree?.type && (
+                            <View className="bg-green-50 px-2 py-0.5 rounded-md">
+                              <Text className="text-xs text-green-700">
+                                🌳 {fruit.tree.type}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Bagged Date and Quantity */}
+                        <View className="flex-row gap-3 mb-2">
+                          <View className="flex-row items-center">
+                            <Calendar size={12} color="#6B7280" />
+                            <Text className="text-xs text-gray-500 ml-1">
+                              {fruit.bagged_at
+                                ? new Date(fruit.bagged_at).toLocaleDateString(
+                                    "en-PH",
+                                    {
+                                      month: "short",
+                                      day: "numeric",
+                                    },
+                                  )
+                                : "N/A"}
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center">
+                            <Package size={12} color="#6B7280" />
+                            <Text className="text-xs text-gray-500 ml-1">
+                              Qty: {fruit.quantity || 1}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Days since bagged */}
+                        {fruit.bagged_at && (
+                          <Text className="text-xs text-gray-400">
+                            📅{" "}
+                            {Math.floor(
+                              (new Date().getTime() -
+                                new Date(fruit.bagged_at).getTime()) /
+                                (1000 * 60 * 60 * 24),
+                            )}{" "}
+                            days ago
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </Link>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Quick Action Button */}
+              <Link href="/admin/assign" asChild>
+                <TouchableOpacity className="mt-3 bg-orange-600 rounded-xl py-3 flex-row items-center justify-center">
+                  <User size={20} color="#FFFFFF" />
+                  <Text className="text-white font-medium ml-2">
+                    Assign Harvester{fruitsWithoutHarvest.length > 1 ? "s" : ""}{" "}
+                    ({fruitsWithoutHarvest.length})
+                  </Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          )}
         </View>
 
         {/* Weather & Conditions with REAL DATA */}

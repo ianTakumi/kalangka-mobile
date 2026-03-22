@@ -1,3 +1,5 @@
+import FlowerService from "@/services/FlowerService";
+import FruitService from "@/services/FruitService";
 import HarvestService from "@/services/HarvestService";
 import { User as UserType } from "@/types/index";
 import { getTimeBasedGreeting } from "@/utils/helpers";
@@ -9,6 +11,7 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowRight,
+  Calendar,
   Camera,
   CheckCircle2,
   ChevronRight,
@@ -20,6 +23,7 @@ import {
   CloudSun,
   Cloudy,
   Droplets,
+  Flower2,
   Package,
   QrCode,
   RefreshCw,
@@ -31,6 +35,7 @@ import {
   Wind,
   Zap,
 } from "lucide-react-native";
+
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -333,8 +338,100 @@ export default function FarmerHomeScreen() {
     await Promise.all([
       fetchLocationAndWeather(),
       fetchCurrentUserAndAssignments(),
+      syncData(),
     ]);
     setRefreshing(false);
+  };
+
+  const syncData = async () => {
+    // Sync harvest data
+    try {
+      // Get unsynced harvests count
+      const unsyncedCount = await HarvestService.getUnsyncedCount();
+
+      console.log(`📊 Found ${unsyncedCount} unsynced harvest(s)`);
+
+      if (unsyncedCount > 0) {
+        // Sync all unsynced harvests and get results
+        const syncResult = await HarvestService.syncAllUnsyncedHarvests();
+
+        // Update UI with results
+        if (syncResult.synced > 0) {
+          console.log(
+            `✅ Successfully uploaded ${syncResult.synced} harvests to server`,
+          );
+        }
+
+        if (syncResult.errors.length > 0) {
+          console.warn(
+            `⚠️ Harvest upload completed with ${syncResult.errors.length} errors`,
+          );
+        }
+      } else {
+        console.log("✅ All harvests are synced");
+      }
+    } catch (harvestError: any) {
+      console.error("❌ Harvest sync failed:", harvestError);
+    }
+
+    // Sync all flowers that is unsynced maybe new or user updated it offline
+    try {
+      FlowerService.syncAll();
+    } catch (err) {
+      console.error("Error syncing flower data:", err);
+    }
+
+    // ===== FLOWER SYNC Get all new data or updated data =====
+    try {
+      const { needsSync: flowersNeedSync, flowerCount } =
+        await FlowerService.checkAndSync();
+
+      if (flowersNeedSync) {
+        const flowerResult = await FlowerService.syncFlowersFromServer();
+
+        if (flowerResult.synced > 0) {
+          console.log(`✅ Synced ${flowerResult.synced} flowers from server`);
+        }
+
+        if (flowerResult.errors.length > 0) {
+          console.warn("Flower sync errors:", flowerResult.errors);
+        }
+      } else {
+        console.log("✅ Flowers are up to date");
+      }
+    } catch (flowerError) {
+      console.error("❌ Flower sync from server failed:", flowerError);
+    }
+
+    // Sync all fruit that is unsynced maybe new or user updated it offline
+
+    try {
+      FruitService.syncAll();
+    } catch (err) {
+      console.error("Error syncing fruit data:", err);
+    }
+
+    // ===== FRUIT SYNC Get all new data or updated data =====
+    try {
+      const { needsSync: fruitsNeedSync, fruitCount } =
+        await FruitService.checkAndSync(); // <- CHECK muna
+
+      if (fruitsNeedSync) {
+        const fruitResult = await FruitService.syncFruitsFromServer(); // <- DOWNLOAD kung kailangan
+
+        if (fruitResult.synced > 0) {
+          console.log(`✅ Synced ${fruitResult.synced} fruits from server`);
+        }
+
+        if (fruitResult.errors.length > 0) {
+          console.warn("Fruit sync errors:", fruitResult.errors);
+        }
+      } else {
+        console.log("✅ Fruits are up to date");
+      }
+    } catch (fruitError) {
+      console.error("❌ Fruit sync from server failed:", fruitError);
+    }
   };
 
   // Weather icon based on condition
@@ -376,35 +473,46 @@ export default function FarmerHomeScreen() {
             container: "bg-blue-100",
             text: "text-blue-700",
             label: "Pending Harvest",
+            icon: Clock,
+            iconColor: "#3B82F6",
           };
         case "partial":
           return {
             container: "bg-yellow-100",
             text: "text-yellow-700",
             label: "Partial Harvest",
+            icon: RefreshCw,
+            iconColor: "#EAB308",
           };
         case "harvested":
           return {
             container: "bg-green-100",
             text: "text-green-700",
             label: "Harvested",
+            icon: CheckCircle2,
+            iconColor: "#10B981",
           };
         case "wasted":
           return {
             container: "bg-red-100",
             text: "text-red-700",
             label: "Wasted",
+            icon: AlertTriangle,
+            iconColor: "#EF4444",
           };
         default:
           return {
             container: "bg-gray-100",
             text: "text-gray-700",
             label: "Unknown",
+            icon: Package,
+            iconColor: "#6B7280",
           };
       }
     };
 
     const statusStyle = getStatusStyle(item.status);
+    const StatusIcon = statusStyle.icon;
 
     return (
       <TouchableOpacity
@@ -424,58 +532,111 @@ export default function FarmerHomeScreen() {
         }}
         activeOpacity={0.7}
       >
-        <View className="w-12 h-12 bg-orange-100 rounded-full items-center justify-center mr-3">
-          <Package size={24} color="#F97316" />
+        {/* Status Icon */}
+        <View
+          className={`mr-3 w-12 h-12 ${statusStyle.container} rounded-full items-center justify-center`}
+        >
+          <StatusIcon size={24} color={statusStyle.iconColor} />
         </View>
+
         <View className="flex-1">
-          <Text className="font-bold text-gray-900">
-            {item.fruit?.tree?.description ||
-              item.fruit?.treeName ||
-              `Fruit #${item.fruit_id?.substring(0, 8)}`}
-          </Text>
-          <View className="flex-row items-center mt-1">
-            <Clock size={14} color="#6B7280" />
-            <Text className="text-xs text-gray-600 ml-1">
-              Assigned: {new Date(item.created_at).toLocaleDateString()}
+          {/* Tree Name and Status Badge */}
+          <View className="flex-row items-center justify-between mb-1">
+            <Text
+              className="text-lg font-bold text-gray-900 flex-1 mr-2"
+              numberOfLines={1}
+            >
+              {item.fruit?.tree?.description ||
+                item.fruit?.treeName ||
+                `Fruit #${item.fruit_id?.substring(0, 8)}`}
             </Text>
-          </View>
-
-          {/* Show bagged date if available */}
-          {item.fruit?.bagged_at && (
-            <View className="flex-row items-center mt-1">
-              <Clock size={14} color="#6B7280" />
-              <Text className="text-xs text-gray-600 ml-1">
-                Bagged: {new Date(item.fruit.bagged_at).toLocaleDateString()}
-              </Text>
-            </View>
-          )}
-
-          {/* Status Badge with proper styling */}
-          <View className="flex-row mt-2">
-            <View className={`rounded-full px-2 py-1 ${statusStyle.container}`}>
-              <Text className={`text-xs ${statusStyle.text}`}>
+            <View className={`rounded-full px-3 py-1 ${statusStyle.container}`}>
+              <Text className={`text-xs font-medium ${statusStyle.text}`}>
                 {statusStyle.label}
               </Text>
             </View>
-
-            {/* Show remaining quantity if partial */}
-            {item.status === "partial" &&
-              item.fruit?.remaining_quantity > 0 && (
-                <View className="ml-2 rounded-full px-2 py-1 bg-orange-100">
-                  <Text className="text-xs text-orange-700">
-                    {item.fruit.remaining_quantity} remaining
-                  </Text>
-                </View>
-              )}
           </View>
+
+          {/* Flower ID and Tree Type */}
+          <View className="flex-row gap-2 mb-2">
+            {item.fruit?.flower_id && (
+              <View className="bg-blue-50 px-2 py-1 rounded-md flex-row items-center">
+                <Flower2 size={12} color="#3B82F6" />
+                <Text className="text-xs text-blue-700 font-medium ml-1">
+                  {item.fruit.flower_id.substring(0, 6)}
+                </Text>
+              </View>
+            )}
+            {item.fruit?.tree?.type && (
+              <View className="bg-green-50 px-2 py-1 rounded-md flex-row items-center">
+                <Trees size={12} color="#059669" />
+                <Text className="text-xs text-green-700 font-medium ml-1">
+                  {item.fruit.tree.type}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Bagged Date and Quantity */}
+          <View className="flex-row gap-3 mb-2">
+            {item.fruit?.bagged_at && (
+              <View className="flex-row items-center">
+                <Calendar size={12} color="#6B7280" />
+                <Text className="text-xs text-gray-500 ml-1">
+                  Bagged:{" "}
+                  {new Date(item.fruit.bagged_at).toLocaleDateString("en-PH", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </Text>
+              </View>
+            )}
+            {item.fruit?.quantity && (
+              <View className="flex-row items-center">
+                <Package size={12} color="#6B7280" />
+                <Text className="text-xs text-gray-500 ml-1">
+                  Qty: {item.fruit.quantity}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Days since bagged */}
+          {item.fruit?.bagged_at && (
+            <View className="flex-row items-center mt-1">
+              <Clock size={12} color="#9CA3AF" />
+              <Text className="text-xs text-gray-400 ml-1">
+                {Math.floor(
+                  (new Date().getTime() -
+                    new Date(item.fruit.bagged_at).getTime()) /
+                    (1000 * 60 * 60 * 24),
+                )}{" "}
+                days ago
+              </Text>
+            </View>
+          )}
+
+          {/* Show remaining quantity if partial */}
+          {item.status === "partial" && item.fruit?.remaining_quantity > 0 && (
+            <View className="mt-2 flex-row items-center">
+              <Package size={12} color="#F97316" />
+              <Text className="text-xs text-orange-600 ml-1">
+                {item.fruit.remaining_quantity} remaining
+              </Text>
+            </View>
+          )}
 
           {/* Show harvest date if harvested */}
           {item.harvest_at && (
-            <Text className="text-xs text-gray-500 mt-1">
-              Harvested: {new Date(item.harvest_at).toLocaleDateString()}
-            </Text>
+            <View className="mt-1 flex-row items-center">
+              <CheckCircle2 size={12} color="#10B981" />
+              <Text className="text-xs text-green-600 ml-1">
+                Harvested: {new Date(item.harvest_at).toLocaleDateString()}
+              </Text>
+            </View>
           )}
         </View>
+
         <ChevronRight size={20} color="#9CA3AF" />
       </TouchableOpacity>
     );
@@ -788,7 +949,7 @@ export default function FarmerHomeScreen() {
         </View>
 
         {/* Kalangka Info Banner */}
-        <View className="px-6 mb-10">
+        {/* <View className="px-6 mb-10">
           <View className="bg-emerald-600 rounded-2xl p-6">
             <View className="flex-row items-center mb-4">
               <View className="w-12 h-12 bg-white/20 rounded-xl items-center justify-center mr-4">
@@ -814,7 +975,7 @@ export default function FarmerHomeScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </View> */}
       </ScrollView>
     </SafeAreaView>
   );

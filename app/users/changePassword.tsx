@@ -1,22 +1,25 @@
-import React, { useState } from "react";
+import client from "@/utils/axiosInstance";
+import { Ionicons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import client from "@/utils/axiosInstance";
 import Toast from "react-native-toast-message";
 import { useSelector } from "react-redux";
-import { useRouter } from "expo-router";
 
 export default function ChangePassword() {
   const [loading, setLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
+  const [isCheckingNetwork, setIsCheckingNetwork] = useState(true);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -35,7 +38,73 @@ export default function ChangePassword() {
     confirmPassword: "",
   });
 
+  // Check network status on mount and listen for changes
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const checkNetwork = async () => {
+      try {
+        const netState = await NetInfo.fetch();
+        const online = netState.isConnected && netState.isInternetReachable;
+        setIsOnline(online);
+        setIsCheckingNetwork(false);
+
+        // If offline, show alert
+        if (!online) {
+          Alert.alert(
+            "Offline Mode",
+            "You need an internet connection to change your password.",
+            [
+              {
+                text: "OK",
+                onPress: () => router.back(),
+              },
+            ],
+            { cancelable: false },
+          );
+        }
+      } catch (error) {
+        console.error("Network check error:", error);
+        setIsOnline(false);
+        setIsCheckingNetwork(false);
+      }
+    };
+
+    // Subscribe to network changes
+    unsubscribe = NetInfo.addEventListener((state) => {
+      const online = state.isConnected && state.isInternetReachable;
+      setIsOnline(online);
+
+      // If user goes offline while on this screen, show alert
+      if (!online && !isCheckingNetwork) {
+        Alert.alert(
+          "Connection Lost",
+          "You've gone offline. Please check your internet connection to change your password.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back(),
+            },
+          ],
+        );
+      }
+    });
+
+    checkNetwork();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   const handleInputChange = (field: string, value: string) => {
+    if (!isOnline) {
+      Alert.alert(
+        "Offline",
+        "You need an internet connection to change your password.",
+      );
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -86,30 +155,64 @@ export default function ChangePassword() {
   };
 
   const handleChangePassword = async () => {
+    // Check if offline
+    if (!isOnline) {
+      Alert.alert(
+        "Offline",
+        "You need an internet connection to change your password. Please connect to the internet and try again.",
+      );
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
 
-    await client
-      .put("/auth/change-password", {
+    try {
+      const res = await client.put("/auth/change-password", {
         current_password: formData.currentPassword,
         new_password: formData.newPassword,
         confirm_password: formData.confirmPassword,
         email: user.email,
-      })
-      .then((res) => {
-        if (res.status === 200) {
-          Toast.show({
-            type: "success",
-            text1: "Password Changed",
-            text2: "Your password has been updated successfully.",
-          });
-          router.replace("/users/profile");
-        }
       });
-    setLoading(false);
+
+      if (res.status === 200) {
+        Toast.show({
+          type: "success",
+          text1: "Password Changed",
+          text2: "Your password has been updated successfully.",
+        });
+
+        // Clear form and go back after success
+        setFormData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+
+        setTimeout(() => {
+          router.replace("/users/profile");
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error(
+        "Change password error:",
+        err.response?.data || err.message,
+      );
+
+      const errorMessage =
+        err.response?.data?.message || "Please try again later";
+
+      Toast.show({
+        type: "error",
+        text1: "Failed to change password",
+        text2: errorMessage,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -138,13 +241,13 @@ export default function ChangePassword() {
                 newPassword: "",
                 confirmPassword: "",
               });
-              // navigation.goBack();
+              router.back();
             },
           },
         ],
       );
     } else {
-      // navigation.goBack();
+      router.back();
     }
   };
 
@@ -166,6 +269,18 @@ export default function ChangePassword() {
 
   const strength = passwordStrength(formData.newPassword);
 
+  // Show loading while checking network
+  if (isCheckingNetwork) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text className="text-gray-500 mt-4">Checking connection...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
@@ -176,35 +291,84 @@ export default function ChangePassword() {
         <Text className="text-lg font-semibold text-gray-800">
           Change Password
         </Text>
-        <TouchableOpacity onPress={handleChangePassword} disabled={loading}>
+        <TouchableOpacity
+          onPress={handleChangePassword}
+          disabled={loading || !isOnline}
+        >
           {loading ? (
             <ActivityIndicator size="small" color="#16a34a" />
           ) : (
-            <Text className="text-green-600 font-semibold">Save</Text>
+            <Text
+              className={`font-semibold ${
+                !isOnline ? "text-gray-400" : "text-green-600"
+              }`}
+            >
+              Save
+            </Text>
           )}
         </TouchableOpacity>
       </View>
 
+      {/* Offline Banner */}
+      {!isOnline && (
+        <View className="bg-red-50 px-6 py-3 border-b border-red-200">
+          <View className="flex-row items-center">
+            <Ionicons name="wifi-outline" size={20} color="#dc2626" />
+            <Text className="text-red-600 ml-2 flex-1">
+              You are offline. Connect to the internet to change your password.
+            </Text>
+          </View>
+        </View>
+      )}
+
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Security Tips */}
-        <View className="bg-green-50 mx-6 mt-6 p-4 rounded-xl">
+        <View
+          className={`mx-6 mt-6 p-4 rounded-xl ${
+            !isOnline ? "bg-gray-100" : "bg-green-50"
+          }`}
+        >
           <View className="flex-row items-start">
-            <Ionicons name="shield-checkmark" size={20} color="#16a34a" />
-            <Text className="text-green-800 font-medium ml-2 flex-1">
+            <Ionicons
+              name="shield-checkmark"
+              size={20}
+              color={!isOnline ? "#6b7280" : "#16a34a"}
+            />
+            <Text
+              className={`font-medium ml-2 flex-1 ${
+                !isOnline ? "text-gray-600" : "text-green-800"
+              }`}
+            >
               Password Security Tips
             </Text>
           </View>
           <View className="mt-2 space-y-1">
-            <Text className="text-green-700 text-sm">
+            <Text
+              className={`text-sm ${
+                !isOnline ? "text-gray-500" : "text-green-700"
+              }`}
+            >
               • Use at least 8 characters
             </Text>
-            <Text className="text-green-700 text-sm">
+            <Text
+              className={`text-sm ${
+                !isOnline ? "text-gray-500" : "text-green-700"
+              }`}
+            >
               • Include uppercase and lowercase letters
             </Text>
-            <Text className="text-green-700 text-sm">
+            <Text
+              className={`text-sm ${
+                !isOnline ? "text-gray-500" : "text-green-700"
+              }`}
+            >
               • Include numbers and special characters
             </Text>
-            <Text className="text-green-700 text-sm">
+            <Text
+              className={`text-sm ${
+                !isOnline ? "text-gray-500" : "text-green-700"
+              }`}
+            >
               • Avoid common words and personal information
             </Text>
           </View>
@@ -218,12 +382,18 @@ export default function ChangePassword() {
               Current Password
             </Text>
             <View
-              className={`bg-white rounded-xl border px-4 py-3 flex-row items-center ${
-                errors.currentPassword ? "border-red-300" : "border-gray-200"
+              className={`rounded-xl border px-4 py-3 flex-row items-center ${
+                !isOnline
+                  ? "bg-gray-50 border-gray-300"
+                  : errors.currentPassword
+                    ? "bg-white border-red-300"
+                    : "bg-white border-gray-200"
               }`}
             >
               <TextInput
-                className="flex-1 text-gray-800 text-base"
+                className={`flex-1 text-base ${
+                  !isOnline ? "text-gray-400" : "text-gray-800"
+                }`}
                 value={formData.currentPassword}
                 onChangeText={(text) =>
                   handleInputChange("currentPassword", text)
@@ -231,20 +401,22 @@ export default function ChangePassword() {
                 placeholder="Enter current password"
                 secureTextEntry={!showCurrentPassword}
                 autoCapitalize="none"
-                editable={!loading}
+                editable={!loading && !!isOnline}
+                placeholderTextColor={!isOnline ? "#9ca3af" : "#6b7280"}
               />
               <TouchableOpacity
                 onPress={() => setShowCurrentPassword(!showCurrentPassword)}
-                disabled={loading}
+                disabled={loading || !isOnline}
               >
                 <Ionicons
                   name={showCurrentPassword ? "eye-off" : "eye"}
                   size={20}
-                  color="#6b7280"
+                  color={!isOnline ? "#9ca3af" : "#6b7280"}
                 />
               </TouchableOpacity>
             </View>
-            {errors.currentPassword ? (
+            {errors.currentPassword &&
+            !isOnline ? null : errors.currentPassword ? (
               <Text className="text-red-500 text-sm mt-1">
                 {errors.currentPassword}
               </Text>
@@ -255,33 +427,40 @@ export default function ChangePassword() {
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">New Password</Text>
             <View
-              className={`bg-white rounded-xl border px-4 py-3 flex-row items-center ${
-                errors.newPassword ? "border-red-300" : "border-gray-200"
+              className={`rounded-xl border px-4 py-3 flex-row items-center ${
+                !isOnline
+                  ? "bg-gray-50 border-gray-300"
+                  : errors.newPassword
+                    ? "bg-white border-red-300"
+                    : "bg-white border-gray-200"
               }`}
             >
               <TextInput
-                className="flex-1 text-gray-800 text-base"
+                className={`flex-1 text-base ${
+                  !isOnline ? "text-gray-400" : "text-gray-800"
+                }`}
                 value={formData.newPassword}
                 onChangeText={(text) => handleInputChange("newPassword", text)}
                 placeholder="Enter new password"
                 secureTextEntry={!showNewPassword}
                 autoCapitalize="none"
-                editable={!loading}
+                editable={!loading && !!isOnline}
+                placeholderTextColor={!isOnline ? "#9ca3af" : "#6b7280"}
               />
               <TouchableOpacity
                 onPress={() => setShowNewPassword(!showNewPassword)}
-                disabled={loading}
+                disabled={loading || !isOnline}
               >
                 <Ionicons
                   name={showNewPassword ? "eye-off" : "eye"}
                   size={20}
-                  color="#6b7280"
+                  color={!isOnline ? "#9ca3af" : "#6b7280"}
                 />
               </TouchableOpacity>
             </View>
 
             {/* Password Strength Indicator */}
-            {formData.newPassword ? (
+            {formData.newPassword && isOnline ? (
               <View className="mt-2">
                 <View className="flex-row items-center mb-1">
                   <Text className="text-gray-600 text-sm mr-2">Strength:</Text>
@@ -316,7 +495,7 @@ export default function ChangePassword() {
               </View>
             ) : null}
 
-            {errors.newPassword ? (
+            {errors.newPassword && !isOnline ? null : errors.newPassword ? (
               <Text className="text-red-500 text-sm mt-1">
                 {errors.newPassword}
               </Text>
@@ -329,12 +508,18 @@ export default function ChangePassword() {
               Confirm New Password
             </Text>
             <View
-              className={`bg-white rounded-xl border px-4 py-3 flex-row items-center ${
-                errors.confirmPassword ? "border-red-300" : "border-gray-200"
+              className={`rounded-xl border px-4 py-3 flex-row items-center ${
+                !isOnline
+                  ? "bg-gray-50 border-gray-300"
+                  : errors.confirmPassword
+                    ? "bg-white border-red-300"
+                    : "bg-white border-gray-200"
               }`}
             >
               <TextInput
-                className="flex-1 text-gray-800 text-base"
+                className={`flex-1 text-base ${
+                  !isOnline ? "text-gray-400" : "text-gray-800"
+                }`}
                 value={formData.confirmPassword}
                 onChangeText={(text) =>
                   handleInputChange("confirmPassword", text)
@@ -342,20 +527,22 @@ export default function ChangePassword() {
                 placeholder="Confirm new password"
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
-                editable={!loading}
+                editable={!loading && !!isOnline}
+                placeholderTextColor={!isOnline ? "#9ca3af" : "#6b7280"}
               />
               <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                disabled={loading}
+                disabled={loading || !isOnline}
               >
                 <Ionicons
                   name={showConfirmPassword ? "eye-off" : "eye"}
                   size={20}
-                  color="#6b7280"
+                  color={!isOnline ? "#9ca3af" : "#6b7280"}
                 />
               </TouchableOpacity>
             </View>
-            {errors.confirmPassword ? (
+            {errors.confirmPassword &&
+            !isOnline ? null : errors.confirmPassword ? (
               <Text className="text-red-500 text-sm mt-1">
                 {errors.confirmPassword}
               </Text>
@@ -364,7 +551,8 @@ export default function ChangePassword() {
             {/* Password Match Indicator */}
             {formData.newPassword &&
             formData.confirmPassword &&
-            !errors.confirmPassword ? (
+            !errors.confirmPassword &&
+            isOnline ? (
               <View className="flex-row items-center mt-2">
                 <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
                 <Text className="text-green-600 text-sm ml-1">
@@ -380,16 +568,16 @@ export default function ChangePassword() {
       <View className="p-6 bg-white border-t border-gray-200">
         <TouchableOpacity
           className={`py-4 rounded-xl items-center ${
-            loading ? "bg-green-400" : "bg-green-600"
+            loading || !isOnline ? "bg-gray-400" : "bg-green-600"
           }`}
           onPress={handleChangePassword}
-          disabled={loading}
+          disabled={loading || !isOnline}
         >
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
             <Text className="text-white font-semibold text-lg">
-              Change Password
+              {!isOnline ? "Offline - Cannot Change" : "Change Password"}
             </Text>
           )}
         </TouchableOpacity>

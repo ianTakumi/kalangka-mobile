@@ -1,20 +1,20 @@
 // redux/store.ts
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { configureStore } from "@reduxjs/toolkit";
+import { combineReducers } from "redux";
 import {
-  persistStore,
-  persistReducer,
   FLUSH,
-  REHYDRATE,
   PAUSE,
   PERSIST,
+  persistReducer,
+  persistStore,
   PURGE,
   REGISTER,
+  REHYDRATE,
 } from "redux-persist";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { combineReducers } from "redux";
 import authReducer from "./slices/authSlice";
 
-// Combine reducers (you can add more reducers here as needed)
+// Combine reducers
 const rootReducer = combineReducers({
   auth: authReducer,
 });

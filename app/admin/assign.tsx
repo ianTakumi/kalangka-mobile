@@ -1,7 +1,7 @@
-import FruitService, { Fruit } from "@/services/FruitService";
-import HarvestService from "@/services/HarvestService"; // Import HarvestService
+import FruitService from "@/services/FruitService";
+import HarvestService from "@/services/HarvestService";
 import UserService from "@/services/UserService";
-import { User as UserType } from "@/types/index";
+import { Fruit, User as UserType } from "@/types/index";
 import { router } from "expo-router";
 import {
   ArrowLeft,
@@ -10,7 +10,6 @@ import {
   CheckCircle,
   ChevronDown,
   Circle,
-  MapPin,
   Package,
   User,
   Users,
@@ -71,12 +70,7 @@ export default function AssignHarvestScreen() {
     try {
       const fetchedUsers = await UserService.getUsers();
       // Filter only users with appropriate role (adjust based on your role system)
-      const harvesters = fetchedUsers.filter(
-        (user) =>
-          user.role === "harvester" ||
-          user.role === "worker" ||
-          user.role === "user",
-      );
+      const harvesters = fetchedUsers.filter((user) => user.role === "user");
       setUsers(harvesters);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -187,6 +181,7 @@ export default function AssignHarvestScreen() {
     <TouchableOpacity
       onPress={() => toggleFruitSelection(item.id)}
       className="bg-white rounded-xl p-4 mb-3 border border-gray-200 flex-row items-center"
+      activeOpacity={0.7}
     >
       <View className="mr-3">
         {selectedFruits.has(item.id) ? (
@@ -197,9 +192,12 @@ export default function AssignHarvestScreen() {
       </View>
 
       <View className="flex-1">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-lg font-bold text-gray-900">
-            {item.treeName || `Fruit #${item.id.substring(0, 8)}`}
+        {/* Tree Name and Status Badge */}
+        <View className="flex-row items-center justify-between mb-1">
+          <Text className="text-lg font-bold text-gray-900 flex-1 mr-2">
+            {item.treeName ||
+              item.tree?.description ||
+              `Fruit #${item.id.substring(0, 8)}`}
           </Text>
           <View className="bg-orange-100 px-3 py-1 rounded-full">
             <Text className="text-xs text-orange-700 font-medium">
@@ -208,33 +206,63 @@ export default function AssignHarvestScreen() {
           </View>
         </View>
 
-        <View className="flex-row mt-2 space-x-4">
-          <View className="flex-row items-center mr-4">
-            <Calendar size={14} color="#6B7280" />
-            <Text className="text-xs text-gray-600 ml-1">
-              Bagged:{" "}
-              {item.bagged_at
-                ? new Date(item.bagged_at).toLocaleDateString()
-                : item.created_at
-                  ? new Date(item.created_at).toLocaleDateString()
-                  : "N/A"}
-            </Text>
-          </View>
+        {/* Flower ID and Tree Type */}
+        <View className="flex-row items-center gap-2 mb-2">
+          {item.flower_id && (
+            <View className="bg-blue-50 px-2 py-1 rounded-md">
+              <Text className="text-xs text-blue-700 font-medium">
+                🌸 Flower: {item.flower_id.substring(0, 6)}
+              </Text>
+            </View>
+          )}
 
-          {item.location && (
-            <View className="flex-row items-center">
-              <MapPin size={14} color="#6B7280" />
-              <Text className="text-xs text-gray-600 ml-1">
-                {item.location}
+          {item.tree?.type && (
+            <View className="bg-green-50 px-2 py-1 rounded-md">
+              <Text className="text-xs text-green-700 font-medium">
+                🌳 {item.tree.type}
               </Text>
             </View>
           )}
         </View>
 
-        {item.estimated_weight && (
-          <Text className="text-sm text-gray-700 mt-2">
-            Est. Weight: {item.estimated_weight} kg
-          </Text>
+        {/* Main Info Row */}
+        <View className="flex-row flex-wrap gap-3 mt-1">
+          {/* Bagged Date */}
+          <View className="flex-row items-center">
+            <Calendar size={14} color="#6B7280" />
+            <Text className="text-xs text-gray-600 ml-1">
+              Bagged:{" "}
+              {item.bagged_at
+                ? new Date(item.bagged_at).toLocaleDateString("en-PH", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "N/A"}
+            </Text>
+          </View>
+
+          {/* Quantity */}
+          <View className="flex-row items-center">
+            <Package size={14} color="#6B7280" />
+            <Text className="text-xs text-gray-600 ml-1">
+              Qty: {item.quantity || 1} pc{item.quantity !== 1 ? "s" : ""}
+            </Text>
+          </View>
+        </View>
+
+        {/* Days since bagged indicator */}
+        {item.bagged_at && (
+          <View className="mt-2">
+            <Text className="text-xs text-gray-400">
+              📅{" "}
+              {Math.floor(
+                (new Date().getTime() - new Date(item.bagged_at).getTime()) /
+                  (1000 * 60 * 60 * 24),
+              )}{" "}
+              days ago
+            </Text>
+          </View>
         )}
       </View>
     </TouchableOpacity>
@@ -450,7 +478,7 @@ export default function AssignHarvestScreen() {
             )}
 
             {/* Action Buttons */}
-            <View className="flex-row space-x-3 mt-4">
+            <View className="flex-row gap-4 mt-4">
               <TouchableOpacity
                 onPress={() => {
                   setModalVisible(false);

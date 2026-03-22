@@ -7,7 +7,6 @@ import {
   CheckCircle,
   Flashlight,
   FlashlightOff,
-  ScanLine,
   TreePine,
   X,
 } from "lucide-react-native";
@@ -270,11 +269,11 @@ export default function QRScannerScreen() {
                     transform: [{ translateY: -0.5 }],
                   }}
                 >
-                  <ScanLine
+                  {/* <ScanLine
                     size={20}
                     color="#10b981"
                     className="absolute -top-2 left-1/2"
-                  />
+                  /> */}
                 </View>
               )}
             </View>

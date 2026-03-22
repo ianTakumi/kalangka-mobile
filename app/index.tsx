@@ -265,36 +265,72 @@ export default function Index() {
       }
 
       // ===== HARVEST SYNC (UPLOAD ONLY) =====
-      // setInitProgress("Checking harvest data...");
-      // try {
-      //   // Get unsynced harvests count
-      //   const unsyncedCount = (await HarvestService.getUnsyncedCount?.()) || 0;
+      setInitProgress("Checking harvest data...");
+      try {
+        // Get unsynced harvests count
+        const unsyncedCount = await HarvestService.getUnsyncedCount();
 
-      //   if (unsyncedCount > 0) {
-      //     setInitProgress(`Uploading ${unsyncedCount} unsynced harvests...`);
+        console.log(`📊 Found ${unsyncedCount} unsynced harvest(s)`);
 
-      //     // Use existing syncAll method to upload all unsynced harvests
-      //     const syncResult = await HarvestService.syncAll();
+        if (unsyncedCount > 0) {
+          setInitProgress(`Uploading ${unsyncedCount} unsynced harvests...`);
 
-      //     if (syncResult.synced > 0) {
-      //       console.log(`✅ Uploaded ${syncResult.synced} harvests to server`);
-      //       setInitProgress(`Uploaded ${syncResult.synced} harvests...`);
-      //     }
+          // Sync all unsynced harvests and get results
+          const syncResult = await HarvestService.syncAllUnsyncedHarvests();
 
-      //     if (syncResult.errors.length > 0) {
-      //       console.warn(
-      //         `Harvest upload completed with ${syncResult.errors.length} errors`,
-      //       );
-      //     }
-      //   } else {
-      //     console.log("✅ All harvests are synced");
-      //     setInitProgress("Harvests up to date");
-      //   }
-      // } catch (harvestError) {
-      //   console.error("❌ Harvest sync failed:", harvestError);
-      //   // Don't stop the whole sync, just log the error
-      //   setInitProgress("Harvest sync failed - continuing...");
-      // }
+          // Update UI with results
+          if (syncResult.synced > 0) {
+            console.log(
+              `✅ Successfully uploaded ${syncResult.synced} harvests to server`,
+            );
+            setInitProgress(
+              `✅ Uploaded ${syncResult.synced} harvests to server`,
+            );
+
+            // Update sync stats to show harvest counts
+            setSyncStats((prev) => ({
+              synced: prev?.synced || 0,
+              errors: [...(prev?.errors || []), ...syncResult.errors],
+              harvestsSynced: syncResult.synced,
+            }));
+          }
+
+          if (syncResult.errors.length > 0) {
+            console.warn(
+              `⚠️ Harvest upload completed with ${syncResult.errors.length} errors`,
+            );
+            setInitProgress(
+              `⚠️ ${syncResult.synced} uploaded, ${syncResult.errors.length} failed`,
+            );
+
+            setSyncStats((prev) => ({
+              synced: prev?.synced || 0,
+              errors: [...(prev?.errors || []), ...syncResult.errors],
+              harvestsSynced: syncResult.synced,
+            }));
+          }
+
+          // If no harvests were synced (all failed)
+          if (syncResult.synced === 0 && unsyncedCount > 0) {
+            setInitProgress(`❌ Failed to upload harvests - will retry later`);
+          }
+        } else {
+          console.log("✅ All harvests are synced");
+          setInitProgress("✅ All harvests are up to date");
+        }
+      } catch (harvestError: any) {
+        console.error("❌ Harvest sync failed:", harvestError);
+        setInitProgress("⚠️ Harvest sync failed - continuing...");
+
+        // Add error to sync stats
+        setSyncStats((prev) => ({
+          synced: prev?.synced || 0,
+          errors: [
+            ...(prev?.errors || []),
+            `Harvest sync: ${harvestError.message}`,
+          ],
+        }));
+      }
 
       // ===== UPLOAD LOCAL CHANGES =====
       setInitProgress("Uploading local changes...");

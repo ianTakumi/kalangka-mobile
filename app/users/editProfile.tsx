@@ -1,28 +1,30 @@
-import React, { useState, useEffect } from "react";
+import { updateUser } from "@/redux/slices/authSlice";
+import { RootState } from "@/redux/store";
+import client from "@/utils/axiosInstance";
+import { Ionicons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
-import { useSelector, useDispatch } from "react-redux";
-import { RootState } from "@/redux/store";
-import { updateUser } from "@/redux/slices/authSlice";
-import { Ionicons } from "@expo/vector-icons";
-import client from "@/utils/axiosInstance";
-import { useRouter } from "expo-router";
-import NetInfo from "@react-native-community/netinfo";
+import { useDispatch, useSelector } from "react-redux";
 
 export default function EditProfile() {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
+  const [isCheckingNetwork, setIsCheckingNetwork] = useState(true);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -41,7 +43,73 @@ export default function EditProfile() {
     }
   }, [user]);
 
+  // Check network status on mount and listen for changes
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const checkNetwork = async () => {
+      try {
+        const netState = await NetInfo.fetch();
+        const online = netState.isConnected && netState.isInternetReachable;
+        setIsOnline(online);
+        setIsCheckingNetwork(false);
+
+        // If offline, show alert
+        if (!online) {
+          Alert.alert(
+            "Offline Mode",
+            "You need an internet connection to edit your profile.",
+            [
+              {
+                text: "OK",
+                onPress: () => router.back(),
+              },
+            ],
+            { cancelable: false },
+          );
+        }
+      } catch (error) {
+        console.error("Network check error:", error);
+        setIsOnline(false);
+        setIsCheckingNetwork(false);
+      }
+    };
+
+    // Subscribe to network changes
+    unsubscribe = NetInfo.addEventListener((state) => {
+      const online = state.isConnected && state.isInternetReachable;
+      setIsOnline(online);
+
+      // If user goes offline while on this screen, show alert
+      if (!online && !isCheckingNetwork) {
+        Alert.alert(
+          "Connection Lost",
+          "You've gone offline. Please check your internet connection to edit your profile.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back(),
+            },
+          ],
+        );
+      }
+    });
+
+    checkNetwork();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   const handleInputChange = (field: string, value: string) => {
+    if (!isOnline) {
+      Alert.alert(
+        "Offline",
+        "You need an internet connection to edit your profile.",
+      );
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -49,6 +117,15 @@ export default function EditProfile() {
   };
 
   const handleSaveChanges = async () => {
+    // Check if offline
+    if (!isOnline) {
+      Alert.alert(
+        "Offline",
+        "You need an internet connection to update your profile. Please connect to the internet and try again.",
+      );
+      return;
+    }
+
     // Validation
     if (!formData.firstName.trim()) {
       Alert.alert("Error", "First name is required");
@@ -68,7 +145,6 @@ export default function EditProfile() {
     setLoading(true);
 
     try {
-      // I-convert ang field names para tugma sa backend expectations
       const apiData = {
         first_name: formData.firstName,
         last_name: formData.lastName,
@@ -76,7 +152,7 @@ export default function EditProfile() {
         gender: formData.gender,
       };
 
-      console.log("Sending data:", apiData); // For debugging
+      console.log("Sending data:", apiData);
 
       const res = await client.put("/users/" + user?.id, apiData);
 
@@ -95,11 +171,15 @@ export default function EditProfile() {
           type: "success",
           text1: "Profile updated successfully",
         });
-      }
-    } catch (err) {
-      console.error("Update error:", err.response?.data || err.message); // For debugging
 
-      // Show more specific error message if available
+        // Go back after successful update
+        setTimeout(() => {
+          router.back();
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error("Update error:", err.response?.data || err.message);
+
       const errorMessage =
         err.response?.data?.message || "Please try again later";
 
@@ -109,30 +189,55 @@ export default function EditProfile() {
         text2: errorMessage,
       });
     } finally {
-      // I-set ang loading sa false regardless of success or error
       setLoading(false);
     }
   };
 
   const handleCancel = () => {
-    // Go back to previous screen
-    // navigation.goBack();
-    Alert.alert("Cancel", "Changes will be discarded", [
-      { text: "Continue Editing", style: "cancel" },
-      {
-        text: "Discard",
-        style: "destructive",
-        onPress: () => router.back(),
-      },
-    ]);
+    if (
+      formData.firstName !== (user?.first_name || "") ||
+      formData.lastName !== (user?.last_name || "") ||
+      formData.email !== (user?.email || "") ||
+      formData.gender !== (user?.gender || "")
+    ) {
+      Alert.alert("Cancel", "Changes will be discarded", [
+        { text: "Continue Editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => router.back(),
+        },
+      ]);
+    } else {
+      router.back();
+    }
   };
 
   const selectGender = (gender: string) => {
+    if (!isOnline) {
+      Alert.alert(
+        "Offline",
+        "You need an internet connection to edit your profile.",
+      );
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       gender: gender.toLowerCase(),
     }));
   };
+
+  // Show loading while checking network
+  if (isCheckingNetwork) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text className="text-gray-500 mt-4">Checking connection...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!user) {
     return (
@@ -144,27 +249,6 @@ export default function EditProfile() {
     );
   }
 
-  useEffect(() => {
-    const checkNetworkAndGoBack = async () => {
-      const netState = await NetInfo.fetch();
-      if (!netState.isConnected || !netState.isInternetReachable) {
-        Alert.alert(
-          "Offline Mode",
-          "You need an internet connection to edit your profile.",
-          [
-            {
-              text: "OK",
-              onPress: () => router.back(),
-            },
-          ],
-          { cancelable: false },
-        );
-      }
-    };
-
-    checkNetworkAndGoBack();
-  }, []);
-
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
@@ -175,14 +259,35 @@ export default function EditProfile() {
         <Text className="text-lg font-semibold text-gray-800">
           Edit Profile
         </Text>
-        <TouchableOpacity onPress={handleSaveChanges} disabled={loading}>
+        <TouchableOpacity
+          onPress={handleSaveChanges}
+          disabled={loading || !isOnline}
+        >
           {loading ? (
             <ActivityIndicator size="small" color="#16a34a" />
           ) : (
-            <Text className="text-green-600 font-semibold">Save</Text>
+            <Text
+              className={`font-semibold ${
+                !isOnline ? "text-gray-400" : "text-green-600"
+              }`}
+            >
+              Save
+            </Text>
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Offline Banner */}
+      {!isOnline && (
+        <View className="bg-red-50 px-6 py-3 border-b border-red-200">
+          <View className="flex-row items-center">
+            <Ionicons name="wifi-outline" size={20} color="#dc2626" />
+            <Text className="text-red-600 ml-2 flex-1">
+              You are offline. Connect to the internet to edit your profile.
+            </Text>
+          </View>
+        </View>
+      )}
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Form Section */}
@@ -190,13 +295,20 @@ export default function EditProfile() {
           {/* First Name */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">First Name</Text>
-            <View className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+            <View
+              className={`bg-white rounded-xl border ${
+                !isOnline ? "border-gray-300 bg-gray-50" : "border-gray-200"
+              } px-4 py-3`}
+            >
               <TextInput
-                className="text-gray-800 text-base"
+                className={`text-base ${
+                  !isOnline ? "text-gray-400" : "text-gray-800"
+                }`}
                 value={formData.firstName}
                 onChangeText={(text) => handleInputChange("firstName", text)}
                 placeholder="Enter your first name"
-                editable={!loading}
+                editable={!loading && !!isOnline}
+                placeholderTextColor={!isOnline ? "#9ca3af" : "#6b7280"}
               />
             </View>
           </View>
@@ -204,13 +316,20 @@ export default function EditProfile() {
           {/* Last Name */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">Last Name</Text>
-            <View className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+            <View
+              className={`bg-white rounded-xl border ${
+                !isOnline ? "border-gray-300 bg-gray-50" : "border-gray-200"
+              } px-4 py-3`}
+            >
               <TextInput
-                className="text-gray-800 text-base"
+                className={`text-base ${
+                  !isOnline ? "text-gray-400" : "text-gray-800"
+                }`}
                 value={formData.lastName}
                 onChangeText={(text) => handleInputChange("lastName", text)}
                 placeholder="Enter your last name"
-                editable={!loading}
+                editable={!loading && !!isOnline}
+                placeholderTextColor={!isOnline ? "#9ca3af" : "#6b7280"}
               />
             </View>
           </View>
@@ -220,15 +339,22 @@ export default function EditProfile() {
             <Text className="text-gray-700 font-medium mb-2">
               Email Address
             </Text>
-            <View className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+            <View
+              className={`bg-white rounded-xl border ${
+                !isOnline ? "border-gray-300 bg-gray-50" : "border-gray-200"
+              } px-4 py-3`}
+            >
               <TextInput
-                className="text-gray-800 text-base"
+                className={`text-base ${
+                  !isOnline ? "text-gray-400" : "text-gray-800"
+                }`}
                 value={formData.email}
                 onChangeText={(text) => handleInputChange("email", text)}
                 placeholder="Enter your email"
                 keyboardType="email-address"
                 autoCapitalize="none"
-                editable={!loading}
+                editable={!loading && !!isOnline}
+                placeholderTextColor={!isOnline ? "#9ca3af" : "#6b7280"}
               />
             </View>
           </View>
@@ -243,16 +369,20 @@ export default function EditProfile() {
                   className={`flex-1 py-3 rounded-xl items-center border ${
                     formData.gender.toLowerCase() === gender.toLowerCase()
                       ? "bg-green-50 border-green-500"
-                      : "bg-white border-gray-200"
+                      : !isOnline
+                        ? "bg-gray-50 border-gray-300"
+                        : "bg-white border-gray-200"
                   }`}
                   onPress={() => selectGender(gender)}
-                  disabled={loading}
+                  disabled={loading || !isOnline}
                 >
                   <Text
                     className={`font-medium ${
                       formData.gender.toLowerCase() === gender.toLowerCase()
                         ? "text-green-700"
-                        : "text-gray-700"
+                        : !isOnline
+                          ? "text-gray-400"
+                          : "text-gray-700"
                     }`}
                   >
                     {gender}
@@ -262,7 +392,7 @@ export default function EditProfile() {
                       <Ionicons
                         name="checkmark-circle"
                         size={20}
-                        color="#16a34a"
+                        color={!isOnline ? "#9ca3af" : "#16a34a"}
                       />
                     </View>
                   )}
@@ -277,16 +407,16 @@ export default function EditProfile() {
       <View className="p-6 bg-white border-t border-gray-200">
         <TouchableOpacity
           className={`py-4 rounded-xl items-center ${
-            loading ? "bg-green-400" : "bg-green-600"
+            loading || !isOnline ? "bg-gray-400" : "bg-green-600"
           }`}
           onPress={handleSaveChanges}
-          disabled={loading}
+          disabled={loading || !isOnline}
         >
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
             <Text className="text-white font-semibold text-lg">
-              Save Changes
+              {!isOnline ? "Offline - Cannot Save" : "Save Changes"}
             </Text>
           )}
         </TouchableOpacity>

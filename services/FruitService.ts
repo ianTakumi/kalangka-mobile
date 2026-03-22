@@ -1,5 +1,5 @@
 import { CREATE_FRUITS_INDEXES, CREATE_FRUITS_TABLE } from "@/database/schema";
-import { Fruit } from "@/types/index";
+import { Fruit, Tree } from "@/types/index";
 import client from "@/utils/axiosInstance";
 import { supabase } from "@/utils/supabase";
 import NetInfo from "@react-native-community/netinfo";
@@ -113,7 +113,6 @@ class FruitService {
       image_uri: fruit.image_uri,
       created_at: fruit.created_at ? new Date(fruit.created_at) : null,
       updated_at: fruit.updated_at ? new Date(fruit.updated_at) : null,
-      deleted_at: fruit.deleted_at ? new Date(fruit.deleted_at) : null,
       is_synced: Boolean(fruit.is_synced),
       status: fruit.status,
     };
@@ -577,14 +576,41 @@ class FruitService {
 
   async getFruitsWithoutHarvest(
     includeDeleted: boolean = false,
-  ): Promise<Fruit[]> {
+  ): Promise<(Fruit & { tree: Tree })[]> {
     await this.ensureDatabaseReady();
 
     try {
       let query = `
-      SELECT f.* 
+      SELECT 
+        f.id,
+        f.flower_id,
+        f.tree_id,
+        f.quantity,
+        f.remaining_quantity,
+        f.bagged_at,
+        f.image_uri,
+        f.status,
+        f.is_synced,
+        f.created_at,
+        f.updated_at,
+        f.deleted_at,
+        f.farmer_extra_days,
+        f.farmer_assessed_at,
+        f.next_check_date,
+        f.farmer_notes,
+        t.id as tree_id_alias,
+        t.description as tree_description,
+        t.type as tree_type,
+        t.latitude as tree_latitude,
+        t.longitude as tree_longitude,
+        t.status as tree_status,
+        t.is_synced as tree_is_synced,
+        t.image_path as tree_image_path,
+        t.created_at as tree_created_at,
+        t.updated_at as tree_updated_at
       FROM fruits f
       LEFT JOIN harvests h ON f.id = h.fruit_id AND h.deleted_at IS NULL
+      LEFT JOIN trees t ON f.tree_id = t.id AND t.status = 'active'
       WHERE h.id IS NULL
     `;
 
@@ -595,7 +621,57 @@ class FruitService {
       query += " ORDER BY f.created_at DESC";
 
       const result = await this.db!.getAllAsync(query);
-      return result.map((fruit: any) => this.mapFruitFromDB(fruit));
+
+      if (!result || result.length === 0) {
+        return [];
+      }
+
+      return result.map((row: any) => {
+        // Map fruit data
+        const fruit: Fruit = {
+          id: row.id,
+          flower_id: row.flower_id,
+          tree_id: row.tree_id,
+          quantity: row.quantity,
+          remaining_quantity: row.remaining_quantity,
+          bagged_at: row.bagged_at,
+          image_uri: row.image_uri,
+          status: row.status,
+          is_synced: row.is_synced === 1,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          deleted_at: row.deleted_at,
+          farmer_extra_days: row.farmer_extra_days,
+          farmer_assessed_at: row.farmer_assessed_at,
+          next_check_date: row.next_check_date,
+          farmer_notes: row.farmer_notes,
+        };
+
+        // Map tree data if tree exists
+        let tree: Tree | null = null;
+        if (row.tree_id_alias) {
+          tree = {
+            id: row.tree_id_alias,
+            description: row.tree_description,
+            type: row.tree_type,
+            latitude: row.tree_latitude,
+            longitude: row.tree_longitude,
+            status: row.tree_status,
+            is_synced: row.tree_is_synced === 1,
+            image_path: row.tree_image_path,
+            created_at: row.tree_created_at,
+            updated_at: row.tree_updated_at,
+          };
+        }
+
+        return {
+          ...fruit,
+          tree: tree || undefined,
+          treeName:
+            tree?.description ||
+            `Tree #${row.tree_id?.substring(0, 8) || "Unknown"}`,
+        };
+      });
     } catch (error) {
       console.error("Error fetching fruits without harvest:", error);
       throw new Error("Failed to fetch fruits without harvest.");

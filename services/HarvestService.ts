@@ -289,6 +289,59 @@ class HarvestService {
     );
   }
 
+  // Get count of unsynced harvests
+  async getUnsyncedCount(): Promise<number> {
+    await this.ensureDatabaseReady();
+
+    const result = await this.db!.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM harvests WHERE is_synced = 0 AND deleted_at IS NULL`,
+    );
+    return result?.count || 0;
+  }
+
+  // Sync all unsynced harvests (for background sync) - UPDATED to return results
+  async syncAllUnsyncedHarvests(): Promise<{
+    synced: number;
+    errors: string[];
+  }> {
+    await this.ensureDatabaseReady();
+
+    const unsyncedHarvests = await this.db!.getAllAsync<Harvest>(
+      `SELECT * FROM harvests WHERE (is_synced = 0 OR is_synced IS NULL) AND deleted_at IS NULL`,
+    );
+
+    const results = {
+      synced: 0,
+      errors: [] as string[],
+    };
+
+    console.log(`Found ${unsyncedHarvests.length} unsynced harvest(s) to sync`);
+
+    for (const harvest of unsyncedHarvests) {
+      try {
+        const success = await this.syncCompleteHarvest(harvest.id);
+
+        if (success) {
+          results.synced++;
+          console.log(
+            `✅ Successfully synced harvest ID: ${harvest.id} (${results.synced}/${unsyncedHarvests.length})`,
+          );
+        } else {
+          results.errors.push(`Harvest ${harvest.id}: Sync failed`);
+          console.warn(`❌ Failed to sync harvest ID: ${harvest.id}`);
+        }
+      } catch (err: any) {
+        results.errors.push(`Harvest ${harvest.id}: ${err.message}`);
+        console.error(`💥 Error syncing harvest ID ${harvest.id}:`, err);
+      }
+    }
+
+    console.log(
+      `📊 Finished syncing unsynced harvests: ${results.synced} synced, ${results.errors.length} errors`,
+    );
+    return results;
+  }
+
   /**
    * Create harvest assignments for bagged fruits
    * This creates new harvest records with just fruit_id and user_id
@@ -874,6 +927,7 @@ class HarvestService {
    * Sync complete harvest data to server (harvest + weights + wastes)
    * @returns boolean - true if sync successful, false otherwise
    */
+
   async syncCompleteHarvest(harvestId: string): Promise<boolean> {
     await this.ensureDatabaseReady();
 
@@ -901,8 +955,58 @@ class HarvestService {
         fruit_id: harvest.fruit_id,
         ripe_quantity: harvest.ripe_quantity,
         is_synced: harvest.is_synced,
+        user_id: harvest.user_id,
       });
 
+      // FIRST: Check if harvest exists on the server
+      let harvestExists = false;
+      try {
+        console.log(`🔍 Checking if harvest ${harvestId} exists on server...`);
+        const checkResponse = await client.get(`/harvests/${harvestId}`);
+
+        if (checkResponse.status === 200 && checkResponse.data) {
+          harvestExists = true;
+          console.log(`✅ Harvest ${harvestId} exists on server`);
+        }
+      } catch (checkError: any) {
+        // If 404, harvest doesn't exist on server
+        if (checkError.response?.status === 404) {
+          console.log(
+            `📝 Harvest ${harvestId} not found on server - will create assignment first`,
+          );
+          harvestExists = false;
+        } else {
+          // Other error (network, etc.) - log but continue to try sync
+          console.warn(
+            `⚠️ Error checking harvest existence:`,
+            checkError.message,
+          );
+        }
+      }
+
+      // If harvest doesn't exist on server, create assignment first
+      if (!harvestExists) {
+        console.log(
+          `🔄 Creating harvest assignment for ID: ${harvestId} first...`,
+        );
+        const assignmentSuccess = await this.syncHarvestAssignment(harvestId);
+
+        if (!assignmentSuccess) {
+          console.error(
+            `❌ Failed to create harvest assignment for ID: ${harvestId}`,
+          );
+          return false;
+        }
+
+        console.log(
+          `✅ Harvest assignment created successfully for ID: ${harvestId}`,
+        );
+
+        // Wait a bit for server to process the assignment
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      // Now proceed with full harvest sync (weights and wastes)
       const fruitWeights = await this.getFruitWeightsByHarvestId(harvestId);
       const wastes = await this.getWastesByHarvestId(harvestId);
 
@@ -1010,8 +1114,6 @@ class HarvestService {
 
         // Log detailed error information
         if (apiError.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
           console.error(`  Status: ${apiError.response.status}`);
           console.error(`  Status Text: ${apiError.response.statusText}`);
           console.error(
@@ -1053,15 +1155,13 @@ class HarvestService {
             );
           }
         } else if (apiError.request) {
-          // The request was made but no response was received
           console.error(`  No response received:`, apiError.request);
         } else {
-          // Something happened in setting up the request that triggered an Error
           console.error(`  Request setup error:`, apiError.message);
         }
-      }
 
-      return false;
+        return false;
+      }
     } catch (err) {
       console.error(
         `💥 Unexpected error syncing harvest (ID: ${harvestId}):`,

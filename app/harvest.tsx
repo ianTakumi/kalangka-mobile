@@ -648,7 +648,7 @@ export default function HarvestScreen() {
             <View className="flex-row justify-between mb-2">
               <Text className="text-gray-600">Fruit ID:</Text>
               <Text className="text-gray-800 font-mono text-xs">
-                {fruit.id.substring(0, 8)}...
+                {fruit.id.substring(0, 6)}
               </Text>
             </View>
 
