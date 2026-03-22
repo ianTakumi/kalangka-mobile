@@ -166,7 +166,7 @@ class HarvestService {
         throw new Error(`Harvest with ID ${harvestId} not found`);
       }
 
-      // 2. Get fruit details para malaman ang total quantity at remaining
+      // 2. Get fruit details
       const fruit = await this.db!.getFirstAsync<{
         quantity: number;
         remaining_quantity: number;
@@ -178,7 +178,7 @@ class HarvestService {
         throw new Error("Fruit not found");
       }
 
-      // 3. I-DELETE MUNA LAHAT ng existing weights at wastes (hard delete)
+      // 3. Delete existing weights and wastes
       await this.db!.runAsync(
         `DELETE FROM fruit_weights WHERE harvest_id = ?`,
         [harvestId],
@@ -188,28 +188,38 @@ class HarvestService {
         harvestId,
       ]);
 
-      // 4. Determine harvest status based on remaining fruits
+      // 4. Determine harvest status - ONLY 'pending', 'partial', 'harvested'
       const totalProcessed =
         weights.length +
         (wastesData?.reduce((sum, w) => sum + w.quantity, 0) || 0);
 
-      const remainingAfterHarvest =
-        (fruit.remaining_quantity || fruit.quantity) - totalProcessed;
+      const availableQuantity = fruit.remaining_quantity || fruit.quantity;
+      const remainingAfterHarvest = availableQuantity - totalProcessed;
 
-      let status: "pending" | "partial" | "harvested" | "wasted" = "partial";
+      // ✅ FIX: Only use valid status values from schema
+      let status: "pending" | "partial" | "harvested" = "partial";
 
       if (remainingAfterHarvest <= 0) {
-        // All fruits are either harvested or wasted
+        // All fruits are processed (either harvested or wasted)
         status = "harvested";
-      } else if (weights.length === 0 && wastesData?.length > 0) {
-        // All fruits are wasted
-        status = "wasted";
       } else if (weights.length > 0) {
         // Some fruits harvested, some remaining
         status = "partial";
+      } else {
+        // No ripe fruits harvested yet
+        status = "pending";
       }
 
-      // 5. Update harvest
+      console.log(`📊 Status calculation:`, {
+        totalProcessed,
+        availableQuantity,
+        remainingAfterHarvest,
+        weightsLength: weights.length,
+        wastesLength: wastesData?.length || 0,
+        status,
+      });
+
+      // 5. Update harvest with correct status
       await this.db!.runAsync(
         `UPDATE harvests 
        SET ripe_quantity = ?, 
@@ -231,7 +241,9 @@ class HarvestService {
         throw new Error("Failed to retrieve updated harvest");
       }
 
-      // 6. Mag-INSERT ng bagong fruit weights (lahat ng nasa UI)
+      console.log(`✅ Harvest updated with status: ${status}`);
+
+      // 6. Insert new fruit weights
       const fruitWeights: FruitWeight[] = [];
       for (let i = 0; i < weights.length; i++) {
         const weight = await this.createFruitWeight({
@@ -241,7 +253,7 @@ class HarvestService {
         fruitWeights.push(weight);
       }
 
-      // 7. Mag-INSERT ng bagong wastes (lahat ng nasa UI)
+      // 7. Insert new wastes
       const wastes: Waste[] = [];
       if (wastesData && wastesData.length > 0) {
         for (const wasteItem of wastesData) {
@@ -279,6 +291,39 @@ class HarvestService {
     }
   }
 
+  async getTotalWeightThisWeek(): Promise<number> {
+    await this.ensureDatabaseReady();
+
+    const now = new Date();
+    const startOfWeek = new Date(now);
+
+    // Set to Sunday
+    const day = now.getDay(); // 0 = Sunday
+    startOfWeek.setDate(now.getDate() - day);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+    const startOfWeekISO = startOfWeek.toISOString();
+    const endOfWeekISO = endOfWeek.toISOString();
+
+    console.log(
+      "Week range (Sunday to Saturday):",
+      startOfWeekISO,
+      "to",
+      endOfWeekISO,
+    );
+
+    const result = await this.db!.getFirstAsync<{ total: number }>(
+      `SELECT COALESCE(SUM(weight), 0) as total FROM fruit_weights
+        WHERE created_at >= ? AND created_at < ?`,
+      [startOfWeekISO, endOfWeekISO],
+    );
+
+    return result?.total || 0;
+  }
+
   // Delete Harvest (Soft Delete)
   async softDeleteHarvest(id: string): Promise<void> {
     await this.ensureDatabaseReady();
@@ -297,6 +342,358 @@ class HarvestService {
       `SELECT COUNT(*) as count FROM harvests WHERE is_synced = 0 AND deleted_at IS NULL`,
     );
     return result?.count || 0;
+  }
+
+  /**
+   * Sync harvests from server to local database
+   * This downloads harvests, fruit weights, and wastes from server
+   */
+  async syncHarvestsFromServer(): Promise<{
+    synced: number;
+    errors: string[];
+  }> {
+    await this.ensureDatabaseReady();
+
+    const results = {
+      synced: 0,
+      errors: [] as string[],
+    };
+
+    try {
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected) {
+        console.log("📴 Offline - Cannot sync harvests from server");
+        return results;
+      }
+
+      console.log("🔄 Syncing harvests from server...");
+
+      // Fetch all pages of harvests
+      let currentPage = 1;
+      let lastPage = 1;
+      let allHarvests: any[] = [];
+
+      do {
+        const response = await client.get(
+          `/harvests?page=${currentPage}&per_page=100`,
+        );
+
+        if (!response.data.success) {
+          console.warn(`Failed to fetch harvests page ${currentPage}`);
+          break;
+        }
+
+        const pageData = response.data.data;
+        const harvests = pageData.data || [];
+        allHarvests = [...allHarvests, ...harvests];
+
+        lastPage = pageData.last_page || 1;
+        currentPage++;
+
+        console.log(
+          `📥 Fetched page ${currentPage - 1}/${lastPage}, ${harvests.length} harvests`,
+        );
+      } while (currentPage <= lastPage);
+
+      console.log(`📥 Total harvests found: ${allHarvests.length}`);
+
+      // Start transaction
+      await this.db!.execAsync("BEGIN TRANSACTION");
+
+      try {
+        for (const remoteHarvest of allHarvests) {
+          try {
+            // Get fruit details to know total quantity
+            const fruit = await this.db!.getFirstAsync<{
+              id: string;
+              quantity: number;
+              remaining_quantity: number;
+            }>(
+              `SELECT id, quantity, remaining_quantity FROM fruits WHERE id = ? AND deleted_at IS NULL`,
+              [remoteHarvest.fruit_id],
+            );
+
+            // ✅ Use status from server if available, otherwise calculate
+            let harvestStatus = remoteHarvest.status || "pending";
+
+            // If server has no status, calculate based on fruit_weights and wastes
+            if (!remoteHarvest.status) {
+              const totalWeights = remoteHarvest.fruit_weights?.length || 0;
+              const totalWastes =
+                remoteHarvest.wastes?.reduce(
+                  (sum: number, w: any) => sum + (w.waste_quantity || 0),
+                  0,
+                ) || 0;
+              const totalProcessed = totalWeights + totalWastes;
+
+              if (fruit) {
+                const fruitTotal = fruit.remaining_quantity || fruit.quantity;
+                if (totalProcessed >= fruitTotal) {
+                  harvestStatus = "harvested";
+                } else if (totalProcessed > 0) {
+                  harvestStatus = "partial";
+                } else {
+                  harvestStatus = "pending";
+                }
+              }
+            }
+
+            // Check if harvest already exists locally
+            const existingHarvest = await this.db!.getFirstAsync<Harvest>(
+              `SELECT * FROM harvests WHERE id = ? AND deleted_at IS NULL`,
+              [remoteHarvest.id],
+            );
+
+            const now = new Date().toISOString();
+
+            if (!existingHarvest) {
+              // Insert new harvest with status from server
+              await this.db!.runAsync(
+                `INSERT INTO harvests (
+                id, fruit_id, user_id, ripe_quantity, harvest_at, status,
+                is_synced, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  remoteHarvest.id,
+                  remoteHarvest.fruit_id,
+                  remoteHarvest.user_id || null,
+                  remoteHarvest.ripe_quantity || 0,
+                  remoteHarvest.harvest_at || now,
+                  harvestStatus,
+                  1, // is_synced = true (from server)
+                  remoteHarvest.created_at || now,
+                  remoteHarvest.updated_at || now,
+                ],
+              );
+              results.synced++;
+              console.log(
+                `✅ Added harvest ${remoteHarvest.id} to local DB (status: ${harvestStatus})`,
+              );
+            } else {
+              // Update existing harvest if newer or status changed
+              const localUpdatedAt = new Date(existingHarvest.updated_at || 0);
+              const remoteUpdatedAt = new Date(remoteHarvest.updated_at || 0);
+
+              if (
+                remoteUpdatedAt > localUpdatedAt ||
+                existingHarvest.status !== harvestStatus
+              ) {
+                await this.db!.runAsync(
+                  `UPDATE harvests SET 
+                  fruit_id = ?,
+                  user_id = ?,
+                  ripe_quantity = ?,
+                  harvest_at = ?,
+                  status = ?,
+                  is_synced = 1,
+                  updated_at = ?
+                WHERE id = ?`,
+                  [
+                    remoteHarvest.fruit_id,
+                    remoteHarvest.user_id || null,
+                    remoteHarvest.ripe_quantity || 0,
+                    remoteHarvest.harvest_at || now,
+                    harvestStatus,
+                    remoteHarvest.updated_at || now,
+                    remoteHarvest.id,
+                  ],
+                );
+                results.synced++;
+                console.log(
+                  `✅ Updated harvest ${remoteHarvest.id} in local DB (status: ${existingHarvest.status} → ${harvestStatus})`,
+                );
+              }
+            }
+
+            // ✅ SYNC FRUIT WEIGHTS
+            if (
+              remoteHarvest.fruit_weights &&
+              remoteHarvest.fruit_weights.length > 0
+            ) {
+              // Delete existing weights for this harvest
+              await this.db!.runAsync(
+                `DELETE FROM fruit_weights WHERE harvest_id = ?`,
+                [remoteHarvest.id],
+              );
+
+              // Insert new weights
+              for (const weight of remoteHarvest.fruit_weights) {
+                await this.db!.runAsync(
+                  `INSERT INTO fruit_weights (
+                  id, harvest_id, weight, status, is_synced, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    weight.id,
+                    remoteHarvest.id,
+                    parseFloat(weight.weight),
+                    weight.status || "local",
+                    1,
+                    weight.created_at || now,
+                    weight.updated_at || now,
+                  ],
+                );
+              }
+              console.log(
+                `  ⚖️ Synced ${remoteHarvest.fruit_weights.length} fruit weights for harvest ${remoteHarvest.id}`,
+              );
+            }
+
+            // ✅ SYNC WASTES
+            if (remoteHarvest.wastes && remoteHarvest.wastes.length > 0) {
+              // Delete existing wastes for this harvest
+              await this.db!.runAsync(
+                `DELETE FROM wastes WHERE harvest_id = ?`,
+                [remoteHarvest.id],
+              );
+
+              // Insert new wastes
+              for (const waste of remoteHarvest.wastes) {
+                await this.db!.runAsync(
+                  `INSERT INTO wastes (
+                  id, harvest_id, waste_quantity, reason, reported_at,
+                  is_synced, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    waste.id,
+                    remoteHarvest.id,
+                    waste.waste_quantity,
+                    waste.reason,
+                    waste.reported_at || now,
+                    1,
+                    waste.created_at || now,
+                    waste.updated_at || now,
+                  ],
+                );
+              }
+              console.log(
+                `  🗑️ Synced ${remoteHarvest.wastes.length} wastes for harvest ${remoteHarvest.id}`,
+              );
+            }
+
+            // ✅ Update fruit's remaining quantity based on harvest data
+            if (fruit) {
+              // Calculate total processed from weights and wastes
+              const totalWeights = remoteHarvest.fruit_weights?.length || 0;
+              const totalWastes =
+                remoteHarvest.wastes?.reduce(
+                  (sum: number, w: any) => sum + (w.waste_quantity || 0),
+                  0,
+                ) || 0;
+              const totalProcessed = totalWeights + totalWastes;
+
+              if (totalProcessed > 0) {
+                const currentRemaining =
+                  fruit.remaining_quantity || fruit.quantity;
+                const newRemaining = Math.max(
+                  0,
+                  currentRemaining - totalProcessed,
+                );
+
+                await this.db!.runAsync(
+                  `UPDATE fruits SET remaining_quantity = ?, updated_at = ? WHERE id = ?`,
+                  [newRemaining, now, fruit.id],
+                );
+                console.log(
+                  `  🍎 Updated fruit ${fruit.id} remaining quantity: ${currentRemaining} → ${newRemaining}`,
+                );
+              }
+            }
+          } catch (harvestError: any) {
+            const errorMsg = `Harvest ${remoteHarvest.id}: ${harvestError.message}`;
+            results.errors.push(errorMsg);
+            console.error(errorMsg);
+          }
+        }
+
+        // Commit transaction
+        await this.db!.execAsync("COMMIT");
+        console.log(
+          `✅ Harvest sync completed: ${results.synced} harvests synced, ${results.errors.length} errors`,
+        );
+      } catch (error) {
+        await this.db!.execAsync("ROLLBACK");
+        throw error;
+      }
+
+      return results;
+    } catch (error: any) {
+      console.error("❌ Failed to sync harvests from server:", error);
+      throw new Error(`Failed to sync harvests: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if harvests need sync from server
+   */
+  async checkAndSync(): Promise<{ needsSync: boolean; harvestCount: number }> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected) {
+        console.log("📴 Offline - Cannot check harvest sync status");
+        return { needsSync: false, harvestCount: 0 };
+      }
+
+      // Get harvests from server (paginated response)
+      const response = await client.get("/harvests");
+
+      if (!response.data.success) {
+        console.warn("Failed to get harvests from server");
+        return { needsSync: false, harvestCount: 0 };
+      }
+
+      // Extract total count from pagination data
+      const remoteCount = response.data.data?.total || 0;
+
+      // Always need sync if there are harvests on server
+      return {
+        needsSync: remoteCount > 0,
+        harvestCount: remoteCount,
+      };
+    } catch (error: any) {
+      console.error("Error checking harvest sync status:", error);
+      return { needsSync: false, harvestCount: 0 };
+    }
+  }
+
+  /**
+   * Get harvests by fruit ID with weights and wastes
+   */
+  async getHarvestsByFruitId(fruitId: string): Promise<{
+    harvests: Harvest[];
+    fruitWeights: FruitWeight[];
+    wastes: Waste[];
+  }> {
+    await this.ensureDatabaseReady();
+
+    try {
+      // Get all harvests for this fruit
+      const harvests = await this.db!.getAllAsync<Harvest>(
+        `SELECT * FROM harvests WHERE fruit_id = ? AND deleted_at IS NULL ORDER BY harvest_at DESC`,
+        [fruitId],
+      );
+
+      let allFruitWeights: FruitWeight[] = [];
+      let allWastes: Waste[] = [];
+
+      for (const harvest of harvests) {
+        const weights = await this.getFruitWeightsByHarvestId(harvest.id);
+        const wastes = await this.getWastesByHarvestId(harvest.id);
+
+        allFruitWeights = [...allFruitWeights, ...weights];
+        allWastes = [...allWastes, ...wastes];
+      }
+
+      return {
+        harvests,
+        fruitWeights: allFruitWeights,
+        wastes: allWastes,
+      };
+    } catch (error) {
+      console.error(`Error fetching harvests for fruit ${fruitId}:`, error);
+      return { harvests: [], fruitWeights: [], wastes: [] };
+    }
   }
 
   // Sync all unsynced harvests (for background sync) - UPDATED to return results
@@ -614,6 +1011,7 @@ class HarvestService {
         f.flower_id as fruit_flower_id,
         f.tree_id as fruit_tree_id,
         f.quantity as fruit_quantity,
+        f.remaining_quantity as fruit_remaining_quantity,
         f.bagged_at as fruit_bagged_at,
         f.image_uri as fruit_image_uri,
         f.status as fruit_status,
@@ -633,50 +1031,66 @@ class HarvestService {
       WHERE h.user_id = ? 
         AND h.deleted_at IS NULL 
       ORDER BY 
-        -- Show pending first, then harvested
-        CASE WHEN h.harvest_at IS NULL OR h.harvest_at = '' THEN 0 ELSE 1 END,
+        CASE 
+          WHEN h.status = 'pending' THEN 1
+          WHEN h.status = 'partial' THEN 2
+          ELSE 3
+        END,
         h.created_at DESC
     `;
 
       const results = await this.db!.getAllAsync(query, [userId]);
 
-      return results.map((row: any) => ({
-        id: row.id,
-        fruit_id: row.fruit_id,
-        user_id: row.user_id,
-        ripe_quantity: row.ripe_quantity,
-        status: row.status,
-        harvest_at: row.harvest_at,
-        is_synced: Boolean(row.is_synced),
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-        deleted_at: row.deleted_at,
-        fruit: row.fruit_id
-          ? {
-              id: row.fruit_id,
-              flower_id: row.fruit_flower_id,
-              tree_id: row.fruit_tree_id,
-              quantity: row.fruit_quantity,
-              bagged_at: row.fruit_bagged_at,
-              image_uri: row.fruit_image_uri,
-              status: row.fruit_status,
-              created_at: row.fruit_created_at,
-              updated_at: row.fruit_updated_at,
-              deleted_at: row.fruit_deleted_at,
-              tree: row.tree_uuid
-                ? {
-                    uuid: row.tree_uuid,
-                    description: row.tree_description,
-                    latitude: row.tree_latitude,
-                    longitude: row.tree_longitude,
-                    status: row.tree_status,
-                    created_at: row.tree_created_at,
-                    updated_at: row.tree_updated_at,
-                  }
-                : null,
-            }
-          : null,
-      }));
+      // ✅ Fetch fruit_weights and wastes for each harvest
+      const enrichedResults = await Promise.all(
+        results.map(async (row: any) => {
+          const fruitWeights = await this.getFruitWeightsByHarvestId(row.id);
+          const wastes = await this.getWastesByHarvestId(row.id);
+
+          return {
+            id: row.id,
+            fruit_id: row.fruit_id,
+            user_id: row.user_id,
+            ripe_quantity: row.ripe_quantity,
+            status: row.status,
+            harvest_at: row.harvest_at,
+            is_synced: Boolean(row.is_synced),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            deleted_at: row.deleted_at,
+            fruit_weights: fruitWeights, // ✅ ADD THIS
+            wastes: wastes, // ✅ ADD THIS
+            fruit: row.fruit_id
+              ? {
+                  id: row.fruit_id,
+                  flower_id: row.fruit_flower_id,
+                  tree_id: row.fruit_tree_id,
+                  quantity: row.fruit_quantity,
+                  remaining_quantity: row.fruit_remaining_quantity,
+                  bagged_at: row.fruit_bagged_at,
+                  image_uri: row.fruit_image_uri,
+                  status: row.fruit_status,
+                  created_at: row.fruit_created_at,
+                  updated_at: row.fruit_updated_at,
+                  deleted_at: row.fruit_deleted_at,
+                  tree: row.tree_uuid
+                    ? {
+                        uuid: row.tree_uuid,
+                        description: row.tree_description,
+                        latitude: row.tree_latitude,
+                        longitude: row.tree_longitude,
+                        status: row.tree_status,
+                        created_at: row.tree_created_at,
+                        updated_at: row.tree_updated_at,
+                      }
+                    : null,
+                }
+              : null,
+          };
+        }),
+      );
+
+      return enrichedResults;
     } catch (error) {
       console.error(
         `Error fetching assigned harvests for user ${userId}:`,
@@ -689,6 +1103,7 @@ class HarvestService {
   /**
    * Get a single assigned harvest by ID with fruit and tree details
    */
+
   async getAssignedHarvestById(harvestId: string): Promise<any | null> {
     await this.ensureDatabaseReady();
 
@@ -700,6 +1115,7 @@ class HarvestService {
         f.flower_id as fruit_flower_id,
         f.tree_id as fruit_tree_id,
         f.quantity as fruit_quantity,
+        f.remaining_quantity as fruit_remaining_quantity,  -- ✅ ADD THIS LINE
         f.bagged_at as fruit_bagged_at,
         f.image_uri as fruit_image_uri,
         f.status as fruit_status,
@@ -734,12 +1150,14 @@ class HarvestService {
         created_at: row.created_at,
         updated_at: row.updated_at,
         deleted_at: row.deleted_at,
+        status: row.status, // ✅ Also add status field
         fruit: row.fruit_id
           ? {
               id: row.fruit_id,
               flower_id: row.fruit_flower_id,
               tree_id: row.fruit_tree_id,
               quantity: row.fruit_quantity,
+              remaining_quantity: row.fruit_remaining_quantity, // ✅ Now this will work
               bagged_at: row.fruit_bagged_at,
               image_uri: row.fruit_image_uri,
               status: row.fruit_status,
@@ -954,6 +1372,7 @@ class HarvestService {
         id: harvest.id,
         fruit_id: harvest.fruit_id,
         ripe_quantity: harvest.ripe_quantity,
+        status: harvest.status,
         is_synced: harvest.is_synced,
         user_id: harvest.user_id,
       });
@@ -1036,7 +1455,8 @@ class HarvestService {
         id: harvest.id,
         fruit_id: harvest.fruit_id,
         ripe_quantity: harvest.ripe_quantity,
-        harvest_at: new Date().toISOString().split("T")[0], // Format: YYYY-MM-DD
+        status: harvest.status || "harvested", // Default to 'harvested' if status is not set
+        harvest_at: new Date().toISOString().split("T")[0],
         fruit_weights: fruitWeights.map((w) => ({
           id: w.id,
           weight: w.weight,
@@ -1196,6 +1616,7 @@ class HarvestService {
     let totalWaste = 0;
 
     if (harvest) {
+      // ✅ Make sure these are called
       fruitWeights = await this.getFruitWeightsByHarvestId(harvest.id);
       wastes = await this.getWastesByHarvestId(harvest.id);
 
@@ -1205,7 +1626,9 @@ class HarvestService {
       totalWaste = wastes.reduce((sum, w) => sum + w.waste_quantity, 0);
     }
 
-    console.log("wastes:", wastes);
+    console.log(`📊 Harvest details for fruit ${fruitId}:`);
+    console.log(`   - Fruit weights: ${fruitWeights.length}`);
+    console.log(`   - Wastes: ${wastes.length}`);
 
     return {
       harvest,

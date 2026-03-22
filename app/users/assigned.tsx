@@ -29,7 +29,7 @@ export default function AssignedHarvestsScreen() {
   const [filteredHarvests, setFilteredHarvests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'pending', 'harvested'
+  const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'pending', 'partial', 'harvested'
   const user = useSelector((state) => state.auth.user);
 
   useEffect(() => {
@@ -70,13 +70,21 @@ export default function AssignedHarvestsScreen() {
     if (activeFilter === "all") {
       setFilteredHarvests(assignedHarvests);
     } else if (activeFilter === "pending") {
+      // ✅ FIX: Filter by status = 'pending' (no harvest started)
       const pending = assignedHarvests.filter(
-        (item) => !item.harvest_at || item.harvest_at === "",
+        (item) => item.status === "pending",
       );
       setFilteredHarvests(pending);
+    } else if (activeFilter === "partial") {
+      // ✅ FIX: Filter by status = 'partial' (some fruits harvested)
+      const partial = assignedHarvests.filter(
+        (item) => item.status === "partial",
+      );
+      setFilteredHarvests(partial);
     } else if (activeFilter === "harvested") {
+      // ✅ FIX: Filter by status = 'harvested' or 'wasted' (completed)
       const harvested = assignedHarvests.filter(
-        (item) => item.harvest_at && item.harvest_at !== "",
+        (item) => item.status === "harvested" || item.status === "wasted",
       );
       setFilteredHarvests(harvested);
     }
@@ -91,8 +99,16 @@ export default function AssignedHarvestsScreen() {
   }, [user]);
 
   const renderItem = ({ item }) => {
-    // Determine if harvest is completed (may harvest_at)
-    const isHarvested = item.harvest_at != null && item.harvest_at !== "";
+    // Determine if harvest is completed (harvested or wasted)
+    const isCompleted = item.status === "harvested" || item.status === "wasted";
+
+    // Calculate processed fruits count
+    const fruitWeightsCount = item.fruit_weights?.length || 0;
+    const wasteCount =
+      item.wastes?.reduce((sum, w) => sum + (w.waste_quantity || 0), 0) || 0;
+    const totalProcessed = fruitWeightsCount + wasteCount;
+    const totalFruits = item.fruit?.quantity || 0;
+    const remainingFruits = item.fruit?.remaining_quantity || 0;
 
     return (
       <TouchableOpacity
@@ -154,7 +170,7 @@ export default function AssignedHarvestsScreen() {
                   {item.status === "pending"
                     ? "Pending Harvest"
                     : item.status === "partial"
-                      ? "Partial Harvest"
+                      ? `Partial (${remainingFruits} left)`
                       : item.status === "harvested"
                         ? "Harvested"
                         : item.status === "wasted"
@@ -180,18 +196,40 @@ export default function AssignedHarvestsScreen() {
               </View>
             )}
 
-            {isHarvested && item.harvest_at && (
+            {isCompleted && item.harvest_at && (
               <View className="flex-row items-center mt-1">
                 <Calendar size={14} color="#059669" />
                 <Text className="text-xs text-green-600 ml-1">
-                  Harvested: {new Date(item.harvest_at).toLocaleDateString()}
+                  Completed: {new Date(item.harvest_at).toLocaleDateString()}
                 </Text>
               </View>
             )}
 
-            {item.fruit?.quantity && (
+            {/* Progress indicator for partial harvests */}
+            {item.status === "partial" && totalFruits > 0 && (
+              <View className="mt-2">
+                <View className="flex-row justify-between mb-1">
+                  <Text className="text-xs text-gray-600">
+                    Progress: {totalProcessed}/{totalFruits} fruits
+                  </Text>
+                  <Text className="text-xs text-gray-600">
+                    {Math.round((totalProcessed / totalFruits) * 100)}%
+                  </Text>
+                </View>
+                <View className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <View
+                    className="h-full bg-orange-500 rounded-full"
+                    style={{
+                      width: `${(totalProcessed / totalFruits) * 100}%`,
+                    }}
+                  />
+                </View>
+              </View>
+            )}
+
+            {!isCompleted && totalFruits > 0 && (
               <Text className="text-sm text-gray-700 mt-2">
-                Quantity: {item.fruit.quantity} fruit(s)
+                Total: {totalFruits} fruit(s)
               </Text>
             )}
           </View>
@@ -204,11 +242,15 @@ export default function AssignedHarvestsScreen() {
 
   const renderHeader = () => {
     const pendingCount = assignedHarvests.filter(
-      (item) => !item.harvest_at || item.harvest_at === "",
+      (item) => item.status === "pending",
+    ).length;
+
+    const partialCount = assignedHarvests.filter(
+      (item) => item.status === "partial",
     ).length;
 
     const harvestedCount = assignedHarvests.filter(
-      (item) => item.harvest_at && item.harvest_at !== "",
+      (item) => item.status === "harvested" || item.status === "wasted",
     ).length;
 
     return (
@@ -267,6 +309,29 @@ export default function AssignedHarvestsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            onPress={() => setActiveFilter("partial")}
+            className={`mr-4 pb-2 ${
+              activeFilter === "partial" ? "border-b-2 border-orange-500" : ""
+            }`}
+          >
+            <View className="flex-row items-center">
+              <Clock
+                size={16}
+                color={activeFilter === "partial" ? "#F97316" : "#6B7280"}
+              />
+              <Text
+                className={`ml-1 ${
+                  activeFilter === "partial"
+                    ? "text-orange-600 font-semibold"
+                    : "text-gray-500"
+                }`}
+              >
+                Partial ({partialCount})
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={() => setActiveFilter("harvested")}
             className={`pb-2 ${
               activeFilter === "harvested" ? "border-b-2 border-orange-500" : ""
@@ -284,7 +349,7 @@ export default function AssignedHarvestsScreen() {
                     : "text-gray-500"
                 }`}
               >
-                Harvested ({harvestedCount})
+                Completed ({harvestedCount})
               </Text>
             </View>
           </TouchableOpacity>
@@ -297,8 +362,10 @@ export default function AssignedHarvestsScreen() {
     let message = "You don't have any ";
     if (activeFilter === "pending") {
       message += "pending harvest assignments.";
+    } else if (activeFilter === "partial") {
+      message += "partial harvests.";
     } else if (activeFilter === "harvested") {
-      message += "harvested items yet.";
+      message += "completed harvests yet.";
     } else {
       message += "harvest assignments.";
     }

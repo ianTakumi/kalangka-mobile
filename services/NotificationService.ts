@@ -1,595 +1,5 @@
-// // services/NotificationService.ts
-// import { CREATE_NOTIFICATIONS_TABLE } from "@/database/schema";
-// import * as BackgroundFetch from "expo-background-fetch";
-// import * as Notifications from "expo-notifications";
-// import { router } from "expo-router";
-// import * as SQLite from "expo-sqlite";
-// import * as TaskManager from "expo-task-manager";
-
-// const CHECK_TASK = "harvest-notification-check";
-// const db = SQLite.openDatabaseSync("kalangka.db");
-
-// class NotificationService {
-//   // Generate UUID for primary keys
-//   private generateUUID(): string {
-//     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
-//       /[xy]/g,
-//       function (c) {
-//         const r = (Math.random() * 16) | 0;
-//         const v = c === "x" ? r : (r & 0x3) | 0x8;
-//         return v.toString(16);
-//       },
-//     );
-//   }
-
-//   private async createTables() {
-//     try {
-//       await db.execAsync(CREATE_NOTIFICATIONS_TABLE);
-//       console.log("📁 Notifications table created/verified");
-//     } catch (error) {
-//       console.error("Error creating notifications table:", error);
-//       throw error;
-//     }
-//   }
-
-//   // Initialize everything
-//   async init() {
-//     await this.createTables();
-//     await this.setupNotifications();
-//     await this.registerBackgroundTask();
-//     this.setupNotificationListeners();
-//     console.log("✅ NotificationService ready");
-//   }
-
-//   // Setup notification settings
-//   private async setupNotifications() {
-//     await Notifications.requestPermissionsAsync();
-
-//     Notifications.setNotificationHandler({
-//       handleNotification: async () => ({
-//         shouldShowAlert: true,
-//         shouldPlaySound: true,
-//       }),
-//     });
-//   }
-
-//   // Register background task (every 6 hours)
-//   private async registerBackgroundTask() {
-//     try {
-//       await BackgroundFetch.registerTaskAsync(CHECK_TASK, {
-//         minimumInterval: 60,
-//         // minimumInterval: 6 * 60 * 60, // Every 6 hours
-//         stopOnTerminate: false,
-//         startOnBoot: true,
-//       });
-//       console.log("🔄 Background task registered (every 6 hours)");
-//     } catch (error) {
-//       console.error("Failed to register background task:", error);
-//     }
-//   }
-
-//   // Listen for notification taps
-//   private setupNotificationListeners() {
-//     Notifications.addNotificationResponseReceivedListener(
-//       this.handleNotificationOpened.bind(this),
-//     );
-//   }
-
-//   // Handle notification tap
-//   private async handleNotificationOpened(response) {
-//     const data = response.notification.request.content.data;
-
-//     // Update notification as read
-//     if (data?.notificationId) {
-//       await db.runAsync(
-//         `UPDATE notifications
-//          SET is_read = 1, updated_at = datetime('now')
-//          WHERE id = ?`,
-//         [data.notificationId],
-//       );
-//     }
-
-//     // Navigate based on type
-//     if (
-//       data?.type === "approaching" ||
-//       data?.type === "ready" ||
-//       data?.type === "overdue"
-//     ) {
-//       router.push({
-//         pathname: "/users/tree",
-//         params: { treeId: data.treeId },
-//       });
-//     }
-//   }
-
-//   // Helper function to calculate days between two dates (accurate)
-//   private calculateDaysBetween(date1: string, date2: Date): number {
-//     const d1 = new Date(date1);
-//     // Set both to midnight UTC para consistent
-//     const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
-//     const utc2 = Date.UTC(
-//       date2.getFullYear(),
-//       date2.getMonth(),
-//       date2.getDate(),
-//     );
-
-//     const diffTime = Math.abs(utc2 - utc1);
-//     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-//     return diffDays;
-//   }
-
-//   // MAIN FUNCTION: Check all fruits grouped by tree
-//   async checkHarvests() {
-//     console.log("🔍 Checking harvests at:", new Date().toLocaleString());
-
-//     const today = new Date();
-//     today.setHours(0, 0, 0, 0); // Midnight today
-
-//     // Get all fruits with their tree info (raw data, no calculations)
-//     const fruits = await db.getAllAsync(`
-//       SELECT
-//         f.id as fruit_id,
-//         f.bagged_at,
-//         f.quantity,
-//         f.farmer_extra_days,
-//         f.farmer_assessed_at,
-//         f.next_check_date,
-//         t.id as tree_id,
-//         t.description as tree_name
-//       FROM fruits f
-//       LEFT JOIN trees t ON f.tree_id = t.id
-//       WHERE f.deleted_at IS NULL
-//         AND f.status != 'harvested'
-//     `);
-
-//     // Group fruits by tree
-//     const treeMap = new Map();
-
-//     for (const fruit of fruits) {
-//       // Calculate days in JavaScript (accurate)
-//       const days = this.calculateDaysBetween(fruit.bagged_at, today);
-
-//       if (!treeMap.has(fruit.tree_id)) {
-//         treeMap.set(fruit.tree_id, {
-//           tree_id: fruit.tree_id,
-//           tree_name: fruit.tree_name,
-//           fruits: [],
-//           min_days: Infinity,
-//           max_days: 0,
-//           total_fruits: 0,
-//           fruit_count: 0,
-//           fruit_ids: [],
-//         });
-//       }
-
-//       const treeData = treeMap.get(fruit.tree_id);
-//       treeData.fruits.push({
-//         ...fruit,
-//         days: days,
-//       });
-//       treeData.min_days = Math.min(treeData.min_days, days);
-//       treeData.max_days = Math.max(treeData.max_days, days);
-//       treeData.total_fruits += fruit.quantity;
-//       treeData.fruit_count++;
-//       treeData.fruit_ids.push(fruit.fruit_id);
-//     }
-
-//     console.log(`📊 Found ${treeMap.size} trees with fruits to check`);
-
-//     // Process each tree
-//     for (const [treeId, treeData] of treeMap) {
-//       await this.processTree(treeData, today);
-//     }
-//   }
-
-//   // ADD THIS METHOD - FOR TESTING BACKGROUND NOTIFICATIONS
-//   async sendTestBackgroundNotifications(count: number = 10) {
-//     console.log(`🧪 Sending ${count} test background notifications...`);
-
-//     const titles = [
-//       "🌱 Harvest Reminder",
-//       "🌳 Tree Update",
-//       "🍎 Fruit Ready",
-//       "📋 Check Your Trees",
-//       "⏰ Harvest Schedule",
-//       "🌿 Farm Update",
-//       "🍌 Fruit Alert",
-//       "🌴 Tree Notification",
-//       "🥭 Harvest Time",
-//       "🍊 Fruit Ready to Pick",
-//     ];
-
-//     const messages = [
-//       "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-//       "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-//       "Ut enim ad minim veniam, quis nostrud exercitation ullamco.",
-//       "Duis aute irure dolor in reprehenderit in voluptate velit esse.",
-//       "Excepteur sint occaecat cupidatat non proident.",
-//       "Nunc sed augue lacus viverra vitae congue eu consequat.",
-//       "Pellentesque habitant morbi tristique senectus et netus.",
-//       "Faucibus turpis in eu mi bibendum neque egestas congue.",
-//       "Commodo elit at imperdiet dui accumsan sit amet nulla.",
-//       "Gravida arcu ac tortor dignissim convallis aenean et tortor.",
-//       "Purus ut faucibus pulvinar elementum integer enim neque.",
-//       "Ullamcorper velit sed ullamcorper morbi tincidunt ornare.",
-//       "Dignissim convallis aenean et tortor at risus viverra.",
-//       "Libero id faucibus nisl tincidunt eget nullam non.",
-//       "Vitae tortor condimentum lacinia quis vel eros donec.",
-//     ];
-
-//     const treeNames = [
-//       "Mangga",
-//       "Santol",
-//       "Bayabas",
-//       "Saging",
-//       "Papaya",
-//       "Atis",
-//       "Langka",
-//       "Rambutan",
-//       "Lansones",
-//       "Durian",
-//       "Coconut",
-//       "Kalamansi",
-//       "Avocado",
-//       "Guyabano",
-//       "Chico",
-//     ];
-
-//     for (let i = 0; i < count; i++) {
-//       const randomTitle = titles[Math.floor(Math.random() * titles.length)];
-//       const randomMessage =
-//         messages[Math.floor(Math.random() * messages.length)];
-//       const randomTree =
-//         treeNames[Math.floor(Math.random() * treeNames.length)];
-//       const randomType = ["approaching", "ready", "overdue", "return_check"][
-//         Math.floor(Math.random() * 4)
-//       ];
-//       const randomDays = Math.floor(Math.random() * 30) + 100; // 100-130 days
-//       const randomFruitCount = Math.floor(Math.random() * 8) + 1; // 1-8 fruits
-//       const randomTotalFruits =
-//         randomFruitCount * (Math.floor(Math.random() * 3) + 1); // 1-24 total
-
-//       const notificationId = this.generateUUID();
-//       const treeId = this.generateUUID();
-//       const fruitId = this.generateUUID();
-
-//       // Create message with tree name
-//       const fullMessage = `${randomTree}: ${randomMessage} (${randomFruitCount} fruits, ~${randomDays} days)`;
-
-//       // Save to notifications table
-//       await db.runAsync(
-//         `INSERT INTO notifications (
-//         id, user_id, fruit_id, type, title, message,
-//         days_until_return, scheduled_for, is_sent, created_at
-//       ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
-//         [
-//           notificationId,
-//           null, // no user_id for test
-//           fruitId,
-//           randomType,
-//           randomTitle,
-//           fullMessage,
-//           randomDays,
-//         ],
-//       );
-
-//       // Send actual notification
-//       await Notifications.scheduleNotificationAsync({
-//         content: {
-//           title: randomTitle,
-//           body: fullMessage,
-//           data: {
-//             treeId,
-//             treeName: randomTree,
-//             type: randomType,
-//             notificationId,
-//             days: randomDays,
-//             fruitCount: randomFruitCount,
-//             totalFruits: randomTotalFruits,
-//             isTest: true,
-//           },
-//           sound: true,
-//         },
-//         trigger: null, // show immediately
-//       });
-
-//       console.log(
-//         `📨 [${i + 1}/${count}] Sent: ${randomTitle} - ${randomTree}`,
-//       );
-
-//       // Small delay para hindi ma-overwhelm ang system
-//       await new Promise((resolve) => setTimeout(resolve, 300));
-//     }
-
-//     console.log(`✅ Successfully sent ${count} test background notifications!`);
-
-//     return {
-//       success: true,
-//       count,
-//       message: `${count} test notifications sent`,
-//     };
-//   }
-
-//   // Process tree for notifications
-//   private async processTree(tree: any, today: Date) {
-//     const todayStr = today.toDateString();
-
-//     // Get the oldest fruit's age
-//     const oldestDays = tree.min_days;
-//     const fruitCount = tree.fruit_count;
-//     const totalFruits = tree.total_fruits;
-
-//     console.log(
-//       `🌳 Tree ${tree.tree_name}: ${fruitCount} fruits, oldest is ${oldestDays} days`,
-//     );
-
-//     // Check if may notification na ngayong araw para sa tree na ito
-//     const placeholders = tree.fruit_ids.map(() => "?").join(",");
-//     const notifiedToday = await db.getFirstAsync(
-//       `SELECT * FROM notifications
-//        WHERE fruit_id IN (${placeholders})
-//        AND date(created_at) = date('now')
-//        LIMIT 1`,
-//       tree.fruit_ids,
-//     );
-
-//     if (notifiedToday) {
-//       console.log(`⏭️ Already notified for tree ${tree.tree_name} today`);
-//       return;
-//     }
-
-//     // Determine notification type based on oldest fruit
-//     let notificationType = null;
-//     let title = "";
-//     let message = "";
-
-//     // DAY 115: 5 days before harvest
-//     if (oldestDays >= 115 && oldestDays < 120) {
-//       notificationType = "approaching";
-//       title = "🌱 Harvest Approaching";
-//       const daysLeft = 120 - oldestDays;
-//       message = `Tree ${tree.tree_name} has ${fruitCount} fruit(s) (${totalFruits} total) that will be ready in about ${daysLeft} days. Please prepare for harvest.`;
-//     }
-
-//     // DAY 120: Ready to harvest
-//     else if (oldestDays >= 120 && oldestDays < 125) {
-//       notificationType = "ready";
-//       title = "🌳 Ready to Harvest!";
-//       message = `Tree ${tree.tree_name} now has ${fruitCount} fruit(s) (${totalFruits} total) ready for harvest. Please harvest within the next 5 days.`;
-//     }
-
-//     // DAY 125 and beyond: Overdue
-//     else if (oldestDays >= 125) {
-//       notificationType = "overdue";
-//       title = "⚠️ Harvest Overdue";
-//       const daysOverdue = oldestDays - 120;
-//       message = `Tree ${tree.tree_name} has ${fruitCount} fruit(s) (${totalFruits} total) that are ${daysOverdue} days overdue. Please harvest as soon as possible.`;
-//     }
-
-//     if (notificationType) {
-//       await this.sendTreeNotification(
-//         tree.tree_id,
-//         tree.tree_name,
-//         notificationType,
-//         title,
-//         message,
-//         oldestDays,
-//         fruitCount,
-//         totalFruits,
-//         tree.fruit_ids,
-//       );
-//     }
-//   }
-
-//   // Send tree-based notification
-//   private async sendTreeNotification(
-//     treeId: string,
-//     treeName: string,
-//     type: string,
-//     title: string,
-//     message: string,
-//     days: number,
-//     fruitCount: number,
-//     totalFruits: number,
-//     fruitIds: string[],
-//   ) {
-//     const notificationId = this.generateUUID();
-
-//     // Get any user_id associated with these fruits
-//     const firstFruitId = fruitIds[0];
-//     const harvest = await db.getFirstAsync<{ user_id: string }>(
-//       "SELECT user_id FROM harvests WHERE fruit_id = ? ORDER BY created_at DESC LIMIT 1",
-//       [firstFruitId],
-//     );
-
-//     // Save to notifications table
-//     await db.runAsync(
-//       `INSERT INTO notifications (
-//         id, user_id, fruit_id, type, title, message,
-//         days_until_return, scheduled_for, is_sent, created_at
-//       ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
-//       [
-//         notificationId,
-//         harvest?.user_id || null,
-//         firstFruitId,
-//         type,
-//         title,
-//         message,
-//         days,
-//       ],
-//     );
-
-//     // Send actual notification
-//     await Notifications.scheduleNotificationAsync({
-//       content: {
-//         title,
-//         body: message,
-//         data: {
-//           treeId,
-//           treeName,
-//           type,
-//           notificationId,
-//           days,
-//           fruitCount,
-//           totalFruits,
-//         },
-//         sound: true,
-//       },
-//       trigger: null,
-//     });
-
-//     console.log(`📨 Sent tree notification: ${title} for ${treeName}`);
-//   }
-
-//   // Send return notification (after farmer set extra days)
-//   async sendTreeReturnNotification(
-//     treeId: string,
-//     treeName: string,
-//     days: number,
-//   ) {
-//     const notificationId = this.generateUUID();
-
-//     await Notifications.scheduleNotificationAsync({
-//       content: {
-//         title: "🌳 Time to Check Again",
-//         body: `Tree ${treeName} needs checking after ${days} days. Please assess if fruits are ready.`,
-//         data: {
-//           treeId,
-//           treeName,
-//           type: "return_check",
-//           notificationId,
-//           days,
-//         },
-//         sound: true,
-//       },
-//       trigger: null,
-//     });
-//   }
-
-//   // FARMER ASSESSMENT: For tree-based assessment
-//   async saveTreeAssessment(treeId: string, extraDays: number, notes?: string) {
-//     try {
-//       const now = new Date();
-//       const nextCheckDate = new Date();
-//       nextCheckDate.setDate(nextCheckDate.getDate() + extraDays);
-
-//       // Update all fruits under this tree with farmer assessment
-//       await db.runAsync(
-//         `UPDATE fruits
-//          SET farmer_extra_days = ?,
-//              farmer_assessed_at = datetime('now'),
-//              next_check_date = ?,
-//              farmer_notes = ?
-//          WHERE tree_id = ? AND deleted_at IS NULL AND status != 'harvested'`,
-//         [extraDays, nextCheckDate.toISOString(), notes || null, treeId],
-//       );
-
-//       // Get tree details
-//       const tree = await db.getFirstAsync<{ description: string }>(
-//         "SELECT description FROM trees WHERE id = ?",
-//         [treeId],
-//       );
-
-//       // Send confirmation notification
-//       await this.sendTreeReturnNotification(
-//         treeId,
-//         tree?.description || "Unknown",
-//         extraDays,
-//       );
-
-//       console.log(
-//         `✅ Tree assessment saved: ${extraDays} days for tree ${treeId}`,
-//       );
-
-//       return {
-//         success: true,
-//         nextCheckDate: nextCheckDate.toLocaleDateString(),
-//       };
-//     } catch (error) {
-//       console.error("Error saving tree assessment:", error);
-//       throw error;
-//     }
-//   }
-
-//   async clearTodayNotifications() {
-//     await db.runAsync(
-//       `DELETE FROM notifications WHERE date(created_at) = date('now')`,
-//     );
-//     console.log("🗑️ Cleared today's notifications");
-//   }
-
-//   // Get pending assessments for trees
-//   async getPendingTreeAssessments() {
-//     const today = new Date();
-//     today.setHours(0, 0, 0, 0);
-
-//     const trees = await db.getAllAsync(`
-//       SELECT
-//         t.id as tree_id,
-//         t.description as tree_name,
-//         COUNT(f.id) as fruit_count,
-//         SUM(f.quantity) as total_fruits,
-//         MIN(f.farmer_extra_days) as farmer_days,
-//         MIN(f.next_check_date) as next_check_date
-//       FROM trees t
-//       LEFT JOIN fruits f ON f.tree_id = t.id AND f.deleted_at IS NULL AND f.status != 'harvested'
-//       GROUP BY t.id
-//       HAVING fruit_count > 0
-//     `);
-
-//     // Calculate days in JavaScript for each tree
-//     const result = [];
-//     for (const tree of trees) {
-//       const fruits = await db.getAllAsync(
-//         `SELECT bagged_at FROM fruits WHERE tree_id = ? AND deleted_at IS NULL AND status != 'harvested'`,
-//         [tree.tree_id],
-//       );
-
-//       let minDays = Infinity;
-//       for (const fruit of fruits) {
-//         const days = this.calculateDaysBetween(fruit.bagged_at, today);
-//         minDays = Math.min(minDays, days);
-//       }
-
-//       if (minDays >= 125 || tree.next_check_date) {
-//         result.push({
-//           ...tree,
-//           oldest_days: minDays,
-//         });
-//       }
-//     }
-
-//     return result.sort((a, b) => b.oldest_days - a.oldest_days);
-//   }
-
-//   // Manual check (for testing)
-//   async manualCheck() {
-//     console.log("🔍 Running manual check...");
-//     await this.clearTodayNotifications(); // TEMPORARY
-
-//     await this.checkHarvests();
-//     console.log("✅ Manual check completed");
-//   }
-// }
-
-// // Register background task
-// TaskManager.defineTask(CHECK_TASK, async () => {
-//   try {
-//     const service = new NotificationService();
-//     await service.checkHarvests();
-//     await service.sendTestBackgroundNotifications(5);
-//     return BackgroundFetch.BackgroundFetchResult.NewData;
-//   } catch (error) {
-//     console.error("Background task failed:", error);
-//     return BackgroundFetch.BackgroundFetchResult.Failed;
-//   }
-// });
-
-// export default new NotificationService();
-
-// services/NotificationService.ts
 import { CREATE_NOTIFICATIONS_TABLE } from "@/database/schema";
+import { store } from "@/redux/store";
 import * as BackgroundFetch from "expo-background-fetch";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
@@ -610,6 +20,17 @@ class NotificationService {
         return v.toString(16);
       },
     );
+  }
+
+  // Add after generateUUID() method
+  private isUserAuthenticated(): boolean {
+    const state = store.getState();
+    return state.auth.isAuthenticated && !!state.auth.user;
+  }
+
+  private getCurrentUser() {
+    const state = store.getState();
+    return state.auth.user;
   }
 
   private async createTables() {
@@ -665,16 +86,132 @@ class NotificationService {
     );
   }
 
+  // Add this method to the NotificationService class
+  private async sendAdminSummaryNotification(
+    title: string,
+    message: string,
+    totalFruits: number,
+    treeCount: number,
+    counts: {
+      approachingCount: number;
+      readyCount: number;
+      overdueCount: number;
+    },
+    trees: any[],
+  ) {
+    const notificationId = this.generateUUID();
+
+    // Save to notifications table
+    await db.runAsync(
+      `INSERT INTO notifications (
+      id, user_id, fruit_id, type, title, message, 
+      days_until_return, scheduled_for, is_sent, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
+      [
+        notificationId,
+        null, // null for admin
+        null, // no specific fruit
+        "admin_summary",
+        title,
+        message,
+        0,
+      ],
+    );
+
+    // Send actual notification
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body: message,
+        data: {
+          type: "admin_summary",
+          notificationId,
+          totalFruits,
+          treeCount,
+          counts,
+          trees: trees.map((t) => ({
+            name: t.tree_name,
+            count: t.fruit_count,
+          })),
+        },
+        sound: true,
+      },
+      trigger: null,
+    });
+
+    console.log(`📨 [Admin] Sent summary: ${message.substring(0, 100)}...`);
+  }
+
+  // Add this method to the NotificationService class
+  private async sendUserSummaryNotification(
+    title: string,
+    message: string,
+    totalFruits: number,
+    treeCount: number,
+    counts: {
+      approachingCount: number;
+      readyCount: number;
+      overdueCount: number;
+    },
+    treeNames: string[],
+    userId: string,
+  ) {
+    const notificationId = this.generateUUID();
+
+    // Save to notifications table
+    await db.runAsync(
+      `INSERT INTO notifications (
+      id, user_id, fruit_id, type, title, message, 
+      days_until_return, scheduled_for, is_sent, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
+      [
+        notificationId,
+        userId,
+        null, // no specific fruit
+        "user_summary",
+        title,
+        message,
+        0,
+      ],
+    );
+
+    // Send actual notification
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body: message,
+        data: {
+          type: "user_summary",
+          notificationId,
+          totalFruits,
+          treeCount,
+          counts,
+          treeNames,
+        },
+        sound: true,
+      },
+      trigger: null,
+    });
+
+    console.log(`📨 [User] Sent summary: ${message.substring(0, 100)}...`);
+  }
+
   // Handle notification tap
   private async handleNotificationOpened(response) {
+    if (!this.isUserAuthenticated()) {
+      console.log("🔒 Notification tap ignored - user not authenticated");
+      return;
+    }
+
     const data = response.notification.request.content.data;
+    const user = this.getCurrentUser();
 
     // Update notification as read
     if (data?.notificationId) {
       await db.runAsync(
         `UPDATE notifications 
-         SET is_read = 1, updated_at = datetime('now') 
-         WHERE id = ?`,
+       SET is_read = 1, updated_at = datetime('now') 
+       WHERE id = ?`,
         [data.notificationId],
       );
     }
@@ -685,10 +222,28 @@ class NotificationService {
       data?.type === "ready" ||
       data?.type === "overdue"
     ) {
+      // For user notifications - go to tree details
       router.push({
-        pathname: "/users/tree",
+        pathname: "/users/assigned",
         params: { treeId: data.treeId },
       });
+    } else if (data?.type === "admin_summary") {
+      // For admin summary notification - go to admin harvest screen
+      if (user?.role === "admin") {
+        router.push({
+          pathname: "/admin/assign", // or wherever your admin harvest list is
+        });
+      } else {
+        console.log("🔒 Non-admin user tapped admin notification");
+      }
+    } else if (data?.type === "user_summary") {
+      if (user?.role === "user") {
+        router.push({
+          pathname: "/users/assigned", // or wherever user sees their assigned harvests
+        });
+      } else {
+        console.log("🔒 Non-user tapped user notification");
+      }
     }
   }
 
@@ -712,38 +267,54 @@ class NotificationService {
   // ==================== MAIN FUNCTION ====================
   // Check harvests with role-based filtering
   async checkHarvests(userRole?: string, userId?: string) {
+    let role = userRole;
+    let uid = userId;
+
+    if (!role || !uid) {
+      const user = this.getCurrentUser();
+      if (user && this.isUserAuthenticated()) {
+        role = user.role;
+        uid = user.id;
+      }
+    }
+
+    if (!role || !uid) {
+      console.log("🔒 No authenticated user, skipping notification check");
+      return;
+    }
+
     console.log(
       "🔍 Checking harvests at:",
       new Date().toLocaleString(),
       "Role:",
-      userRole || "system",
+      role,
     );
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Midnight today
+    today.setHours(0, 0, 0, 0);
 
     // Get all fruits with their tree and harvest info
     const fruits = await db.getAllAsync(`
-      SELECT 
-        f.id as fruit_id,
-        f.bagged_at,
-        f.quantity,
-        f.remaining_quantity,
-        f.farmer_extra_days,
-        f.farmer_assessed_at,
-        f.next_check_date,
-        f.farmer_notes,
-        t.id as tree_id,
-        t.description as tree_name,
-        h.id as harvest_id,
-        h.user_id as assigned_user_id,
-        h.status as harvest_status
-      FROM fruits f
-      LEFT JOIN trees t ON f.tree_id = t.id
-      LEFT JOIN harvests h ON f.id = h.fruit_id AND h.deleted_at IS NULL
-      WHERE f.deleted_at IS NULL 
-        AND f.status != 'harvested'
-    `);
+    SELECT 
+      f.id as fruit_id,
+      f.bagged_at,
+      f.quantity,
+      f.remaining_quantity,
+      f.farmer_extra_days,
+      f.farmer_assessed_at,
+      f.next_check_date,
+      f.farmer_notes,
+      t.id as tree_id,
+      t.description as tree_name,
+      h.id as harvest_id,
+      h.user_id as assigned_user_id,
+      h.status as harvest_status
+    FROM fruits f
+    LEFT JOIN trees t ON f.tree_id = t.id
+    LEFT JOIN harvests h ON f.id = h.fruit_id AND h.deleted_at IS NULL
+    WHERE f.deleted_at IS NULL 
+      AND f.status != 'harvested'
+  `);
 
     // Separate fruits based on harvest record
     const fruitsWithHarvest = fruits.filter((f) => f.harvest_id);
@@ -753,91 +324,218 @@ class NotificationService {
     console.log(`   - May harvest: ${fruitsWithHarvest.length}`);
     console.log(`   - Walang harvest: ${fruitsWithoutHarvest.length}`);
 
-    // Determine which fruits to process based on role
-    let fruitsToProcess = [];
+    // For ADMIN: Collect summary data instead of per-tree notifications
+    if (role === "admin") {
+      // Process unassigned fruits for summary
+      const unassignedFruits = fruitsWithoutHarvest;
 
-    if (userRole === "admin") {
-      // ADMIN: fruits na WALANG harvest record (unassigned)
-      fruitsToProcess = fruitsWithoutHarvest;
-      console.log(
-        `👑 Admin: processing ${fruitsToProcess.length} unassigned fruits`,
-      );
-    } else if (userRole === "user" && userId) {
-      // USER: fruits na MAY harvest record at assigned sa kanila
-      fruitsToProcess = fruitsWithHarvest.filter(
-        (f) => f.assigned_user_id === userId,
-      );
-      console.log(
-        `👤 User ${userId}: processing ${fruitsToProcess.length} assigned fruits`,
-      );
-    } else {
-      // SYSTEM/BACKGROUND: process all (for general checks)
-      fruitsToProcess = fruits;
-      console.log(`🔄 System: processing all ${fruitsToProcess.length} fruits`);
-    }
+      if (unassignedFruits.length === 0) {
+        console.log("👑 No unassigned fruits to notify");
+        return;
+      }
 
-    // Group by tree
-    const treeMap = new Map();
+      // Group by tree to get tree names and counts
+      const treeSummary = new Map();
+      let totalFruitsCount = 0;
+      let approachingCount = 0;
+      let readyCount = 0;
+      let overdueCount = 0;
 
-    for (const fruit of fruitsToProcess) {
-      // Calculate days considering farmer_extra_days
-      let days = this.calculateDaysBetween(fruit.bagged_at, today);
+      for (const fruit of unassignedFruits) {
+        let days = this.calculateDaysBetween(fruit.bagged_at, today);
 
-      // Kung may farmer_extra_days, check kung dapat i-skip or i-recalculate
-      if (fruit.farmer_extra_days && fruit.farmer_extra_days > 0) {
-        if (fruit.next_check_date) {
-          const nextCheck = new Date(fruit.next_check_date);
-          nextCheck.setHours(0, 0, 0, 0);
-
-          // Kung hindi pa lampas sa next_check_date, skip muna
-          if (nextCheck > today) {
-            console.log(
-              `⏭️ Fruit ${fruit.fruit_id} - babalikan pa sa ${fruit.next_check_date}`,
+        // Handle extra days logic
+        if (fruit.farmer_extra_days && fruit.farmer_extra_days > 0) {
+          if (fruit.next_check_date) {
+            const nextCheck = new Date(fruit.next_check_date);
+            nextCheck.setHours(0, 0, 0, 0);
+            if (nextCheck > today) {
+              continue; // Skip if not yet ready for re-check
+            }
+            const adjustedDate = new Date(fruit.bagged_at);
+            adjustedDate.setDate(
+              adjustedDate.getDate() + (fruit.farmer_extra_days || 0),
             );
-            continue;
+            days = this.calculateDaysBetween(adjustedDate.toISOString(), today);
           }
+        }
 
-          // Kung lampas na, recalculate days from bagged_at + extra_days
-          const adjustedDate = new Date(fruit.bagged_at);
-          adjustedDate.setDate(
-            adjustedDate.getDate() + (fruit.farmer_extra_days || 0),
-          );
-          days = this.calculateDaysBetween(adjustedDate.toISOString(), today);
-          console.log(
-            `🔄 Fruit ${fruit.fruit_id} - recalculated days: ${days}`,
-          );
+        // Count fruits by status
+        if (days >= 115 && days < 120) {
+          approachingCount += fruit.quantity || fruit.remaining_quantity || 1;
+        } else if (days >= 120 && days < 125) {
+          readyCount += fruit.quantity || fruit.remaining_quantity || 1;
+        } else if (days >= 125) {
+          overdueCount += fruit.quantity || fruit.remaining_quantity || 1;
+        }
+
+        // Only count fruits that are 115+ days
+        if (days >= 115) {
+          totalFruitsCount += fruit.quantity || fruit.remaining_quantity || 1;
+
+          if (!treeSummary.has(fruit.tree_id)) {
+            treeSummary.set(fruit.tree_id, {
+              tree_name: fruit.tree_name,
+              fruit_count: 0,
+              oldest_days: days,
+            });
+          }
+          const tree = treeSummary.get(fruit.tree_id);
+          tree.fruit_count += fruit.quantity || fruit.remaining_quantity || 1;
+          tree.oldest_days = Math.min(tree.oldest_days, days);
         }
       }
 
-      if (!treeMap.has(fruit.tree_id)) {
-        treeMap.set(fruit.tree_id, {
-          tree_id: fruit.tree_id,
-          tree_name: fruit.tree_name,
-          fruits: [],
-          min_days: Infinity,
-          max_days: 0,
-          total_fruits: 0,
-          fruit_count: 0,
-          fruit_ids: [],
-          assigned_user_id: fruit.assigned_user_id,
-          has_harvest: !!fruit.harvest_id,
-        });
+      if (totalFruitsCount === 0) {
+        console.log("👑 No fruits ready for notification");
+        return;
       }
 
-      const treeData = treeMap.get(fruit.tree_id);
-      treeData.fruits.push({ ...fruit, days });
-      treeData.min_days = Math.min(treeData.min_days, days);
-      treeData.max_days = Math.max(treeData.max_days, days);
-      treeData.total_fruits += fruit.quantity || fruit.remaining_quantity || 0;
-      treeData.fruit_count++;
-      treeData.fruit_ids.push(fruit.fruit_id);
+      // Check if already notified today
+      const existingNotification = await db.getFirstAsync(
+        `SELECT * FROM notifications 
+       WHERE user_id IS NULL 
+       AND date(created_at) = date('now')
+       AND type = 'admin_summary'`,
+      );
+
+      if (existingNotification) {
+        console.log("⏭️ Already sent admin summary today");
+        return;
+      }
+
+      // Build the summary message
+      const treeList = Array.from(treeSummary.values())
+        .map((t) => `${t.tree_name} (${t.fruit_count} fruits)`)
+        .join(", ");
+
+      // Build the summary message - SHORT VERSION (no tree names)
+      let statusMessage = "";
+      if (approachingCount > 0)
+        statusMessage += `${approachingCount} approaching, `;
+      if (readyCount > 0) statusMessage += `${readyCount} ready, `;
+      if (overdueCount > 0) statusMessage += `${overdueCount} overdue, `;
+      statusMessage = statusMessage.slice(0, -2);
+
+      const title = "Harvest Summary";
+      const message = `${totalFruitsCount} unassigned fruit(s) ready from ${treeSummary.size} tree(s). ${statusMessage}`;
+
+      await this.sendAdminSummaryNotification(
+        title,
+        message,
+        totalFruitsCount,
+        treeSummary.size,
+        { approachingCount, readyCount, overdueCount },
+        Array.from(treeSummary.values()),
+      );
+
+      return; // Admin done, don't process per-tree
     }
 
-    console.log(`📊 Processing ${treeMap.size} trees`);
+    // For USER: Continue with per-tree notifications
+    // For USER: Send one summary notification
+    if (role === "user" && uid) {
+      // Process assigned fruits only
+      const fruitsToProcess = fruitsWithHarvest.filter(
+        (f) => f.assigned_user_id === uid,
+      );
 
-    // Send notifications per tree
-    for (const [treeId, treeData] of treeMap) {
-      await this.processTreeNotification(treeData, today, userRole, userId);
+      console.log(
+        `👤 User ${uid}: processing ${fruitsToProcess.length} assigned fruits`,
+      );
+
+      if (fruitsToProcess.length === 0) {
+        console.log("👤 No assigned fruits to notify");
+        return;
+      }
+
+      // Collect summary data for user
+      let totalFruitsCount = 0;
+      let approachingCount = 0;
+      let readyCount = 0;
+      let overdueCount = 0;
+      const treeNames = new Set<string>();
+
+      for (const fruit of fruitsToProcess) {
+        let days = this.calculateDaysBetween(fruit.bagged_at, today);
+
+        // Handle extra days logic
+        if (fruit.farmer_extra_days && fruit.farmer_extra_days > 0) {
+          if (fruit.next_check_date) {
+            const nextCheck = new Date(fruit.next_check_date);
+            nextCheck.setHours(0, 0, 0, 0);
+            if (nextCheck > today) {
+              console.log(
+                `⏭️ Fruit ${fruit.fruit_id} - babalikan pa sa ${fruit.next_check_date}`,
+              );
+              continue;
+            }
+            const adjustedDate = new Date(fruit.bagged_at);
+            adjustedDate.setDate(
+              adjustedDate.getDate() + (fruit.farmer_extra_days || 0),
+            );
+            days = this.calculateDaysBetween(adjustedDate.toISOString(), today);
+          }
+        }
+
+        // Only count fruits that are 115+ days
+        if (days >= 115) {
+          const fruitQuantity = fruit.quantity || fruit.remaining_quantity || 1;
+          totalFruitsCount += fruitQuantity;
+          treeNames.add(fruit.tree_name);
+
+          // Count by status
+          if (days >= 115 && days < 120) {
+            approachingCount += fruitQuantity;
+          } else if (days >= 120 && days < 125) {
+            readyCount += fruitQuantity;
+          } else if (days >= 125) {
+            overdueCount += fruitQuantity;
+          }
+        }
+      }
+
+      if (totalFruitsCount === 0) {
+        console.log("👤 No fruits ready for notification");
+        return;
+      }
+
+      // Check if already notified today
+      const existingNotification = await db.getFirstAsync(
+        `SELECT * FROM notifications 
+     WHERE user_id = ? 
+     AND date(created_at) = date('now')
+     AND type = 'user_summary'`,
+        [uid],
+      );
+
+      if (existingNotification) {
+        console.log("⏭️ Already sent user summary today");
+        return;
+      }
+
+      // Build the summary message for user
+      let statusMessage = "";
+      if (approachingCount > 0)
+        statusMessage += `${approachingCount} approaching, `;
+      if (readyCount > 0) statusMessage += `${readyCount} ready, `;
+      if (overdueCount > 0) statusMessage += `${overdueCount} overdue, `;
+      statusMessage = statusMessage.slice(0, -2);
+
+      const title = "🌱 Harvest Reminder";
+      const message = `You have ${totalFruitsCount} fruit(s) to harvest. ${statusMessage}`;
+
+      await this.sendUserSummaryNotification(
+        title,
+        message,
+        totalFruitsCount,
+        treeNames.size,
+        { approachingCount, readyCount, overdueCount },
+        Array.from(treeNames),
+        uid,
+      );
+
+      return; // User done
     }
   }
 
@@ -995,6 +693,10 @@ class NotificationService {
 
   // ==================== TESTING METHODS ====================
   async sendTestBackgroundNotifications(count: number = 10) {
+    if (!this.isUserAuthenticated()) {
+      console.log("🔒 Cannot send test notifications - no authenticated user");
+      return { success: false, message: "Not authenticated" };
+    }
     console.log(`🧪 Sending ${count} test background notifications...`);
 
     const titles = [
@@ -1221,7 +923,7 @@ class NotificationService {
 
   async manualCheck(userRole?: string, userId?: string) {
     console.log("🔍 Running manual check...");
-    // await this.clearTodayNotifications(); // TEMPORARY
+    await this.clearTodayNotifications(); // TEMPORARY
     await this.checkHarvests(userRole, userId);
     console.log("✅ Manual check completed");
   }
@@ -1234,11 +936,18 @@ TaskManager.defineTask(CHECK_TASK, async () => {
   try {
     const service = new NotificationService();
 
-    // For background, process all fruits (system-wide)
-    await service.checkHarvests();
+    // Get current user from Redux
+    const state = store.getState();
+    const user = state.auth.user;
 
-    // Optional: send test notifications para ma-verify na gumagana
-    // await service.sendTestBackgroundNotifications(2);
+    if (user) {
+      // If user is logged in, run check with their role
+      await service.checkHarvests(user.role, user.id);
+    } else {
+      console.log(
+        "🔒 No user logged in, skipping background notification check",
+      );
+    }
 
     console.log(
       "✅ Background task completed at:",

@@ -492,14 +492,7 @@ export default function FarmerHomeScreen() {
             icon: CheckCircle2,
             iconColor: "#10B981",
           };
-        case "wasted":
-          return {
-            container: "bg-red-100",
-            text: "text-red-700",
-            label: "Wasted",
-            icon: AlertTriangle,
-            iconColor: "#EF4444",
-          };
+
         default:
           return {
             container: "bg-gray-100",

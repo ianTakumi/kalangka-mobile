@@ -75,7 +75,7 @@ export default function Index() {
       const netState = await NetInfo.fetch();
       if (netState.isConnected) {
         console.log("📱 App came to foreground, checking sync...");
-        await initializeAndSync();
+        // await initializeAndSync();
       }
     }
     appState.current = nextAppState;
@@ -262,6 +262,36 @@ export default function Index() {
         console.error("❌ User sync from server failed:", userError);
         // Don't stop the whole sync, just log the error
         setInitProgress("User sync failed - continuing...");
+      }
+
+      // ===== HARVEST SYNC (DOWNLOAD) - ADD THIS AFTER FRUIT SYNC =====
+      setInitProgress("Checking harvests...");
+      try {
+        const { needsSync: harvestsNeedSync, harvestCount } =
+          await HarvestService.checkAndSync(); // CHECK muna
+
+        if (harvestsNeedSync) {
+          setInitProgress(
+            `Downloading ${harvestCount} harvests from server...`,
+          );
+          const harvestResult = await HarvestService.syncHarvestsFromServer();
+
+          if (harvestResult.synced > 0) {
+            console.log(
+              `✅ Synced ${harvestResult.synced} harvests from server`,
+            );
+            setInitProgress(`Downloaded ${harvestResult.synced} harvests...`);
+          }
+
+          if (harvestResult.errors.length > 0) {
+            console.warn("Harvest sync errors:", harvestResult.errors);
+          }
+        } else {
+          console.log("✅ Harvests are up to date");
+          setInitProgress("Harvests up to date");
+        }
+      } catch (harvestError) {
+        console.error("❌ Harvest sync from server failed:", harvestError);
       }
 
       // ===== HARVEST SYNC (UPLOAD ONLY) =====

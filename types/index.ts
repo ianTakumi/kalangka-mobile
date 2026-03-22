@@ -80,6 +80,7 @@ export interface Harvest {
   fruit_id: string;
   ripe_quantity: number;
   harvest_at: Date;
+  status: string;
   is_synced: boolean;
   created_at: Date;
   updated_at: Date;
