@@ -90,7 +90,7 @@ class NotificationService {
   private async sendAdminSummaryNotification(
     title: string,
     message: string,
-    totalFruits: number,
+    totalUnassignedFruits: number,
     treeCount: number,
     counts: {
       approachingCount: number;
@@ -126,7 +126,7 @@ class NotificationService {
         data: {
           type: "admin_summary",
           notificationId,
-          totalFruits,
+          totalUnassignedFruits,
           treeCount,
           counts,
           trees: trees.map((t) => ({
@@ -146,7 +146,7 @@ class NotificationService {
   private async sendUserSummaryNotification(
     title: string,
     message: string,
-    totalFruits: number,
+    totalHarvests: number,
     treeCount: number,
     counts: {
       approachingCount: number;
@@ -183,7 +183,7 @@ class NotificationService {
         data: {
           type: "user_summary",
           notificationId,
-          totalFruits,
+          totalHarvests,
           treeCount,
           counts,
           treeNames,
@@ -324,7 +324,7 @@ class NotificationService {
     console.log(`   - May harvest: ${fruitsWithHarvest.length}`);
     console.log(`   - Walang harvest: ${fruitsWithoutHarvest.length}`);
 
-    // For ADMIN: Collect summary data instead of per-tree notifications
+    // For ADMIN: Count unassigned fruit RECORDS (not quantity sum)
     if (role === "admin") {
       // Process unassigned fruits for summary
       const unassignedFruits = fruitsWithoutHarvest;
@@ -336,7 +336,7 @@ class NotificationService {
 
       // Group by tree to get tree names and counts
       const treeSummary = new Map();
-      let totalFruitsCount = 0;
+      let totalUnassignedCount = 0; // Count of fruit RECORDS, not quantity sum
       let approachingCount = 0;
       let readyCount = 0;
       let overdueCount = 0;
@@ -360,18 +360,18 @@ class NotificationService {
           }
         }
 
-        // Count fruits by status
+        // Count fruits by status - each fruit record is 1
         if (days >= 115 && days < 120) {
-          approachingCount += fruit.quantity || fruit.remaining_quantity || 1;
+          approachingCount += 1;
         } else if (days >= 120 && days < 125) {
-          readyCount += fruit.quantity || fruit.remaining_quantity || 1;
+          readyCount += 1;
         } else if (days >= 125) {
-          overdueCount += fruit.quantity || fruit.remaining_quantity || 1;
+          overdueCount += 1;
         }
 
-        // Only count fruits that are 115+ days
+        // Only count fruits that are 115+ days - each fruit record is 1
         if (days >= 115) {
-          totalFruitsCount += fruit.quantity || fruit.remaining_quantity || 1;
+          totalUnassignedCount += 1;
 
           if (!treeSummary.has(fruit.tree_id)) {
             treeSummary.set(fruit.tree_id, {
@@ -381,13 +381,13 @@ class NotificationService {
             });
           }
           const tree = treeSummary.get(fruit.tree_id);
-          tree.fruit_count += fruit.quantity || fruit.remaining_quantity || 1;
+          tree.fruit_count += 1; // Count each fruit record as 1
           tree.oldest_days = Math.min(tree.oldest_days, days);
         }
       }
 
-      if (totalFruitsCount === 0) {
-        console.log("👑 No fruits ready for notification");
+      if (totalUnassignedCount === 0) {
+        console.log("👑 No unassigned fruits ready for notification");
         return;
       }
 
@@ -405,11 +405,6 @@ class NotificationService {
       }
 
       // Build the summary message
-      const treeList = Array.from(treeSummary.values())
-        .map((t) => `${t.tree_name} (${t.fruit_count} fruits)`)
-        .join(", ");
-
-      // Build the summary message - SHORT VERSION (no tree names)
       let statusMessage = "";
       if (approachingCount > 0)
         statusMessage += `${approachingCount} approaching, `;
@@ -418,12 +413,12 @@ class NotificationService {
       statusMessage = statusMessage.slice(0, -2);
 
       const title = "Harvest Summary";
-      const message = `${totalFruitsCount} unassigned fruit(s) ready from ${treeSummary.size} tree(s). ${statusMessage}`;
+      const message = `${totalUnassignedCount} unassigned fruit(s) ready from ${treeSummary.size} tree(s). ${statusMessage}`;
 
       await this.sendAdminSummaryNotification(
         title,
         message,
-        totalFruitsCount,
+        totalUnassignedCount,
         treeSummary.size,
         { approachingCount, readyCount, overdueCount },
         Array.from(treeSummary.values()),
@@ -432,8 +427,7 @@ class NotificationService {
       return; // Admin done, don't process per-tree
     }
 
-    // For USER: Continue with per-tree notifications
-    // For USER: Send one summary notification
+    // For USER: Count assigned harvest RECORDS (each fruit record with harvest is 1 harvest)
     if (role === "user" && uid) {
       // Process assigned fruits only
       const fruitsToProcess = fruitsWithHarvest.filter(
@@ -449,8 +443,8 @@ class NotificationService {
         return;
       }
 
-      // Collect summary data for user
-      let totalFruitsCount = 0;
+      // Collect summary data for user - COUNT HARVESTS (each fruit record is 1 harvest)
+      let totalHarvestsCount = 0;
       let approachingCount = 0;
       let readyCount = 0;
       let overdueCount = 0;
@@ -478,34 +472,33 @@ class NotificationService {
           }
         }
 
-        // Only count fruits that are 115+ days
+        // Count EACH HARVEST (fruit record) as 1 harvest
         if (days >= 115) {
-          const fruitQuantity = fruit.quantity || fruit.remaining_quantity || 1;
-          totalFruitsCount += fruitQuantity;
+          totalHarvestsCount += 1;
           treeNames.add(fruit.tree_name);
 
           // Count by status
           if (days >= 115 && days < 120) {
-            approachingCount += fruitQuantity;
+            approachingCount += 1;
           } else if (days >= 120 && days < 125) {
-            readyCount += fruitQuantity;
+            readyCount += 1;
           } else if (days >= 125) {
-            overdueCount += fruitQuantity;
+            overdueCount += 1;
           }
         }
       }
 
-      if (totalFruitsCount === 0) {
-        console.log("👤 No fruits ready for notification");
+      if (totalHarvestsCount === 0) {
+        console.log("👤 No harvests ready for notification");
         return;
       }
 
       // Check if already notified today
       const existingNotification = await db.getFirstAsync(
         `SELECT * FROM notifications 
-     WHERE user_id = ? 
-     AND date(created_at) = date('now')
-     AND type = 'user_summary'`,
+       WHERE user_id = ? 
+       AND date(created_at) = date('now')
+       AND type = 'user_summary'`,
         [uid],
       );
 
@@ -514,7 +507,7 @@ class NotificationService {
         return;
       }
 
-      // Build the summary message for user
+      // Build the summary message for user - SHOW HARVEST COUNT
       let statusMessage = "";
       if (approachingCount > 0)
         statusMessage += `${approachingCount} approaching, `;
@@ -523,12 +516,12 @@ class NotificationService {
       statusMessage = statusMessage.slice(0, -2);
 
       const title = "🌱 Harvest Reminder";
-      const message = `You have ${totalFruitsCount} fruit(s) to harvest. ${statusMessage}`;
+      const message = `You have ${totalHarvestsCount} harvest(s) ready. ${statusMessage}`;
 
       await this.sendUserSummaryNotification(
         title,
         message,
-        totalFruitsCount,
+        totalHarvestsCount,
         treeNames.size,
         { approachingCount, readyCount, overdueCount },
         Array.from(treeNames),
