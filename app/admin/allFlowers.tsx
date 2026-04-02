@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Image,
   Modal,
   Platform,
   RefreshControl,
@@ -330,7 +331,7 @@ export default function AllFlowers() {
                 </Text>
               </View>
             </View>
-            <View className="bg-green-500 rounded-full px-3 py-1">
+            <View className="bg-pink-500 rounded-full px-3 py-1">
               <Text className="text-white font-bold text-lg">
                 x{item.quantity}
               </Text>
@@ -339,8 +340,8 @@ export default function AllFlowers() {
 
           {/* User Info */}
           <View className="flex-row items-center mb-2">
-            <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center">
-              <Text className="text-green-600 font-bold text-sm">
+            <View className="w-8 h-8 bg-pink-100 rounded-full items-center justify-center">
+              <Text className="text-pink-600 font-bold text-sm">
                 {item.user.first_name.charAt(0)}
                 {item.user.last_name.charAt(0)}
               </Text>
@@ -408,7 +409,7 @@ export default function AllFlowers() {
               >
                 <View className="flex-row gap-2">
                   <TouchableOpacity
-                    className={`px-4 py-2 rounded-full ${!tempUserId ? "bg-green-500" : "bg-gray-100"}`}
+                    className={`px-4 py-2 rounded-full ${!tempUserId ? "bg-pink-500" : "bg-gray-100"}`}
                     onPress={() => setTempUserId("")}
                   >
                     <Text
@@ -420,7 +421,7 @@ export default function AllFlowers() {
                   {users.map((user) => (
                     <TouchableOpacity
                       key={user.id}
-                      className={`px-4 py-2 rounded-full ${tempUserId === user.id ? "bg-green-500" : "bg-gray-100"}`}
+                      className={`px-4 py-2 rounded-full ${tempUserId === user.id ? "bg-pink-500" : "bg-gray-100"}`}
                       onPress={() => setTempUserId(user.id)}
                     >
                       <Text
@@ -451,7 +452,7 @@ export default function AllFlowers() {
               >
                 <View className="flex-row gap-2">
                   <TouchableOpacity
-                    className={`px-4 py-2 rounded-full ${!tempTreeId ? "bg-green-500" : "bg-gray-100"}`}
+                    className={`px-4 py-2 rounded-full ${!tempTreeId ? "bg-pink-500" : "bg-gray-100"}`}
                     onPress={() => setTempTreeId("")}
                   >
                     <Text
@@ -463,7 +464,7 @@ export default function AllFlowers() {
                   {trees.map((tree) => (
                     <TouchableOpacity
                       key={tree.id}
-                      className={`px-4 py-2 rounded-full ${tempTreeId === tree.id ? "bg-green-500" : "bg-gray-100"}`}
+                      className={`px-4 py-2 rounded-full ${tempTreeId === tree.id ? "bg-pink-500" : "bg-gray-100"}`}
                       onPress={() => setTempTreeId(tree.id)}
                     >
                       <Text
@@ -559,16 +560,16 @@ export default function AllFlowers() {
                   </Text>
                   <View className="flex-row flex-wrap gap-2">
                     {tempUserId && users.find((u) => u.id === tempUserId) && (
-                      <View className="bg-green-100 px-2 py-1 rounded-full">
-                        <Text className="text-xs text-green-700">
+                      <View className="bg-pink-100 px-2 py-1 rounded-full">
+                        <Text className="text-xs text-pink-700">
                           User:{" "}
                           {users.find((u) => u.id === tempUserId)?.first_name}
                         </Text>
                       </View>
                     )}
                     {tempTreeId && trees.find((t) => t.id === tempTreeId) && (
-                      <View className="bg-green-100 px-2 py-1 rounded-full">
-                        <Text className="text-xs text-green-700">
+                      <View className="bg-pink-100 px-2 py-1 rounded-full">
+                        <Text className="text-xs text-pink-700">
                           Tree:{" "}
                           {trees
                             .find((t) => t.id === tempTreeId)
@@ -599,7 +600,7 @@ export default function AllFlowers() {
           {/* Action Buttons */}
           <View className="p-5 pt-0 gap-3">
             <TouchableOpacity
-              className="bg-green-500 py-3 rounded-xl"
+              className="bg-pink-500 py-3 rounded-xl"
               onPress={applyFilterChanges}
             >
               <Text className="text-white font-bold text-center text-base">
@@ -704,15 +705,6 @@ export default function AllFlowers() {
                       </Text>
                     </View>
                   </View>
-                  <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Location
-                    </Text>
-                    <Text className="text-sm text-gray-600 mt-1">
-                      {selectedFlower.tree.latitude.toFixed(6)},{" "}
-                      {selectedFlower.tree.longitude.toFixed(6)}
-                    </Text>
-                  </View>
                 </View>
               </View>
 
@@ -755,10 +747,34 @@ export default function AllFlowers() {
                 </View>
               </View>
 
+              {/* Flower Image Section */}
+              {selectedFlower.image_url && (
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-pink-500 rounded-xl items-center justify-center">
+                      <Ionicons name="image" size={20} color="white" />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      Flower Image
+                    </Text>
+                  </View>
+                  <View className="bg-gray-50 rounded-xl p-4 items-center">
+                    <Image
+                      source={{ uri: selectedFlower.image_url }}
+                      className="w-full h-48 rounded-xl"
+                      resizeMode="cover"
+                      onError={(e) =>
+                        console.log("Image load error:", e.nativeEvent.error)
+                      }
+                    />
+                  </View>
+                </View>
+              )}
+
               {/* Flower Section */}
               <View className="mb-6">
                 <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-orange-500 rounded-xl items-center justify-center">
+                  <View className="w-10 h-10 bg-pink-500 rounded-xl items-center justify-center">
                     <Ionicons name="flower" size={20} color="white" />
                   </View>
                   <Text className="text-lg font-bold text-gray-800 ml-3">
@@ -770,7 +786,7 @@ export default function AllFlowers() {
                     <Text className="text-xs text-gray-500 uppercase tracking-wide">
                       Quantity
                     </Text>
-                    <Text className="text-2xl font-bold text-green-600">
+                    <Text className="text-2xl font-bold text-pink-600">
                       {selectedFlower.quantity}
                     </Text>
                   </View>
@@ -782,14 +798,6 @@ export default function AllFlowers() {
                       {formatDateTime(selectedFlower.wrapped_at)}
                     </Text>
                   </View>
-                  <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Created At
-                    </Text>
-                    <Text className="text-sm text-gray-600">
-                      {formatDateTime(selectedFlower.created_at)}
-                    </Text>
-                  </View>
                 </View>
               </View>
             </ScrollView>
@@ -797,7 +805,7 @@ export default function AllFlowers() {
 
           <View className="p-5 pt-0">
             <TouchableOpacity
-              className="bg-green-500 py-3 rounded-xl"
+              className="bg-pink-500 py-3 rounded-xl"
               onPress={() => setModalVisible(false)}
             >
               <Text className="text-white font-bold text-center text-base">
@@ -815,7 +823,7 @@ export default function AllFlowers() {
       <SafeAreaView className="flex-1 bg-gray-50">
         <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
         <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#22c55e" />
+          <ActivityIndicator size="large" color="#ec489a" />
           <Text className="text-gray-500 mt-3">Loading flowers...</Text>
         </View>
       </SafeAreaView>
@@ -842,8 +850,8 @@ export default function AllFlowers() {
             onPress={openFilterModal}
           >
             <View className="flex-row items-center">
-              <Ionicons name="filter" size={18} color="#059669" />
-              <Text className="text-green-600 ml-2 font-medium">Filter</Text>
+              <Ionicons name="filter" size={18} color="#ec489a" />
+              <Text className="text-pink-500 ml-2 font-medium">Filter</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -869,21 +877,21 @@ export default function AllFlowers() {
         {(selectedUserId || selectedTreeId || fromDate || toDate) && (
           <View className="flex-row flex-wrap gap-2 mt-3">
             {selectedUserId && users.find((u) => u.id === selectedUserId) && (
-              <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
-                <Text className="text-xs text-green-700">
+              <View className="bg-pink-100 px-3 py-1 rounded-full flex-row items-center">
+                <Text className="text-xs text-pink-700">
                   User: {users.find((u) => u.id === selectedUserId)?.first_name}
                 </Text>
                 <TouchableOpacity
                   onPress={() => setSelectedUserId("")}
                   className="ml-2"
                 >
-                  <Ionicons name="close-circle" size={14} color="#059669" />
+                  <Ionicons name="close-circle" size={14} color="#ec489a" />
                 </TouchableOpacity>
               </View>
             )}
             {selectedTreeId && trees.find((t) => t.id === selectedTreeId) && (
-              <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
-                <Text className="text-xs text-green-700">
+              <View className="bg-pink-100 px-3 py-1 rounded-full flex-row items-center">
+                <Text className="text-xs text-pink-700">
                   Tree:{" "}
                   {trees
                     .find((t) => t.id === selectedTreeId)
@@ -893,7 +901,7 @@ export default function AllFlowers() {
                   onPress={() => setSelectedTreeId("")}
                   className="ml-2"
                 >
-                  <Ionicons name="close-circle" size={14} color="#059669" />
+                  <Ionicons name="close-circle" size={14} color="#ec489a" />
                 </TouchableOpacity>
               </View>
             )}
@@ -935,18 +943,18 @@ export default function AllFlowers() {
       {/* Stats Bar */}
       <View className="flex-row justify-between items-center px-5 py-3 bg-white border-b border-gray-100">
         <View className="flex-row items-center">
-          <Ionicons name="flower" size={18} color="#059669" />
+          <Ionicons name="flower" size={18} color="#ec489a" />
           <Text className="text-sm text-gray-600 ml-2">
             Showing{" "}
-            <Text className="font-bold text-green-600">
+            <Text className="font-bold text-pink-500">
               {filteredFlowers.length}
             </Text>{" "}
             of <Text className="font-bold">{flowers.length}</Text> flowers
           </Text>
         </View>
         {filteredFlowers.length > 0 && (
-          <View className="bg-green-50 px-2 py-1 rounded-full">
-            <Text className="text-xs text-green-600">
+          <View className="bg-pink-50 px-2 py-1 rounded-full">
+            <Text className="text-xs text-pink-600">
               {((filteredFlowers.length / flowers.length) * 100).toFixed(0)}%
             </Text>
           </View>
@@ -967,8 +975,8 @@ export default function AllFlowers() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#059669"]}
-            tintColor="#059669"
+            colors={["#ec489a"]}
+            tintColor="#ec489a"
           />
         }
         ListEmptyComponent={
