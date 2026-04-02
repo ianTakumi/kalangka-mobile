@@ -66,7 +66,9 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": ["photo"]
+          "granularPermissions": [
+            "photo"
+          ]
         }
       ],
       [
@@ -76,7 +78,8 @@
           "locationPermission": "Allow $(PRODUCT_NAME) to use your location",
           "apiKey": "AIzaSyCFxHDlSIRpdTkR4CZAgS4WEWe4bMhF8a8"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

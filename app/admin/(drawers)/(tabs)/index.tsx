@@ -1036,6 +1036,24 @@ export default function FarmerHomeScreen() {
       iconColor: "text-orange-600",
       route: "/admin/assign",
     },
+    {
+      id: 6,
+      title: "View Flowers",
+      description: "All flowers list",
+      icon: <Flower2 size={28} color="#8B5CF6" />,
+      bgColor: "bg-purple-50",
+      iconColor: "text-purple-600",
+      route: "/admin/allFlowers",
+    },
+    {
+      id: 7,
+      title: "View Fruits",
+      description: "All fruits list",
+      icon: <Banana size={28} color="#F97316" />,
+      bgColor: "bg-orange-50",
+      iconColor: "text-orange-600",
+      route: "/admin/allFruits",
+    },
   ]);
 
   // Weather state with actual data fetching

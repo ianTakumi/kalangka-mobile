@@ -679,11 +679,12 @@ class FlowerService {
           if (!existing) {
             // Insert new flower
             await this.db!.runAsync(
-              `INSERT INTO flowers (id, tree_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO flowers (id, tree_id, user_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 rf.id,
                 rf.tree_id,
+                rf.user_id,
                 rf.quantity || 1,
                 rf.wrapped_at,
                 localImagePath,
@@ -702,10 +703,11 @@ class FlowerService {
 
             if (remoteUpdated > localUpdated) {
               await this.db!.runAsync(
-                `UPDATE flowers SET tree_id=?, quantity=?, wrapped_at=?, image_url=?, 
+                `UPDATE flowers SET tree_id=?, user_id=?, quantity=?, wrapped_at=?, image_url=?, 
                status=?, is_synced=?, updated_at=? WHERE id=?`,
                 [
                   rf.tree_id,
+                  rf.user_id,
                   rf.quantity || 1,
                   rf.wrapped_at,
                   localImagePath,

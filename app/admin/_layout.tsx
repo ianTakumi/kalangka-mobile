@@ -17,6 +17,8 @@ export default function _layout() {
       <Stack.Screen name="fruits" options={{ headerShown: false }} />
       <Stack.Screen name="changePassword" options={{ headerShown: false }} />
       <Stack.Screen name="assign" options={{ headerShown: false }} />
+      <Stack.Screen name="allFlowers" options={{ headerShown: false }} />
+      <Stack.Screen name="allFruits" options={{ headerShown: false }} />
     </Stack>
   );
 }

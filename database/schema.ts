@@ -15,6 +15,7 @@ export const CREATE_FLOWERS_TABLE = `
         CREATE TABLE IF NOT EXISTS flowers (
           id TEXT PRIMARY KEY,
           tree_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
           quantity INTEGER NOT NULL DEFAULT 1,
           wrapped_at TEXT NOT NULL,
           image_url TEXT NOT NULL,
@@ -23,7 +24,8 @@ export const CREATE_FLOWERS_TABLE = `
           created_at TEXT,
           updated_at TEXT,
           deleted_at TEXT,
-          FOREIGN KEY (tree_id) REFERENCES trees(id) ON DELETE CASCADE
+          FOREIGN KEY (tree_id) REFERENCES trees(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );`;
 
 export const CREATE_FLOWER_INDEXES = `
@@ -39,6 +41,8 @@ export const CREATE_FRUITS_TABLE = `
           id TEXT PRIMARY KEY,
           flower_id TEXT NOT NULL,
           tree_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          
           quantity INTEGER NOT NULL DEFAULT 1,
           remaining_quantity INTEGER DEFAULT 0,          -- Ilan ang natitira (backlog)
 
@@ -56,7 +60,8 @@ export const CREATE_FRUITS_TABLE = `
           next_check_date DATETIME,                       -- Kelan ulit mag-notify
           farmer_notes TEXT,                              -- Bakit di pa ready (weather, pest, etc.)
           FOREIGN KEY (flower_id) REFERENCES flowers(id) ON DELETE CASCADE,
-          FOREIGN KEY (tree_id) REFERENCES trees(id) ON DELETE CASCADE
+          FOREIGN KEY (tree_id) REFERENCES trees(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
 `;
 
