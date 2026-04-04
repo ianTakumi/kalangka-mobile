@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Kalangka",
+    "name": "WrapCrop",
     "slug": "kalangka",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -66,9 +66,7 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": [
-            "photo"
-          ]
+          "granularPermissions": ["photo"]
         }
       ],
       [

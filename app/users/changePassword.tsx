@@ -6,12 +6,12 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { useSelector } from "react-redux";
@@ -171,11 +171,13 @@ export default function ChangePassword() {
     setLoading(true);
 
     try {
-      const res = await client.put("/auth/change-password", {
+      // CHANGE FROM PUT TO POST
+      // CHANGE FIELD NAMES TO MATCH BACKEND
+      const res = await client.post("/auth/change-password", {
+        user_id: user?.id, // Add user_id from Redux state
         current_password: formData.currentPassword,
         new_password: formData.newPassword,
-        confirm_password: formData.confirmPassword,
-        email: user.email,
+        new_password_confirmation: formData.confirmPassword, // Changed from confirm_password
       });
 
       if (res.status === 200) {
@@ -202,14 +204,36 @@ export default function ChangePassword() {
         err.response?.data || err.message,
       );
 
-      const errorMessage =
-        err.response?.data?.message || "Please try again later";
+      // Better error handling para sa validation errors
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors;
 
-      Toast.show({
-        type: "error",
-        text1: "Failed to change password",
-        text2: errorMessage,
-      });
+        // Map backend errors to form fields
+        if (errors.current_password) {
+          setErrors((prev) => ({
+            ...prev,
+            currentPassword: errors.current_password[0],
+          }));
+        }
+        if (errors.new_password) {
+          setErrors((prev) => ({
+            ...prev,
+            newPassword: errors.new_password[0],
+          }));
+        }
+
+        Toast.show({
+          type: "error",
+          text1: "Validation Error",
+          text2: err.response.data.message || "Please check your input",
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Failed to change password",
+          text2: err.response?.data?.message || "Please try again later",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -321,7 +345,14 @@ export default function ChangePassword() {
         </View>
       )}
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      {/* Keyboard Aware Scroll View */}
+      <KeyboardAwareScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Security Tips */}
         <View
           className={`mx-6 mt-6 p-4 rounded-xl ${
@@ -375,7 +406,7 @@ export default function ChangePassword() {
         </View>
 
         {/* Form Section */}
-        <View className="px-6 mt-6">
+        <View className="px-6 mt-6 mb-8">
           {/* Current Password */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">
@@ -562,7 +593,7 @@ export default function ChangePassword() {
             ) : null}
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Bottom Action Button */}
       <View className="p-6 bg-white border-t border-gray-200">

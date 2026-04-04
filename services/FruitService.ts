@@ -108,13 +108,16 @@ class FruitService {
       id: fruit.id,
       flower_id: fruit.flower_id,
       tree_id: fruit.tree_id,
+      user_id: fruit.user_id,
+      tag_id: fruit.tag_id,
       quantity: fruit.quantity,
       bagged_at: fruit.bagged_at ? new Date(fruit.bagged_at) : new Date(),
       image_uri: fruit.image_uri,
-      created_at: fruit.created_at ? new Date(fruit.created_at) : null,
-      updated_at: fruit.updated_at ? new Date(fruit.updated_at) : null,
+      created_at: fruit.created_at ? new Date(fruit.created_at) : new Date(),
+      updated_at: fruit.updated_at ? new Date(fruit.updated_at) : new Date(),
       is_synced: Boolean(fruit.is_synced),
       status: fruit.status,
+      deleted_at: fruit.deleted_at ? new Date(fruit.deleted_at) : null, // ← IDAGDAG ITO
     };
   }
 
@@ -208,7 +211,7 @@ class FruitService {
     this.markSyncStart(fruit.id);
 
     try {
-      const existingFruit = await this.getFruit(fruit.id);
+      const existingFruit = await this.getFruit(fruit.id, true);
       if (!existingFruit) {
         console.log(`❌ Fruit ${fruit.id} no longer exists, skipping sync`);
         return;
@@ -242,11 +245,13 @@ class FruitService {
         id: fruit.id,
         flower_id: fruit.flower_id,
         tree_id: fruit.tree_id,
+        user_id: fruit.user_id,
+        tag_id: fruit.tag_id,
         quantity: fruit.quantity,
         bagged_at: fruit.bagged_at.toISOString(),
         created_at: fruit.created_at ? fruit.created_at.toISOString() : null,
         updated_at: fruit.updated_at ? fruit.updated_at.toISOString() : null,
-        image_uri: imageUrl,
+        image_url: imageUrl,
         is_synced: true,
       };
 
@@ -300,24 +305,32 @@ class FruitService {
     this.markSyncStart(id);
 
     try {
-      try {
-        await client.get(`/fruits/${id}`);
-        await client.delete(`/fruits/${id}`);
-        console.log(`🗑️ Deleted fruit ${id} from server`);
-        await this.hardDeleteFruit(id);
-        console.log(`✅ Permanently removed fruit ${id} from local database`);
-      } catch (getError: any) {
-        if (getError.response?.status === 404) {
-          console.log(`⚠️ Fruit ${id} not found on server, already deleted`);
-          await this.hardDeleteFruit(id);
-          console.log(`✅ Permanently removed fruit ${id} from local database`);
-        } else {
-          throw getError;
-        }
+      console.log(`🗑️ Attempting to delete fruit ${id} from server...`);
+
+      // Subukan mag-delete sa server
+      const response = await client.delete(`/fruits/${id}`);
+      console.log(`📡 DELETE response status: ${response.status}`);
+
+      if (response.status === 200 || response.status === 204) {
+        console.log(`✅ Successfully deleted fruit ${id} from server`);
+        // I-mark as synced ang soft-deleted record
+        await this.markAsSynced(id);
+        console.log(`✅ Fruit ${id} marked as synced (soft-deleted locally)`);
       }
-    } catch (error) {
-      console.error(`❌ Delete sync failed for fruit ${id}:`, error);
-      await this.markAsUnsynced(id);
+    } catch (error: any) {
+      console.error(`❌ Delete sync failed for fruit ${id}:`);
+      console.error(`Status: ${error.response?.status}`);
+      console.error(
+        `Message: ${error.response?.data?.message || error.message}`,
+      );
+
+      if (error.response?.status === 404) {
+        console.log(`⚠️ Fruit ${id} not found on server, marking as synced`);
+        await this.markAsSynced(id);
+      } else {
+        // Hindi na-delete sa server, keep as unsynced
+        await this.markAsUnsynced(id);
+      }
     } finally {
       this.markSyncFinish(id);
     }
@@ -415,12 +428,14 @@ class FruitService {
 
     try {
       await this.db!.runAsync(
-        `INSERT INTO fruits (id, flower_id, tree_id, quantity, bagged_at, image_uri, status, is_synced, created_at, updated_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO fruits (id, flower_id, tree_id, user_id, tag_id, quantity, bagged_at, image_uri, status, is_synced, created_at, updated_at) 
+         VALUES (?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           fruitData.flower_id,
           fruitData.tree_id,
+          fruitData.user_id,
+          fruitData.tag_id,
           fruitData.quantity || 1,
           fruitData.bagged_at instanceof Date
             ? fruitData.bagged_at.toISOString()
@@ -503,12 +518,14 @@ class FruitService {
           if (!existing) {
             // Insert new with downloaded image
             await this.db.runAsync(
-              `INSERT INTO fruits (id, flower_id, tree_id, quantity, bagged_at, image_uri, status, is_synced, created_at, updated_at) 
-             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+              `INSERT INTO fruits (id, flower_id, tree_id, user_id, tag_id, quantity, bagged_at, image_uri, status, is_synced, created_at, updated_at) 
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
               [
                 rf.id,
                 rf.flower_id,
                 rf.tree_id,
+                rf.user_id,
+                rf.tag_id,
                 rf.quantity || 1,
                 rf.bagged_at,
                 imagePath,
@@ -527,11 +544,12 @@ class FruitService {
 
             if (remoteTime > localTime) {
               await this.db.runAsync(
-                `UPDATE fruits SET flower_id=?, tree_id=?, quantity=?, bagged_at=?, 
+                `UPDATE fruits SET flower_id=?, tree_id=?, user_id=?, quantity=?, bagged_at=?, 
                image_uri=?, status=?, is_synced=1, updated_at=? WHERE id=?`,
                 [
                   rf.flower_id,
                   rf.tree_id,
+                  rf.user_id,
                   rf.quantity || 1,
                   rf.bagged_at,
                   imagePath,
@@ -553,6 +571,194 @@ class FruitService {
       return { synced, errors };
     } catch (error: any) {
       throw new Error(`Sync failed: ${error.message}`);
+    }
+  }
+
+  async getAllFruits(): Promise<{
+    success: boolean;
+    data: {
+      id: string;
+      flower_id: string;
+      tree_id: string;
+      user_id: string;
+      tag_id: number;
+      quantity: number;
+      bagged_at: string;
+      image_url: string;
+      created_at: string;
+      updated_at: string;
+      flower: {
+        id: string;
+        tree_id: string;
+        user_id: string;
+        quantity: number;
+        wrapped_at: string;
+        image_url: string;
+        created_at: string;
+        updated_at: string;
+      };
+      tree: {
+        id: string;
+        description: string;
+        latitude: number;
+        longitude: number;
+        status: string;
+        is_synced: boolean;
+        type: string;
+        image_url: string;
+        created_at: string;
+        updated_at: string;
+      };
+      user: {
+        id: string;
+        first_name: string;
+        last_name: string;
+        gender: string;
+        email: string;
+        role: string;
+        created_at: string;
+        updated_at: string;
+      };
+    }[];
+  }> {
+    console.log("🔍 [1] getAllFruits: Starting...");
+
+    try {
+      console.log("🔍 [2] Ensuring database is ready...");
+      await this.ensureDatabaseReady();
+
+      // The full query
+      console.log("🔍 [14] Preparing full query with joins...");
+      const query = `
+      SELECT 
+        f.id,
+        f.flower_id,
+        f.tree_id,
+        f.user_id,
+        f.tag_id,
+        f.quantity,
+        f.bagged_at,
+        f.image_uri as image_url,
+        f.created_at,
+        f.updated_at,
+        f.deleted_at,
+        -- Flower data
+        fl.id as flower_id_alias,
+        fl.tree_id as flower_tree_id,
+        fl.user_id as flower_user_id,
+        fl.quantity as flower_quantity,
+        fl.wrapped_at as flower_wrapped_at,
+        fl.image_url as flower_image_url,
+        fl.created_at as flower_created_at,
+        fl.updated_at as flower_updated_at,
+        -- Tree data
+        t.id as tree_id_alias,
+        t.description as tree_description,
+        t.latitude as tree_latitude,
+        t.longitude as tree_longitude,
+        t.status as tree_status,
+        t.is_synced as tree_is_synced,
+        t.type as tree_type,
+        t.image_path as tree_image_url,
+        t.created_at as tree_created_at,
+        t.updated_at as tree_updated_at,
+        -- User data
+        u.id as user_id_alias,
+        u.first_name as user_first_name,
+        u.last_name as user_last_name,
+        u.gender as user_gender,
+        u.email as user_email,
+        u.role as user_role,
+        u.created_at as user_created_at,
+        u.updated_at as user_updated_at
+      FROM fruits f
+      LEFT JOIN flowers fl ON f.flower_id = fl.id AND fl.deleted_at IS NULL
+      LEFT JOIN trees t ON f.tree_id = t.id AND t.status = 'active'
+      LEFT JOIN users u ON f.user_id = u.id
+      WHERE f.deleted_at IS NULL
+      ORDER BY f.created_at DESC
+    `;
+
+      console.log("🔍 [15] Executing full query...");
+      console.log("📝 Query length:", query.length);
+
+      const results = await this.db!.getAllAsync(query);
+      console.log("✅ [16] Full query successful!");
+      console.log("📝 [17] Number of results:", results.length);
+
+      console.log("🔍 [18] Mapping results to expected format...");
+      const data = results.map((row: any) => ({
+        id: row.id,
+        flower_id: row.flower_id,
+        tree_id: row.tree_id,
+        user_id: row.user_id,
+        tag_id: row.tag_id || 1,
+        quantity: row.quantity,
+        bagged_at: row.bagged_at,
+        image_url: row.image_url || "",
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        flower: {
+          id: row.flower_id_alias || row.flower_id,
+          tree_id: row.flower_tree_id || row.tree_id,
+          user_id: row.flower_user_id || row.user_id,
+          quantity: row.flower_quantity || 0,
+          wrapped_at: row.flower_wrapped_at || row.created_at,
+          image_url: row.flower_image_url || "",
+          created_at: row.flower_created_at || row.created_at,
+          updated_at: row.flower_updated_at || row.updated_at,
+        },
+        tree: {
+          id: row.tree_id_alias || row.tree_id,
+          description: row.tree_description || "Unknown Tree",
+          latitude: row.tree_latitude || 0,
+          longitude: row.tree_longitude || 0,
+          status: row.tree_status || "active",
+          is_synced: Boolean(row.tree_is_synced),
+          type: row.tree_type || "Unknown",
+          image_url: row.tree_image_url || "",
+          created_at: row.tree_created_at || row.created_at,
+          updated_at: row.tree_updated_at || row.updated_at,
+        },
+        user: {
+          id: row.user_id_alias || row.user_id,
+          first_name: row.user_first_name || "Unknown",
+          last_name: row.user_last_name || "User",
+          gender: row.user_gender || "male",
+          email: row.user_email || "unknown@email.com",
+          role: row.user_role || "user",
+          created_at: row.user_created_at || row.created_at,
+          updated_at: row.user_updated_at || row.updated_at,
+        },
+      }));
+
+      console.log("✅ [19] Mapping complete!");
+      console.log("📝 [20] Final data count:", data.length);
+
+      return {
+        success: true,
+        data: data,
+      };
+    } catch (error: any) {
+      console.error("❌❌❌ ERROR in getAllFruits ❌❌❌");
+      console.error("Error message:", error.message);
+      console.error("Error code:", error.code);
+      console.error("Error stack:", error.stack);
+
+      // Check for specific errors
+      if (error.message?.includes("no such table")) {
+        console.error(
+          "⚠️ A table is missing! Check if flowers, trees, or users table exists",
+        );
+      }
+      if (error.message?.includes("no such column")) {
+        console.error("⚠️ A column is missing! Check your table schemas");
+      }
+      if (error.message?.includes("prepareAsync")) {
+        console.error("⚠️ SQL syntax error! Check your query");
+      }
+
+      throw new Error(`Failed to fetch fruits: ${error.message}`);
     }
   }
 
@@ -609,9 +815,13 @@ class FruitService {
         t.created_at as tree_created_at,
         t.updated_at as tree_updated_at
       FROM fruits f
-      LEFT JOIN harvests h ON f.id = h.fruit_id AND h.deleted_at IS NULL
       LEFT JOIN trees t ON f.tree_id = t.id AND t.status = 'active'
-      WHERE h.id IS NULL
+    WHERE NOT EXISTS (
+  SELECT 1 
+  FROM harvests h 
+  WHERE h.fruit_id = f.id
+  AND h.deleted_at IS NULL
+)
     `;
 
       if (!includeDeleted) {
@@ -725,14 +935,19 @@ class FruitService {
     }
   }
 
-  async getFruit(id: string): Promise<Fruit | null> {
+  async getFruit(
+    id: string,
+    includeDeleted: boolean = false,
+  ): Promise<Fruit | null> {
     await this.ensureDatabaseReady();
 
     try {
-      const result = await this.db!.getFirstAsync(
-        "SELECT * FROM fruits WHERE id = ? AND deleted_at IS NULL",
-        [id],
-      );
+      let query = "SELECT * FROM fruits WHERE id = ?";
+      if (!includeDeleted) {
+        query += " AND deleted_at IS NULL";
+      }
+
+      const result = await this.db!.getFirstAsync(query, [id]);
       if (!result) return null;
       return this.mapFruitFromDB(result);
     } catch (error) {
@@ -860,10 +1075,16 @@ class FruitService {
     await this.ensureDatabaseReady();
 
     try {
+      // Isama ang mga deleted fruits na unsynced
       const result = await this.db!.getAllAsync(
         "SELECT * FROM fruits WHERE is_synced = 0 ORDER BY created_at ASC",
       );
-      return result.map((fruit: any) => this.mapFruitFromDB(fruit));
+      const fruits = result.map((fruit: any) => this.mapFruitFromDB(fruit));
+
+      console.log(
+        `📊 Found ${fruits.length} unsynced fruits (${fruits.filter((f) => f.deleted_at).length} deleted)`,
+      );
+      return fruits;
     } catch (error) {
       console.error("Error fetching unsynced fruits:", error);
       return [];
@@ -882,8 +1103,11 @@ class FruitService {
       console.log(`Found ${unsyncedFruits.length} unsynced fruits`);
 
       for (const fruit of unsyncedFruits) {
+        // I-check kung deleted
         if (fruit.deleted_at) {
-          console.log(`🗑️ Syncing DELETE for fruit ${fruit.id}`);
+          console.log(
+            `🗑️ Syncing DELETE for fruit ${fruit.id} (deleted at ${fruit.deleted_at})`,
+          );
           await this.syncDeleteToServer(fruit.id);
         } else {
           console.log(`📤 Syncing fruit ${fruit.id}`);

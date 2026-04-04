@@ -84,11 +84,12 @@ class FlowerService {
     });
     try {
       await this.db!.runAsync(
-        `INSERT INTO flowers (id, tree_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO flowers (id, tree_id,user_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           flowerData.tree_id,
+          flowerData.user_id,
           flowerData.quantity || 1,
           flowerData.wrapped_at instanceof Date
             ? flowerData.wrapped_at.toISOString()
@@ -138,15 +139,52 @@ class FlowerService {
     await this.ensureDatabaseReady();
 
     try {
-      let query = "SELECT * FROM flowers WHERE tree_id = ?";
+      let query = `
+      SELECT 
+        f.*,
+        u.id as user_id_alias,
+        u.first_name as user_first_name,
+        u.last_name as user_last_name,
+        u.email as user_email,
+        u.gender as user_gender,
+        u.role as user_role,
+        u.created_at as user_created_at,
+        u.updated_at as user_updated_at
+      FROM flowers f
+      LEFT JOIN users u ON f.user_id = u.id
+      WHERE f.tree_id = ?
+    `;
+
       if (!includeDeleted) {
-        query += " AND deleted_at IS NULL";
+        query += " AND f.deleted_at IS NULL";
       }
-      query += " ORDER BY wrapped_at DESC";
+
+      query += " ORDER BY f.wrapped_at DESC";
 
       const result = await this.db!.getAllAsync(query, [treeId]);
-      console.log(result);
-      return result.map((flower: any) => this.mapFlowerFromDB(flower));
+      console.log(`Found ${result.length} flowers for tree ${treeId}`);
+
+      return result.map((row: any) => {
+        const flower = this.mapFlowerFromDB(row);
+        // Attach user data if available
+        if (row.user_id_alias) {
+          (flower as any).user = {
+            id: row.user_id_alias,
+            first_name: row.user_first_name || "",
+            last_name: row.user_last_name || "",
+            email: row.user_email || "",
+            gender: row.user_gender || "",
+            role: row.user_role || "",
+            created_at: row.user_created_at
+              ? new Date(row.user_created_at)
+              : null,
+            updated_at: row.user_updated_at
+              ? new Date(row.user_updated_at)
+              : null,
+          };
+        }
+        return flower;
+      });
     } catch (error) {
       console.error(`Error fetching flowers for tree ${treeId}:`, error);
       throw new Error(
@@ -304,6 +342,7 @@ class FlowerService {
     return {
       id: flower.id,
       tree_id: flower.tree_id,
+      user_id: flower.user_id,
       quantity: flower.quantity,
       wrapped_at: flower.wrapped_at ? new Date(flower.wrapped_at) : new Date(),
       image_url: flower.image_url,
@@ -412,6 +451,7 @@ class FlowerService {
       const payload = {
         id: flower.id,
         tree_id: flower.tree_id,
+        user_id: flower.user_id,
         quantity: flower.quantity,
         wrapped_at: flower.wrapped_at.toISOString(),
         created_at: flower.created_at ? flower.created_at.toISOString() : null,

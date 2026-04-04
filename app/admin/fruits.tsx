@@ -8,8 +8,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowLeft,
   Camera,
+  ChevronDown,
   Package,
   RefreshCw,
+  Tag,
   TreePine,
   Wifi,
   WifiOff,
@@ -22,14 +24,13 @@ import {
   Image,
   Modal,
   RefreshControl,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Toast from "react-native-toast-message";
-
 // Create directory for fruit images
 const FRUIT_IMAGES_DIR = FileSystem.documentDirectory + "fruit_images/";
 
@@ -52,7 +53,7 @@ export default function FruitReportScreen() {
   const flowerId = flowerData?.id as string;
   const flowerDate = flowerData.flowerDate as string;
   const [isOnline, setIsOnline] = useState(false);
-  const wasOfflineRef = useRef(false); // Track previous online state
+  const wasOfflineRef = useRef(false);
 
   const [fruit, setFruit] = useState<Fruit | null>(null);
   const [tree, setTree] = useState<Tree | null>(null);
@@ -61,21 +62,44 @@ export default function FruitReportScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [quantity, setQuantity] = useState("");
+  const [selectedTagId, setSelectedTagId] = useState<number>(1);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [imageUri, setImageUri] = useState<string>("");
   const [cameraVisible, setCameraVisible] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
+
+  const tagOptions = [
+    {
+      id: 1,
+      label: "Batch 1",
+      color: "bg-blue-100",
+      textColor: "text-blue-700",
+    },
+    {
+      id: 2,
+      label: "Batch 2",
+      color: "bg-green-100",
+      textColor: "text-green-700",
+    },
+    {
+      id: 3,
+      label: "Batch 3",
+      color: "bg-yellow-100",
+      textColor: "text-yellow-700",
+    },
+    { id: 4, label: "Batch 4", color: "bg-red-100", textColor: "text-red-700" },
+  ];
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       const online = state.isConnected ?? false;
 
-      // Detect transition from offline to online
       if (online && wasOfflineRef.current === true) {
         console.log("🔄 Device came online, auto-refreshing...");
         handleAutoRefresh();
       }
 
-      wasOfflineRef.current = !online; // Update ref
+      wasOfflineRef.current = !online;
       setIsOnline(online);
     });
 
@@ -87,7 +111,6 @@ export default function FruitReportScreen() {
     loadData();
   }, [flowerId]);
 
-  // Auto-refresh function when coming online
   const handleAutoRefresh = async () => {
     if (autoSyncInProgress) return;
 
@@ -100,13 +123,11 @@ export default function FruitReportScreen() {
     });
 
     try {
-      // First sync all unsynced fruits
       const unsyncedFruits = await FruitService.getUnsyncedFruits();
       if (unsyncedFruits.length > 0) {
         await FruitService.syncAll();
       }
 
-      // Refresh data
       await fetchData();
 
       Toast.show({
@@ -130,11 +151,8 @@ export default function FruitReportScreen() {
   const isFruitReadyForHarvest = (baggedAt: string): boolean => {
     const baggedDate = new Date(baggedAt);
     const currentDate = new Date();
-
-    // Calculate days difference
     const diffTime = currentDate.getTime() - baggedDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
     return diffDays >= 115;
   };
 
@@ -159,7 +177,6 @@ export default function FruitReportScreen() {
     try {
       await fetchData();
 
-      // If online, also sync when refreshing
       if (isOnline) {
         Toast.show({
           type: "info",
@@ -168,8 +185,6 @@ export default function FruitReportScreen() {
         });
 
         await FruitService.syncAll();
-
-        // Reload data after sync
         await fetchData();
 
         Toast.show({
@@ -197,28 +212,63 @@ export default function FruitReportScreen() {
   };
 
   const fetchData = async () => {
-    // Fetch tree details using tree_id from flowerData
     if (flowerData?.tree_id) {
       const treeData = await TreeService.getTree(flowerData.tree_id);
       setTree(treeData);
     }
 
-    // Fetch fruit if exists
     const fruits = await FruitService.getFruitsByFlowerId(flowerId, false);
     if (fruits && fruits.length > 0) {
-      setFruit(fruits[0]);
-      setQuantity(fruits[0].quantity.toString());
-      setImageUri(fruits[0].image_uri || "");
+      const existingFruit = fruits[0];
+      console.log("Existing fruit image_uri:", existingFruit.image_uri);
+      console.log(
+        "Existing fruit full data:",
+        JSON.stringify(existingFruit, null, 2),
+      );
+
+      setFruit(existingFruit);
+      setQuantity(existingFruit.quantity.toString());
+      setSelectedTagId(existingFruit.tag_id || 1);
+
+      // ✅ IMPORTANTE: I-check kung may image_uri at kung valid ang path
+      if (existingFruit.image_uri && existingFruit.image_uri !== "") {
+        // I-verify kung existing ang file
+        const fileExists = await FileSystem.getInfoAsync(
+          existingFruit.image_uri,
+        );
+        if (fileExists.exists) {
+          setImageUri(existingFruit.image_uri);
+          console.log("✅ Image loaded from:", existingFruit.image_uri);
+        } else {
+          console.warn("⚠️ Image file not found at:", existingFruit.image_uri);
+          setImageUri("");
+        }
+      } else {
+        console.log("ℹ️ No image URI found for existing fruit");
+        setImageUri("");
+      }
     } else {
-      // Reset form if no fruit exists
       setFruit(null);
       setQuantity("");
+      setSelectedTagId(1);
       setImageUri("");
     }
   };
 
   const getFlowerShortId = (id: string) => {
     return id.substring(0, 6).toUpperCase();
+  };
+
+  const getTagLabel = (tagId: number) => {
+    return tagOptions.find((t) => t.id === tagId)?.label || `Batch ${tagId}`;
+  };
+
+  const getTagColor = (tagId: number) => {
+    return tagOptions.find((t) => t.id === tagId)?.color || "bg-gray-100";
+  };
+
+  const getTagTextColor = (tagId: number) => {
+    return tagOptions.find((t) => t.id === tagId)?.textColor || "text-gray-700";
   };
 
   const handleTakePhoto = () => {
@@ -268,17 +318,18 @@ export default function FruitReportScreen() {
       setSubmitting(true);
 
       if (fruit) {
-        // Update existing fruit quantity and image
         await FruitService.updateFruit(fruit.id, {
           ...fruit,
           quantity: parseInt(quantity),
+          tag_id: selectedTagId,
           image_uri: imageUri || fruit.image_uri,
         });
       } else {
-        // Create new fruit with image
         await FruitService.createFruit({
           flower_id: flowerId,
           tree_id: flowerData?.tree_id,
+          user_id: flowerData?.user_id, // Make sure this is passed
+          tag_id: selectedTagId,
           quantity: parseInt(quantity),
           bagged_at: new Date(flowerDate || Date.now()),
           image_uri: imageUri,
@@ -293,6 +344,7 @@ export default function FruitReportScreen() {
 
       router.back();
     } catch (error) {
+      console.error("Submit error:", error);
       Toast.show({
         type: "error",
         text1: "Failed",
@@ -313,7 +365,6 @@ export default function FruitReportScreen() {
       return;
     }
 
-    console.log(fruit);
     router.push({
       pathname: "/harvest",
       params: {
@@ -351,9 +402,7 @@ export default function FruitReportScreen() {
             </View>
           </View>
 
-          {/* Online/Offline Status and Refresh Button */}
           <View className="flex-row items-center space-x-2">
-            {/* Auto-sync indicator */}
             {autoSyncInProgress && (
               <View className="mr-2">
                 <ActivityIndicator size="small" color="#059669" />
@@ -367,9 +416,6 @@ export default function FruitReportScreen() {
               <RefreshCw
                 size={20}
                 color={refreshing || autoSyncInProgress ? "#9ca3af" : "#059669"}
-                className={
-                  refreshing || autoSyncInProgress ? "animate-spin" : ""
-                }
               />
             </TouchableOpacity>
             <View className="flex-row items-center bg-gray-100 px-3 py-1 rounded-full">
@@ -389,8 +435,9 @@ export default function FruitReportScreen() {
         </View>
       </View>
 
-      <ScrollView
-        className="flex-1 p-4"
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -401,9 +448,13 @@ export default function FruitReportScreen() {
             titleColor="#6b7280"
           />
         }
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        extraScrollHeight={100}
+        showsVerticalScrollIndicator={true}
       >
         <View className="bg-white rounded-xl p-6 shadow-sm">
-          {/* Readonly Tree Description Input */}
+          {/* Tree Description */}
           <View className="mb-4">
             <Text className="text-gray-700 font-medium mb-2">
               Tree Description
@@ -416,7 +467,7 @@ export default function FruitReportScreen() {
             </View>
           </View>
 
-          {/* Readonly Flower ID Input */}
+          {/* Flower ID */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">Flower ID</Text>
             <View className="flex-row items-center border border-gray-300 rounded-xl px-4 py-3 bg-gray-100">
@@ -429,6 +480,7 @@ export default function FruitReportScreen() {
             </View>
           </View>
 
+          {/* Actual Flower Quantity */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">
               Actual Flower Quantity
@@ -442,6 +494,58 @@ export default function FruitReportScreen() {
             </View>
             <Text className="text-xs text-gray-500 mt-1">
               Number of flowers that were originally bagged
+            </Text>
+          </View>
+
+          {/* Batch Number Dropdown */}
+          <View className="mb-6">
+            <Text className="text-gray-700 font-medium mb-2">
+              Batch Number <Text className="text-red-500">*</Text>
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowTagDropdown(!showTagDropdown)}
+              className="flex-row items-center justify-between border border-gray-300 rounded-xl px-4 py-3 bg-white"
+            >
+              <View className="flex-row items-center">
+                <Tag size={18} color="#6b7280" />
+                <View
+                  className={`ml-2 px-3 py-1 rounded-full ${getTagColor(selectedTagId)}`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${getTagTextColor(selectedTagId)}`}
+                  >
+                    {getTagLabel(selectedTagId)}
+                  </Text>
+                </View>
+              </View>
+              <ChevronDown size={18} color="#6b7280" />
+            </TouchableOpacity>
+
+            {showTagDropdown && (
+              <View className="mt-1 border border-gray-200 rounded-xl bg-white overflow-hidden shadow-sm">
+                {tagOptions.map((tag) => (
+                  <TouchableOpacity
+                    key={tag.id}
+                    onPress={() => {
+                      setSelectedTagId(tag.id);
+                      setShowTagDropdown(false);
+                    }}
+                    className={`flex-row items-center px-4 py-3 ${selectedTagId === tag.id ? "bg-orange-50" : "bg-white"}`}
+                  >
+                    <View className={`px-3 py-1 rounded-full ${tag.color}`}>
+                      <Text className={`text-sm font-medium ${tag.textColor}`}>
+                        {tag.label}
+                      </Text>
+                    </View>
+                    {selectedTagId === tag.id && (
+                      <Text className="ml-auto text-orange-500 text-sm">✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <Text className="text-xs text-gray-500 mt-1">
+              Select which batch this fruit belongs to
             </Text>
           </View>
 
@@ -473,6 +577,7 @@ export default function FruitReportScreen() {
             )}
           </View>
 
+          {/* Bagged Date */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">Bagged Date</Text>
             <View className="border border-gray-300 rounded-xl px-4 py-3 bg-gray-50">
@@ -511,7 +616,6 @@ export default function FruitReportScreen() {
                   </Text>
                 </View>
 
-                {/* Last Updated Info */}
                 {fruit.updated_at && (
                   <Text className="text-xs text-gray-400">
                     Updated: {new Date(fruit.updated_at).toLocaleDateString()}
@@ -526,6 +630,15 @@ export default function FruitReportScreen() {
                 <Text className="text-xl font-bold text-gray-800">
                   {fruit.quantity} Fruit{fruit.quantity !== 1 ? "s" : ""}
                 </Text>
+                <View
+                  className={`mt-2 px-3 py-1 rounded-full ${getTagColor(fruit.tag_id || 1)}`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${getTagTextColor(fruit.tag_id || 1)}`}
+                  >
+                    {getTagLabel(fruit.tag_id || 1)}
+                  </Text>
+                </View>
                 <Text className="text-gray-500 text-sm mt-1">
                   Bagged: {new Date(fruit.bagged_at).toLocaleDateString()}
                 </Text>
@@ -679,7 +792,7 @@ export default function FruitReportScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Camera Modal */}
       <Modal

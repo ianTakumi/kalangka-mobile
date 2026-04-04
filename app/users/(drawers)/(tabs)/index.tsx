@@ -27,6 +27,7 @@ import {
   Package,
   QrCode,
   RefreshCw,
+  Sprout,
   Sun,
   Thermometer,
   Trees,
@@ -620,7 +621,7 @@ export default function FarmerHomeScreen() {
           )}
 
           {/* Show harvest date if harvested */}
-          {item.harvest_at && (
+          {item.harvest_at && item.status === "harvested" && (
             <View className="mt-1 flex-row items-center">
               <CheckCircle2 size={12} color="#10B981" />
               <Text className="text-xs text-green-600 ml-1">
@@ -825,12 +826,12 @@ export default function FarmerHomeScreen() {
           </View>
         </View>
 
-        {/* ASSIGNED HARVESTS SECTION - NEW */}
         {user && (
           <View className="px-6 mb-6">
             <View className="flex-row justify-between items-center mb-4">
               <View className="flex-row items-center">
-                <Package size={24} color="#F97316" />
+                <Sprout size={24} color="#F97316" />
+
                 <Text className="text-2xl font-bold text-gray-900 ml-2">
                   My Assigned Harvests
                 </Text>

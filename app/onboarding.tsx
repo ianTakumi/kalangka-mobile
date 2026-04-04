@@ -1,14 +1,14 @@
+import { updateOnboardingStatus } from "@/redux/slices/authSlice";
+import { useRouter } from "expo-router"; // or your navigation library
+import { useRef, useState } from "react";
 import {
-  Text,
-  View,
   ScrollView,
+  Text,
   TouchableOpacity,
   useWindowDimensions,
+  View,
 } from "react-native";
-import { useRef, useState } from "react";
-import { useRouter } from "expo-router"; // or your navigation library
 import { useDispatch } from "react-redux";
-import { updateOnboardingStatus } from "@/redux/slices/authSlice";
 
 export default function OnboardingScreen() {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -19,7 +19,7 @@ export default function OnboardingScreen() {
 
   const slides = [
     {
-      title: "Welcome to Kalangka",
+      title: "Welcome to WrapCrop",
       description: "Your Smart Farming Companion for Jackfruit Plantations",
       icon: "🌳",
       color: "bg-green-700",
@@ -106,7 +106,7 @@ export default function OnboardingScreen() {
     <View className="flex-1 bg-gray-50">
       {/* Header */}
       <View className="pt-16 px-6 items-center">
-        <Text className="text-2xl font-bold text-green-700">Kalangka</Text>
+        <Text className="text-2xl font-bold text-green-700">WrapCrop</Text>
         <Text className="text-sm text-gray-600 mt-2">
           Smart Farming Platform
         </Text>

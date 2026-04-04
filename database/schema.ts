@@ -44,7 +44,8 @@ export const CREATE_FRUITS_TABLE = `
           user_id TEXT NOT NULL,
           
           quantity INTEGER NOT NULL DEFAULT 1,
-          remaining_quantity INTEGER DEFAULT 0,          -- Ilan ang natitira (backlog)
+          tag_id INTEGER NOT NULL,
+          remaining_quantity INTEGER DEFAULT 0,          
 
           bagged_at TEXT NOT NULL,
           image_uri TEXT NOT NULL,

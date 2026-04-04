@@ -1,4 +1,4 @@
-import client from "@/utils/axiosInstance";
+import FruitService from "@/services/FruitService";
 import { Ionicons } from "@expo/vector-icons";
 import Entypo from "@expo/vector-icons/Entypo";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -22,6 +22,7 @@ interface Fruit {
   flower_id: string;
   tree_id: string;
   user_id: string;
+  tag_id: number; // Add tag_id
   quantity: number;
   bagged_at: string;
   image_url: string;
@@ -85,6 +86,7 @@ export default function AllFruits() {
   // Filter states
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedTreeId, setSelectedTreeId] = useState<string>("");
+  const [selectedTagId, setSelectedTagId] = useState<number | null>(null); // Add tag_id filter
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
@@ -92,6 +94,7 @@ export default function AllFruits() {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [tempUserId, setTempUserId] = useState<string>("");
   const [tempTreeId, setTempTreeId] = useState<string>("");
+  const [tempTagId, setTempTagId] = useState<number | null>(null); // Add temp tag_id
   const [tempFromDate, setTempFromDate] = useState<string>("");
   const [tempToDate, setTempToDate] = useState<string>("");
 
@@ -102,52 +105,96 @@ export default function AllFruits() {
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Batch summary state
+  const [batchSummary, setBatchSummary] = useState({
+    batch1: 0,
+    batch2: 0,
+    batch3: 0,
+    batch4: 0,
+  });
+
   useEffect(() => {
     fetchFruits();
   }, []);
 
   useEffect(() => {
     applyFilters();
-  }, [fruits, selectedUserId, selectedTreeId, fromDate, toDate, searchQuery]);
+    calculateBatchSummary();
+  }, [
+    fruits,
+    selectedUserId,
+    selectedTreeId,
+    selectedTagId,
+    fromDate,
+    toDate,
+    searchQuery,
+  ]);
 
   const fetchFruits = async () => {
     try {
       setLoading(true);
-      const response = await client.get("/fruits");
-      if (response.data.success) {
-        setFruits(response.data.data);
-        setFilteredFruits(response.data.data);
 
+      // Get fruits from local SQLite database
+      const localFruits = await FruitService.getAllFruits();
+
+      if (localFruits.success && localFruits.data) {
+        setFruits(localFruits.data);
+        setFilteredFruits(localFruits.data);
+
+        // Extract unique users
         const uniqueUsers = Array.from(
           new Map(
-            response.data.data.map((fruit: Fruit) => [
-              fruit.user.id,
-              fruit.user,
-            ]),
+            localFruits.data.map((fruit: Fruit) => [fruit.user.id, fruit.user]),
           ).values(),
         );
         setUsers(uniqueUsers);
 
+        // Extract unique trees
         const uniqueTrees = Array.from(
           new Map(
-            response.data.data.map((fruit: Fruit) => [
-              fruit.tree.id,
-              fruit.tree,
-            ]),
+            localFruits.data.map((fruit: Fruit) => [fruit.tree.id, fruit.tree]),
           ).values(),
         );
         setTrees(uniqueTrees);
+
+        console.log(
+          `✅ Loaded ${localFruits.data.length} fruits from local database`,
+        );
+      } else {
+        console.log("No fruits found in local database");
+        setFruits([]);
+        setFilteredFruits([]);
+        setUsers([]);
+        setTrees([]);
       }
     } catch (error) {
-      console.error("Error fetching fruits:", error);
+      console.error("Error fetching local fruits:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const calculateBatchSummary = () => {
+    const summary = {
+      batch1: 0,
+      batch2: 0,
+      batch3: 0,
+      batch4: 0,
+    };
+
+    filteredFruits.forEach((fruit) => {
+      if (fruit.tag_id === 1) summary.batch1 += fruit.quantity;
+      else if (fruit.tag_id === 2) summary.batch2 += fruit.quantity;
+      else if (fruit.tag_id === 3) summary.batch3 += fruit.quantity;
+      else if (fruit.tag_id === 4) summary.batch4 += fruit.quantity;
+    });
+
+    setBatchSummary(summary);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchFruits();
+    await fetchFruits(); // Just re-fetch from local database
     resetFilters();
     setRefreshing(false);
   };
@@ -177,6 +224,10 @@ export default function AllFruits() {
       filtered = filtered.filter((fruit) => fruit.tree.id === selectedTreeId);
     }
 
+    if (selectedTagId) {
+      filtered = filtered.filter((fruit) => fruit.tag_id === selectedTagId);
+    }
+
     if (fromDate) {
       filtered = filtered.filter(
         (fruit) => fruit.bagged_at.split("T")[0] >= fromDate,
@@ -194,6 +245,7 @@ export default function AllFruits() {
   const openFilterModal = () => {
     setTempUserId(selectedUserId);
     setTempTreeId(selectedTreeId);
+    setTempTagId(selectedTagId);
     setTempFromDate(fromDate);
     setTempToDate(toDate);
     setFilterModalVisible(true);
@@ -202,6 +254,7 @@ export default function AllFruits() {
   const applyFilterChanges = () => {
     setSelectedUserId(tempUserId);
     setSelectedTreeId(tempTreeId);
+    setSelectedTagId(tempTagId);
     setFromDate(tempFromDate);
     setToDate(tempToDate);
     setFilterModalVisible(false);
@@ -210,11 +263,13 @@ export default function AllFruits() {
   const resetFilters = () => {
     setSelectedUserId("");
     setSelectedTreeId("");
+    setSelectedTagId(null);
     setFromDate("");
     setToDate("");
     setSearchQuery("");
     setTempUserId("");
     setTempTreeId("");
+    setTempTagId(null);
     setTempFromDate("");
     setTempToDate("");
     setFilterModalVisible(false);
@@ -271,6 +326,36 @@ export default function AllFruits() {
     }
   };
 
+  const getBatchColor = (tagId: number) => {
+    switch (tagId) {
+      case 1:
+        return "bg-blue-100 text-blue-700";
+      case 2:
+        return "bg-green-100 text-green-700";
+      case 3:
+        return "bg-yellow-100 text-yellow-700";
+      case 4:
+        return "bg-red-100 text-red-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const getBatchLabel = (tagId: number) => {
+    switch (tagId) {
+      case 1:
+        return "Batch 1";
+      case 2:
+        return "Batch 2";
+      case 3:
+        return "Batch 3";
+      case 4:
+        return "Batch 4";
+      default:
+        return `Batch ${tagId}`;
+    }
+  };
+
   const renderFruitCard = ({ item, index }: { item: Fruit; index: number }) => (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -291,7 +376,7 @@ export default function AllFruits() {
         }}
       >
         <View className="p-4">
-          {/* Header */}
+          {/* Header with Batch Tag */}
           <View className="flex-row justify-between items-start mb-3">
             <View className="flex-1 mr-2">
               <Text className="text-lg font-bold text-gray-800">
@@ -310,10 +395,21 @@ export default function AllFruits() {
                 </Text>
               </View>
             </View>
-            <View className="bg-orange-500 rounded-full px-3 py-1">
-              <Text className="text-white font-bold text-lg">
-                x{item.quantity}
-              </Text>
+            <View className="flex-row gap-2">
+              {/* Batch Badge */}
+              <View
+                className={`rounded-full px-3 py-1 ${getBatchColor(item.tag_id)}`}
+              >
+                <Text className="text-xs font-bold">
+                  {getBatchLabel(item.tag_id)}
+                </Text>
+              </View>
+              {/* Quantity Badge */}
+              <View className="bg-orange-500 rounded-full px-3 py-1">
+                <Text className="text-white font-bold text-lg">
+                  x{item.quantity}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -379,6 +475,43 @@ export default function AllFruits() {
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} className="p-5">
+            {/* Batch Filter - New Section */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-3">
+                <View className="w-10 h-10 bg-indigo-500 rounded-xl items-center justify-center">
+                  <MaterialCommunityIcons name="tag" size={20} color="white" />
+                </View>
+                <Text className="text-lg font-bold text-gray-800 ml-3">
+                  Filter by Batch
+                </Text>
+              </View>
+              <View className="flex-row flex-wrap gap-2">
+                <TouchableOpacity
+                  className={`px-4 py-2 rounded-full ${tempTagId === null ? "bg-orange-500" : "bg-gray-100"}`}
+                  onPress={() => setTempTagId(null)}
+                >
+                  <Text
+                    className={`text-sm ${tempTagId === null ? "text-white" : "text-gray-700"}`}
+                  >
+                    All Batches
+                  </Text>
+                </TouchableOpacity>
+                {[1, 2, 3, 4].map((batch) => (
+                  <TouchableOpacity
+                    key={batch}
+                    className={`px-4 py-2 rounded-full ${tempTagId === batch ? "bg-orange-500" : "bg-gray-100"}`}
+                    onPress={() => setTempTagId(batch)}
+                  >
+                    <Text
+                      className={`text-sm ${tempTagId === batch ? "text-white" : "text-gray-700"}`}
+                    >
+                      Batch {batch}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             {/* User Filter */}
             <View className="mb-6">
               <View className="flex-row items-center mb-3">
@@ -510,12 +643,23 @@ export default function AllFruits() {
               </View>
 
               {/* Active Filters Summary */}
-              {(tempUserId || tempTreeId || tempFromDate || tempToDate) && (
+              {(tempUserId ||
+                tempTreeId ||
+                tempTagId ||
+                tempFromDate ||
+                tempToDate) && (
                 <View className="mt-4 p-3 bg-gray-50 rounded-xl">
                   <Text className="text-xs font-semibold text-gray-500 mb-2">
                     ACTIVE FILTERS:
                   </Text>
                   <View className="flex-row flex-wrap gap-2">
+                    {tempTagId && (
+                      <View className="bg-indigo-100 px-2 py-1 rounded-full">
+                        <Text className="text-xs text-indigo-700">
+                          Batch {tempTagId}
+                        </Text>
+                      </View>
+                    )}
                     {tempUserId && users.find((u) => u.id === tempUserId) && (
                       <View className="bg-orange-100 px-2 py-1 rounded-full">
                         <Text className="text-xs text-orange-700">
@@ -603,6 +747,41 @@ export default function AllFruits() {
 
           {selectedFruit && (
             <ScrollView showsVerticalScrollIndicator={false} className="p-5">
+              {/* Batch Section - New */}
+              <View className="mb-6">
+                <View className="flex-row items-center mb-3">
+                  <View className="w-10 h-10 bg-indigo-500 rounded-xl items-center justify-center">
+                    <MaterialCommunityIcons
+                      name="tag"
+                      size={20}
+                      color="white"
+                    />
+                  </View>
+                  <Text className="text-lg font-bold text-gray-800 ml-3">
+                    Batch Information
+                  </Text>
+                </View>
+                <View className="bg-gray-50 rounded-xl p-4">
+                  <View className="flex-row justify-between items-center">
+                    <View>
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Batch Number
+                      </Text>
+                      <Text className="text-2xl font-bold text-indigo-600">
+                        {getBatchLabel(selectedFruit.tag_id)}
+                      </Text>
+                    </View>
+                    <View
+                      className={`rounded-full px-4 py-2 ${getBatchColor(selectedFruit.tag_id)}`}
+                    >
+                      <Text className="text-sm font-bold">
+                        Batch {selectedFruit.tag_id}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
               {/* Tree Section */}
               <View className="mb-6">
                 <View className="flex-row items-center mb-3">
@@ -642,15 +821,6 @@ export default function AllFruits() {
                       </Text>
                     </View>
                   </View>
-                  {/* <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Location
-                    </Text>
-                    <Text className="text-sm text-gray-600 mt-1">
-                      {selectedFruit.tree.latitude.toFixed(6)},{" "}
-                      {selectedFruit.tree.longitude.toFixed(6)}
-                    </Text>
-                  </View> */}
                 </View>
               </View>
 
@@ -769,7 +939,7 @@ export default function AllFruits() {
                       {selectedFruit.quantity}
                     </Text>
                   </View>
-                  <View className="mb-2">
+                  <View>
                     <Text className="text-xs text-gray-500 uppercase tracking-wide">
                       Bagged At
                     </Text>
@@ -777,14 +947,6 @@ export default function AllFruits() {
                       {formatDateTime(selectedFruit.bagged_at)}
                     </Text>
                   </View>
-                  {/* <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Created At
-                    </Text>
-                    <Text className="text-sm text-gray-600">
-                      {formatDateTime(selectedFruit.created_at)}
-                    </Text>
-                  </View> */}
                 </View>
               </View>
             </ScrollView>
@@ -859,8 +1021,25 @@ export default function AllFruits() {
         </View>
 
         {/* Active Filters Chips */}
-        {(selectedUserId || selectedTreeId || fromDate || toDate) && (
+        {(selectedUserId ||
+          selectedTreeId ||
+          selectedTagId ||
+          fromDate ||
+          toDate) && (
           <View className="flex-row flex-wrap gap-2 mt-3">
+            {selectedTagId && (
+              <View className="bg-indigo-100 px-3 py-1 rounded-full flex-row items-center">
+                <Text className="text-xs text-indigo-700">
+                  Batch {selectedTagId}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedTagId(null)}
+                  className="ml-2"
+                >
+                  <Ionicons name="close-circle" size={14} color="#6366f1" />
+                </TouchableOpacity>
+              </View>
+            )}
             {selectedUserId && users.find((u) => u.id === selectedUserId) && (
               <View className="bg-orange-100 px-3 py-1 rounded-full flex-row items-center">
                 <Text className="text-xs text-orange-700">
@@ -925,6 +1104,63 @@ export default function AllFruits() {
         )}
       </View>
 
+      {/* Batch Summary Stats */}
+      <View className="bg-white px-5 py-3 border-b border-gray-100">
+        <Text className="text-xs font-semibold text-gray-500 mb-2">
+          BATCH SUMMARY
+        </Text>
+        <View className="flex-row justify-between">
+          <View className="items-center">
+            <View className="bg-blue-100 rounded-full w-8 h-8 items-center justify-center">
+              <Text className="text-blue-700 font-bold text-xs">B1</Text>
+            </View>
+            <Text className="text-sm font-bold text-gray-800 mt-1">
+              {batchSummary.batch1}
+            </Text>
+            <Text className="text-xs text-gray-400">fruits</Text>
+          </View>
+          <View className="items-center">
+            <View className="bg-green-100 rounded-full w-8 h-8 items-center justify-center">
+              <Text className="text-green-700 font-bold text-xs">B2</Text>
+            </View>
+            <Text className="text-sm font-bold text-gray-800 mt-1">
+              {batchSummary.batch2}
+            </Text>
+            <Text className="text-xs text-gray-400">fruits</Text>
+          </View>
+          <View className="items-center">
+            <View className="bg-yellow-100 rounded-full w-8 h-8 items-center justify-center">
+              <Text className="text-yellow-700 font-bold text-xs">B3</Text>
+            </View>
+            <Text className="text-sm font-bold text-gray-800 mt-1">
+              {batchSummary.batch3}
+            </Text>
+            <Text className="text-xs text-gray-400">fruits</Text>
+          </View>
+          <View className="items-center">
+            <View className="bg-red-100 rounded-full w-8 h-8 items-center justify-center">
+              <Text className="text-red-700 font-bold text-xs">B4</Text>
+            </View>
+            <Text className="text-sm font-bold text-gray-800 mt-1">
+              {batchSummary.batch4}
+            </Text>
+            <Text className="text-xs text-gray-400">fruits</Text>
+          </View>
+          <View className="items-center">
+            <View className="bg-orange-100 rounded-full w-8 h-8 items-center justify-center">
+              <Text className="text-orange-700 font-bold text-xs">∑</Text>
+            </View>
+            <Text className="text-sm font-bold text-gray-800 mt-1">
+              {batchSummary.batch1 +
+                batchSummary.batch2 +
+                batchSummary.batch3 +
+                batchSummary.batch4}
+            </Text>
+            <Text className="text-xs text-gray-400">total</Text>
+          </View>
+        </View>
+      </View>
+
       {/* Stats Bar */}
       <View className="flex-row justify-between items-center px-5 py-3 bg-white border-b border-gray-100">
         <View className="flex-row items-center">
@@ -976,6 +1212,7 @@ export default function AllFruits() {
               {searchQuery ||
               selectedUserId ||
               selectedTreeId ||
+              selectedTagId ||
               fromDate ||
               toDate
                 ? "Try adjusting your filters or search query"

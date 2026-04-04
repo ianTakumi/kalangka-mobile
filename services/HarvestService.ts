@@ -368,33 +368,15 @@ class HarvestService {
 
       console.log("🔄 Syncing harvests from server...");
 
-      // Fetch all pages of harvests
-      let currentPage = 1;
-      let lastPage = 1;
-      let allHarvests: any[] = [];
+      // Fetch all harvests
+      const response = await client.get(`/harvests`);
 
-      do {
-        const response = await client.get(
-          `/harvests?page=${currentPage}&per_page=100`,
-        );
+      if (!response.data.success) {
+        console.warn(`Failed to fetch harvests`);
+        return results;
+      }
 
-        if (!response.data.success) {
-          console.warn(`Failed to fetch harvests page ${currentPage}`);
-          break;
-        }
-
-        const pageData = response.data.data;
-        const harvests = pageData.data || [];
-        allHarvests = [...allHarvests, ...harvests];
-
-        lastPage = pageData.last_page || 1;
-        currentPage++;
-
-        console.log(
-          `📥 Fetched page ${currentPage - 1}/${lastPage}, ${harvests.length} harvests`,
-        );
-      } while (currentPage <= lastPage);
-
+      const allHarvests = response.data.data || [];
       console.log(`📥 Total harvests found: ${allHarvests.length}`);
 
       // Start transaction
@@ -619,6 +601,190 @@ class HarvestService {
     } catch (error: any) {
       console.error("❌ Failed to sync harvests from server:", error);
       throw new Error(`Failed to sync harvests: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all harvests with complete details (fruit, tree, user, weights, wastes)
+   * Matches the API response structure
+   */
+  /**
+   * Get all harvests with complete details (fruit, tree, user, weights, wastes)
+   * Simplified version to avoid complex JOINs
+   */
+  async getAllHarvests(): Promise<Harvest[]> {
+    await this.ensureDatabaseReady();
+
+    try {
+      // Get all harvests with their related data
+      const harvests = await this.db!.getAllAsync<any>(
+        `SELECT 
+        h.*,
+        f.id as fruit_id,
+        f.flower_id,
+        f.tree_id,
+        f.quantity as fruit_quantity,
+        f.bagged_at,
+        f.image_uri,
+        t.id as tree_id_ref,
+        t.description as tree_description,
+        t.latitude,
+        t.longitude,
+        t.type as tree_type,
+        u.id as user_id_ref,
+        u.first_name,
+        u.last_name,
+        u.email
+      FROM harvests h
+      LEFT JOIN fruits f ON h.fruit_id = f.id
+      LEFT JOIN trees t ON f.tree_id = t.id
+      LEFT JOIN users u ON h.user_id = u.id
+      WHERE h.deleted_at IS NULL 
+      ORDER BY h.harvest_at DESC
+      `,
+      );
+
+      // Transform to match your Harvest interface
+      const transformedHarvests = harvests.map((harvest) => ({
+        id: harvest.id,
+        fruit_id: harvest.fruit_id,
+        user_id: harvest.user_id,
+        ripe_quantity: harvest.ripe_quantity,
+        harvest_at: harvest.harvest_at,
+        status: harvest.status,
+        created_at: harvest.created_at,
+        updated_at: harvest.updated_at,
+        total_weight: harvest.total_weight || 0,
+        total_waste: harvest.total_waste || 0,
+        fruit: {
+          id: harvest.fruit_id,
+          flower_id: harvest.flower_id,
+          tree_id: harvest.tree_id,
+          user_id: harvest.user_id,
+          quantity: harvest.fruit_quantity,
+          bagged_at: harvest.bagged_at,
+          image_url: harvest.image_uri,
+          created_at: harvest.created_at,
+          updated_at: harvest.updated_at,
+          tree: {
+            id: harvest.tree_id_ref,
+            description: harvest.tree_description,
+            latitude: harvest.latitude,
+            longitude: harvest.longitude,
+            status: "active",
+            is_synced: true,
+            type: harvest.tree_type,
+            image_url: "",
+            created_at: harvest.created_at,
+            updated_at: harvest.updated_at,
+          },
+        },
+        fruit_weights: [], // You'll need to fetch these separately
+        wastes: [], // You'll need to fetch these separately
+        user: {
+          id: harvest.user_id_ref,
+          first_name: harvest.first_name,
+          last_name: harvest.last_name,
+          gender: "",
+          email: harvest.email,
+          role: "user",
+          created_at: harvest.created_at,
+          updated_at: harvest.updated_at,
+        },
+      }));
+
+      return transformedHarvests;
+    } catch (err) {
+      console.error("Error fetching all harvests:", err);
+      return [];
+    }
+  }
+
+  // Helper method to get just the count
+  async getLocalHarvestCount(): Promise<number> {
+    await this.ensureDatabaseReady();
+
+    try {
+      const result = await this.db!.getFirstAsync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM harvests WHERE deleted_at IS NULL`,
+      );
+      return result?.count || 0;
+    } catch (err) {
+      console.error("Error getting harvest count:", err);
+      return 0;
+    }
+  }
+
+  /**
+   * Get total harvest statistics from COMPLETED harvests (status = 'harvested')
+   * Returns total harvest count, total weight, and total waste
+   */
+  async getCompletedHarvestStats(): Promise<{
+    totalHarvest: number;
+    totalWeight: number;
+    totalWaste: number;
+  }> {
+    await this.ensureDatabaseReady();
+
+    try {
+      // 1. Get all completed harvest IDs
+      const completedHarvests = await this.db!.getAllAsync<{ id: string }>(
+        `SELECT id FROM harvests WHERE status = 'harvested' AND deleted_at IS NULL`,
+      );
+
+      if (completedHarvests.length === 0) {
+        return {
+          totalHarvest: 0,
+          totalWeight: 0,
+          totalWaste: 0,
+        };
+      }
+
+      const harvestIds = completedHarvests.map((h) => h.id);
+
+      // 2. Count total fruit_weights (this equals number of harvested fruits)
+      let totalHarvest = 0;
+      let totalWeight = 0;
+      let totalWaste = 0;
+
+      // Loop through each harvest to get its weights and wastes
+      for (const harvestId of harvestIds) {
+        // Get fruit weights for this harvest
+        const weights = await this.db!.getAllAsync<{ weight: number }>(
+          `SELECT weight FROM fruit_weights WHERE harvest_id = ? AND deleted_at IS NULL`,
+          [harvestId],
+        );
+
+        totalHarvest += weights.length;
+        totalWeight += weights.reduce((sum, w) => sum + w.weight, 0);
+
+        // Get wastes for this harvest
+        const wastes = await this.db!.getAllAsync<{ waste_quantity: number }>(
+          `SELECT waste_quantity FROM wastes WHERE harvest_id = ? AND deleted_at IS NULL`,
+          [harvestId],
+        );
+
+        totalWaste += wastes.reduce((sum, w) => sum + w.waste_quantity, 0);
+      }
+
+      console.log(`📊 Completed harvest stats:`, {
+        totalHarvest,
+        totalWeight,
+        totalWaste,
+      });
+
+      return {
+        totalHarvest,
+        totalWeight,
+        totalWaste,
+      };
+    } catch (error) {
+      console.error("Error getting completed harvest stats:", error);
+      return {
+        totalHarvest: 0,
+        totalWeight: 0,
+        totalWaste: 0,
+      };
     }
   }
 
@@ -1122,7 +1288,7 @@ class HarvestService {
         f.created_at as fruit_created_at,
         f.updated_at as fruit_updated_at,
         f.deleted_at as fruit_deleted_at,
-        t.uuid as tree_uuid,
+        t.id as tree_uuid,
         t.description as tree_description,
         t.latitude as tree_latitude,
         t.longitude as tree_longitude,
@@ -1131,7 +1297,7 @@ class HarvestService {
         t.updated_at as tree_updated_at
       FROM harvests h
       LEFT JOIN fruits f ON h.fruit_id = f.id AND f.deleted_at IS NULL
-      LEFT JOIN trees t ON f.tree_id = t.uuid AND t.deleted_at IS NULL
+      LEFT JOIN trees t ON f.tree_id = t.id AND t.deleted_at IS NULL
       WHERE h.id = ? 
         AND h.deleted_at IS NULL
     `;

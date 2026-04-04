@@ -34,6 +34,7 @@ export interface Tree {
 export interface Flower {
   id: string;
   tree_id: string;
+  user_id: string;
   quantity: number;
   wrapped_at: Date;
   image_url: string;
@@ -43,14 +44,17 @@ export interface Flower {
   is_synced: boolean;
 }
 
-// In your Fruit interface, add:
 export interface Fruit {
   id: string;
-  flower_id?: string;
-  tree_id?: string;
-  quantity?: number;
-  bagged_at?: string;
-  image_url?: string;
+  flower_id: string;
+  tree_id: string;
+  user_id: string;
+  tag_id: number;
+  quantity: number;
+  bagged_at: Date;
+  created_at: Date;
+  updated_at: Date;
+  image_uri: string;
   description?: string;
   type?: string;
   latitude?: number;
@@ -58,8 +62,6 @@ export interface Fruit {
   status?: string;
   is_synced?: boolean;
   image_path?: string;
-  created_at?: string;
-  updated_at?: string;
   deleted_at?: string;
   tree?: Tree; // Add this if you want to access tree data
   treeName?: string; // Add this for displaying tree name in the UI
