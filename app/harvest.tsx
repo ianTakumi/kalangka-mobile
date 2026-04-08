@@ -104,7 +104,7 @@ export default function HarvestScreen() {
       try {
         const parsedFruit = JSON.parse(fruitData as string);
         setFruit(parsedFruit);
-
+        console.log("Merong parsed fruit data", parsedFruit);
         // Check if this fruit has backlog
         if (
           parsedFruit.remaining_quantity &&
@@ -130,6 +130,7 @@ export default function HarvestScreen() {
 
       if (harvest) {
         setHarvestRecord(harvest);
+        console.log("Fetched harvest:", JSON.stringify(harvest));
         setFruit(harvest.fruit);
 
         if (
@@ -516,10 +517,10 @@ export default function HarvestScreen() {
       const availableQuantity = getAvailableQuantity();
       const remaining = availableQuantity - totalProcessed;
       setRemainingAfterHarvest(remaining);
-
+      let result = null;
       if (harvestRecord?.harvest) {
         // Pass ALL weights and wastes (existing + new) to the update
-        const result = await HarvestService.updateHarvest(
+        result = await HarvestService.updateHarvest(
           harvestRecord.harvest.id,
           allWeights.length, // Total ripe fruits (existing + new)
           allWeights, // All weights (existing + new)
@@ -584,6 +585,7 @@ export default function HarvestScreen() {
       // Update fruit with next check date
       await FruitService.updateFruit(fruit.id, {
         farmer_extra_days: parseInt(backlogDays),
+        farmer_assessed_at: new Date().toISOString(),
         farmer_notes: backlogReason,
         next_check_date: new Date(
           Date.now() + parseInt(backlogDays) * 24 * 60 * 60 * 1000,
@@ -727,6 +729,7 @@ export default function HarvestScreen() {
         }
       >
         {/* Fruit Info Card */}
+        {/* Fruit Info Card */}
         <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
           <Text className="text-gray-500 text-sm mb-3">FRUIT DETAILS</Text>
 
@@ -752,6 +755,13 @@ export default function HarvestScreen() {
               </Text>
             </View>
 
+            <View className="flex-row justify-between mb-2">
+              <Text className="text-gray-600">Fruit Tag ID:</Text>
+              <Text className="text-gray-800 font-mono text-xs">
+                {fruit.tag_id || "N/A"}
+              </Text>
+            </View>
+
             {fruit.tree && (
               <View className="flex-row justify-between mb-2">
                 <Text className="text-gray-600">Tree:</Text>
@@ -762,7 +772,73 @@ export default function HarvestScreen() {
               </View>
             )}
 
-            <View className="flex-row justify-between">
+            {/* 👇 ITO ANG IDAGDAG - Farmer Assessment Info (ipakita lang pag may backlog/partial) */}
+            {hasBacklog &&
+              fruit.remaining_quantity > 0 &&
+              !isHarvestCompleted && (
+                <>
+                  {/* Separator line */}
+                  <View className="h-px bg-gray-200 my-3" />
+
+                  {/* Farmer Assessment Section */}
+                  <Text className="text-xs font-semibold text-orange-600 mb-2">
+                    📋 FARMER ASSESSMENT (Backlog)
+                  </Text>
+
+                  {/* farmer_extra_days */}
+                  {fruit.farmer_extra_days && fruit.farmer_extra_days > 0 && (
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-gray-600 text-xs">
+                        Extra Days Given:
+                      </Text>
+                      <Text className="text-orange-700 font-medium text-xs">
+                        +{fruit.farmer_extra_days} day
+                        {fruit.farmer_extra_days !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* farmer_assessed_at */}
+                  {fruit.farmer_assessed_at && (
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-gray-600 text-xs">
+                        Assessed On:
+                      </Text>
+                      <Text className="text-gray-700 text-xs">
+                        {new Date(
+                          fruit.farmer_assessed_at,
+                        ).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* next_check_date */}
+                  {fruit.next_check_date && (
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-gray-600 text-xs">
+                        Next Check Date:
+                      </Text>
+                      <Text className="text-blue-600 font-medium text-xs">
+                        {new Date(fruit.next_check_date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* farmer_notes */}
+                  {fruit.farmer_notes && (
+                    <View className="mt-2 p-2 bg-orange-50 rounded-lg">
+                      <Text className="text-gray-600 text-xs mb-1">
+                        📝 Farmer's Note:
+                      </Text>
+                      <Text className="text-gray-700 text-xs italic">
+                        "{fruit.farmer_notes}"
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+            <View className="flex-row justify-between mt-2 pt-2 border-t border-gray-200">
               <Text className="text-gray-600">Status:</Text>
               <View
                 className={`px-2 py-0.5 rounded-full ${
@@ -790,6 +866,7 @@ export default function HarvestScreen() {
                 </Text>
               </View>
             </View>
+
             {!isHarvestCompleted && (
               <View className="flex-row justify-between mt-2 pt-2 border-t border-gray-200">
                 <Text className="text-gray-600">Expected Harvest:</Text>

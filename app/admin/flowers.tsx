@@ -1,12 +1,11 @@
 import FlowerCamera from "@/components/FlowerCamera";
 import FlowerService from "@/services/FlowerService";
 import FruitService from "@/services/FruitService";
+import treeService from "@/services/treeService";
 import { Flower } from "@/types/index";
 import NetInfo from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-
 import {
   Calendar,
   Flower as FlowerIcon,
@@ -31,6 +30,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Toast from "react-native-toast-message";
 import { useSelector } from "react-redux";
 
@@ -55,17 +55,25 @@ export default function FlowersScreen() {
   const router = useRouter();
 
   const params = useLocalSearchParams();
-  const treeData = params.treeData
-    ? JSON.parse(params.treeData as string)
-    : null;
-  const selectedTreeId = treeData.id || null;
-  const treeId = treeData?.id || null;
+  const treeId = (() => {
+    // Old format: params.treeData is JSON string
+    if (params.treeData) {
+      try {
+        const parsed = JSON.parse(params.treeData as string);
+        return parsed.id || parsed._id;
+      } catch (e) {
+        return params.treeData;
+      }
+    }
+    // New format: direct treeId param
+    return params.treeId || params.id;
+  })();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [cameraVisible, setCameraVisible] = useState(false);
   const [editingFlower, setEditingFlower] = useState<Flower | null>(null);
   const [formData, setFormData] = useState({
-    tree_id: selectedTreeId || "",
+    tree_id: treeId || "",
     quantity: "1",
     wrapped_at: new Date().toISOString().split("T")[0],
     image_url: "",
@@ -81,6 +89,22 @@ export default function FlowersScreen() {
   });
   const [refreshing, setRefreshing] = useState(false);
   const user = useSelector((state: any) => state.auth.user);
+  const [treeDetails, setTreeDetails] = useState<any>(null);
+
+  useEffect(() => {
+    const loadTreeDetails = async () => {
+      if (treeId) {
+        try {
+          await treeService.init();
+          const tree = await treeService.getTreeById(treeId as string);
+          setTreeDetails(tree);
+        } catch (error) {
+          console.error("Error loading tree details:", error);
+        }
+      }
+    };
+    loadTreeDetails();
+  }, [treeId]);
 
   useEffect(() => {
     initApp();
@@ -105,7 +129,7 @@ export default function FlowersScreen() {
     try {
       setLoading(true);
       await FlowerService.init();
-      await loadFlowers(treeData.id);
+      await loadFlowers(treeId);
       await loadStats();
     } catch (error) {
       console.error("Init error:", error);
@@ -122,7 +146,7 @@ export default function FlowersScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      if (selectedTreeId) await loadFlowers(selectedTreeId);
+      if (treeId) await loadFlowers(treeId);
       else await loadFlowers();
       await loadStats();
       if (isOnline) await autoSync();
@@ -149,7 +173,7 @@ export default function FlowersScreen() {
 
   const loadStats = async () => {
     try {
-      const databaseStats = await FlowerService.getStats(treeData?.id);
+      const databaseStats = await FlowerService.getStats(treeId);
       setStats(databaseStats);
     } catch (error) {
       console.error("Load stats error:", error);
@@ -172,7 +196,7 @@ export default function FlowersScreen() {
       setFormData({
         ...formData,
         image_url: newPath,
-        tree_id: selectedTreeId || "",
+        tree_id: treeId || "",
       });
       setPreviewImage(newPath);
       setCameraVisible(false);
@@ -216,7 +240,7 @@ export default function FlowersScreen() {
         text1: "Success",
         text2: "Flower created",
       });
-      if (selectedTreeId) await loadFlowers(selectedTreeId);
+      if (treeId) await loadFlowers(treeId);
       else await loadFlowers();
       await loadStats();
       resetForm();
@@ -269,7 +293,7 @@ export default function FlowersScreen() {
         text1: "Success",
         text2: "Flower updated",
       });
-      if (selectedTreeId) await loadFlowers(selectedTreeId);
+      if (treeId) await loadFlowers(treeId);
       await loadStats();
       resetForm();
       setModalVisible(false);
@@ -289,7 +313,7 @@ export default function FlowersScreen() {
         style: "destructive",
         onPress: async () => {
           await FlowerService.deleteFlower(id);
-          if (selectedTreeId) await loadFlowers(selectedTreeId);
+          if (treeId) await loadFlowers(treeId);
           else await loadFlowers();
           await loadStats();
           Toast.show({
@@ -302,22 +326,10 @@ export default function FlowersScreen() {
     ]);
   };
 
-  const handleRestore = async (id: string) => {
-    await FlowerService.restoreFlower(id);
-    if (selectedTreeId) await loadFlowers(selectedTreeId);
-    else await loadFlowers();
-    await loadStats();
-    Toast.show({
-      type: "success",
-      text1: "Restored",
-      text2: "Flower restored",
-    });
-  };
-
   const resetForm = () => {
     setEditingFlower(null);
     setFormData({
-      tree_id: selectedTreeId || "",
+      tree_id: treeId || "",
       quantity: "1",
       wrapped_at: new Date().toISOString().split("T")[0],
       image_url: "",
@@ -338,7 +350,7 @@ export default function FlowersScreen() {
     setSyncing(true);
     try {
       await FlowerService.syncAll();
-      if (selectedTreeId) await loadFlowers(selectedTreeId);
+      if (treeId) await loadFlowers(treeId);
       else await loadFlowers();
       await loadStats();
       Toast.show({
@@ -361,7 +373,7 @@ export default function FlowersScreen() {
     try {
       await FlowerService.syncAll();
       await FruitService.syncAll();
-      if (selectedTreeId) await loadFlowers(selectedTreeId);
+      if (treeId) await loadFlowers(treeId);
       await loadStats();
     } catch (error) {
       console.error("Auto-sync error:", error);
@@ -408,14 +420,14 @@ export default function FlowersScreen() {
               </View>
 
               {/* Tree Info */}
-              {treeData && (
+              {treeDetails && (
                 <View className="flex-row items-center mb-1">
                   <TreeIcon size={14} color="#6b7280" />
                   <Text
                     className="text-sm text-gray-600 ml-1 flex-1"
                     numberOfLines={1}
                   >
-                    {treeData.type} - {treeData.description}
+                    {treeDetails.type} - {treeDetails.description}
                   </Text>
                 </View>
               )}
@@ -498,7 +510,7 @@ export default function FlowersScreen() {
       <View className="bg-white pt-12 pb-4 px-4 shadow-sm border-b border-gray-100">
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-2xl font-bold text-gray-800">
-            {treeData?.description} Flowers
+            {treeDetails.description} Flowers
           </Text>
           <View className="flex-row items-center">
             {isOnline ? (
@@ -514,12 +526,12 @@ export default function FlowersScreen() {
           </View>
         </View>
 
-        {treeData && (
+        {treeDetails && (
           <View className="bg-gray-50 rounded-xl p-3 mb-4">
             <View className="flex-row items-center">
               <TreeIcon size={20} color="#6b7280" />
               <Text className="text-gray-700 ml-2">
-                {treeData.type} - {treeData.description}
+                {treeDetails.type} - {treeDetails.description}
               </Text>
             </View>
           </View>
@@ -595,8 +607,8 @@ export default function FlowersScreen() {
               No Flowers Yet
             </Text>
             <Text className="text-gray-400 text-center mb-6">
-              {treeData
-                ? `No flowers for ${treeData.type} tree`
+              {treeDetails
+                ? `No flowers for ${treeDetails.type} tree`
                 : "Take a photo to get started"}
             </Text>
             <TouchableOpacity
@@ -665,12 +677,12 @@ export default function FlowersScreen() {
                 </View>
               )}
 
-              {treeData && (
+              {treeDetails && (
                 <View className="mb-4">
                   <Text className="text-gray-700 font-medium mb-2">Tree</Text>
                   <View className="border border-gray-200 rounded-xl px-4 py-3 bg-gray-50">
                     <Text className="text-gray-800">
-                      {treeData.type} - {treeData.description}
+                      {treeDetails.type} - {treeDetails.description}
                     </Text>
                   </View>
                 </View>

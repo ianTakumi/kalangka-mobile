@@ -1,4 +1,5 @@
 // app/qr-scanner.tsx
+import TreeService from "@/services/treeService"; // Import your TreeService
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import {
@@ -12,6 +13,7 @@ import {
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   StyleSheet,
@@ -27,6 +29,7 @@ export default function QRScannerScreen() {
   const [scanned, setScanned] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [cameraType, setCameraType] = useState<CameraType>("back");
+  const [isProcessing, setIsProcessing] = useState(false);
   const router = useRouter();
 
   // Request camera permission
@@ -37,60 +40,142 @@ export default function QRScannerScreen() {
   }, [permission]);
 
   // Handle QR code scan
-  const handleBarCodeScanned = ({ type, data }) => {
+  const handleBarCodeScanned = async ({ type, data }) => {
+    if (scanned || isProcessing) return;
+
     setScanned(true);
+    setIsProcessing(true);
     Vibration.vibrate(100); // Haptic feedback
 
     console.log(`QR Code Scanned - Type: ${type}, Data: ${data}`);
 
     try {
+      // First, check if it's a valid UUID format (tree ID)
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (uuidRegex.test(data)) {
+        // This is a tree UUID - query the database
+        console.log("Looking up tree with ID:", data);
+
+        // Initialize TreeService if needed
+        await TreeService.init();
+
+        // Try to get tree by ID from local database first
+        let tree = await TreeService.getTreeById(data);
+
+        if (!tree) {
+          // If not found locally, try to sync from server first
+          console.log("Tree not found locally, syncing from server...");
+          await TreeService.syncTreesFromServer();
+
+          // Try again after sync
+          tree = await TreeService.getTreeById(data);
+        }
+
+        if (tree) {
+          router.push({
+            pathname: "/users/treeinfo",
+            params: { treeData: JSON.stringify(tree) },
+          });
+          return;
+        } else {
+          // Tree ID not found in database
+          Alert.alert(
+            "Tree Not Found",
+            `No tree found. Try to scan again or sync your data to get the latest trees from the server.`,
+            [
+              {
+                text: "Try Again",
+                onPress: () => {
+                  setScanned(false);
+                  setIsProcessing(false);
+                },
+              },
+              {
+                text: "Cancel",
+                style: "cancel",
+                onPress: () => router.back(),
+              },
+            ],
+          );
+          return;
+        }
+      }
+
       // Try to parse as JSON (if it's tree data)
       const parsedData = JSON.parse(data);
+      console.log("Parsed QR Data:", parsedData);
 
       // Check if it's tree data format
       if (parsedData.id || parsedData.tree_id || parsedData._id) {
-        // Navigate to Tree Info screen with the data
-        setTimeout(() => {
-          router.push({
-            pathname: "/users/treeinfo",
-            params: { treeData: JSON.stringify(parsedData) },
-          });
-        }, 500);
+        const treeId = parsedData.id || parsedData.tree_id || parsedData._id;
 
+        // Get full tree data from database
+        await TreeService.init();
+        let tree = await TreeService.getTreeById(treeId);
+
+        if (!tree) {
+          await TreeService.syncTreesFromServer();
+          tree = await TreeService.getTreeById(treeId);
+        }
+
+        if (tree) {
+          setTimeout(() => {
+            router.push({
+              pathname: "/users/treeinfo",
+              params: { treeData: JSON.stringify(tree) },
+            });
+          }, 500);
+        } else {
+          Alert.alert("Error", "Tree data not found in database");
+          setScanned(false);
+          setIsProcessing(false);
+        }
         return;
       }
     } catch (error) {
-      // Not JSON, check other formats
-      console.log("Not JSON data, checking other formats...");
+      // Not JSON or UUID, check other formats
+      console.log("Not JSON/UUID data, checking other formats...", error);
     }
 
     // Check for Tree ID format (starts with "tree_" or similar)
     if (data.match(/^(tree_|TREE_|Tree_)/) || data.match(/^[A-Z0-9]{6,12}$/)) {
       // This looks like a tree ID
-      Alert.alert(
-        "Tree Found!",
-        `Tree ID: ${data}\n\nFetching tree details...`,
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-            onPress: () => setScanned(false),
+      Alert.alert("Tree Found!", `Tree ID: ${data}\n\nSearching database...`, [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => {
+            setScanned(false);
+            setIsProcessing(false);
           },
-          {
-            text: "View Details",
-            onPress: () => {
-              // Navigate to tree info (you'll need to fetch data from backend)
+        },
+        {
+          text: "View Details",
+          onPress: async () => {
+            // Try to find tree by this ID format
+            await TreeService.init();
+            let tree = await TreeService.getTreeById(data);
+
+            if (!tree) {
+              await TreeService.syncTreesFromServer();
+              tree = await TreeService.getTreeById(data);
+            }
+
+            if (tree) {
               router.push({
-                pathname: "/tree-info",
-                params: {
-                  treeId: data,
-                  scanned: "true",
-                },
+                pathname: "/users/treeinfo",
+                params: { treeData: JSON.stringify(tree) },
               });
-            },
+            } else {
+              Alert.alert("Not Found", `Tree with ID "${data}" not found`);
+              setScanned(false);
+              setIsProcessing(false);
+            }
           },
-        ],
-      );
+        },
+      ]);
       return;
     }
 
@@ -100,13 +185,19 @@ export default function QRScannerScreen() {
         {
           text: "Cancel",
           style: "cancel",
-          onPress: () => setScanned(false),
+          onPress: () => {
+            setScanned(false);
+            setIsProcessing(false);
+          },
         },
         {
           text: "Open",
           onPress: () => {
             Linking.openURL(data);
-            setTimeout(() => setScanned(false), 2000);
+            setTimeout(() => {
+              setScanned(false);
+              setIsProcessing(false);
+            }, 2000);
           },
         },
       ]);
@@ -119,7 +210,10 @@ export default function QRScannerScreen() {
         {
           text: "Cancel",
           style: "cancel",
-          onPress: () => setScanned(false),
+          onPress: () => {
+            setScanned(false);
+            setIsProcessing(false);
+          },
         },
         {
           text: "Process",
@@ -136,7 +230,10 @@ export default function QRScannerScreen() {
     Alert.alert("QR Code Scanned", `Content: ${data}`, [
       {
         text: "Scan Again",
-        onPress: () => setScanned(false),
+        onPress: () => {
+          setScanned(false);
+          setIsProcessing(false);
+        },
       },
     ]);
   };
@@ -154,6 +251,7 @@ export default function QRScannerScreen() {
     } else {
       Alert.alert("Unknown Format", "This QR code format is not supported.");
       setScanned(false);
+      setIsProcessing(false);
     }
   };
 
@@ -165,6 +263,7 @@ export default function QRScannerScreen() {
   // Reset scanner
   const resetScanner = () => {
     setScanned(false);
+    setIsProcessing(false);
   };
 
   if (!permission) {
@@ -268,13 +367,7 @@ export default function QRScannerScreen() {
                     top: "50%",
                     transform: [{ translateY: -0.5 }],
                   }}
-                >
-                  {/* <ScanLine
-                    size={20}
-                    color="#10b981"
-                    className="absolute -top-2 left-1/2"
-                  /> */}
-                </View>
+                />
               )}
             </View>
 
@@ -286,22 +379,30 @@ export default function QRScannerScreen() {
             {scanned ? (
               <View className="items-center">
                 <View className="bg-emerald-500/20 p-4 rounded-full mb-4">
-                  <CheckCircle size={40} color="#10b981" />
+                  {isProcessing ? (
+                    <ActivityIndicator size="large" color="#10b981" />
+                  ) : (
+                    <CheckCircle size={40} color="#10b981" />
+                  )}
                 </View>
                 <Text className="text-white text-xl font-bold mb-2">
-                  Successfully Scanned!
+                  {isProcessing ? "Processing..." : "Successfully Scanned!"}
                 </Text>
                 <Text className="text-gray-300 text-center mb-6">
-                  Processing tree data...
+                  {isProcessing
+                    ? "Looking up tree information..."
+                    : "Processing tree data..."}
                 </Text>
-                <TouchableOpacity
-                  onPress={resetScanner}
-                  className="bg-white py-3 px-8 rounded-full"
-                >
-                  <Text className="text-gray-900 font-semibold">
-                    Scan Another QR
-                  </Text>
-                </TouchableOpacity>
+                {!isProcessing && (
+                  <TouchableOpacity
+                    onPress={resetScanner}
+                    className="bg-white py-3 px-8 rounded-full"
+                  >
+                    <Text className="text-gray-900 font-semibold">
+                      Scan Another QR
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <View className="items-center">

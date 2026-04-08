@@ -117,7 +117,16 @@ class FruitService {
       updated_at: fruit.updated_at ? new Date(fruit.updated_at) : new Date(),
       is_synced: Boolean(fruit.is_synced),
       status: fruit.status,
-      deleted_at: fruit.deleted_at ? new Date(fruit.deleted_at) : null, // ← IDAGDAG ITO
+      deleted_at: fruit.deleted_at ? new Date(fruit.deleted_at) : null,
+      // ✅ IDAGDAG ANG FARMER ASSESSMENT FIELDS
+      farmer_extra_days: fruit.farmer_extra_days || 0,
+      farmer_assessed_at: fruit.farmer_assessed_at
+        ? new Date(fruit.farmer_assessed_at)
+        : null,
+      next_check_date: fruit.next_check_date
+        ? new Date(fruit.next_check_date)
+        : null,
+      farmer_notes: fruit.farmer_notes || null,
     };
   }
 
@@ -188,6 +197,7 @@ class FruitService {
   }
 
   private async syncFruitToServer(fruit: Fruit): Promise<void> {
+    console.log("Fruits to be synced" + JSON.stringify(fruit));
     if (this.isSyncInProgress(fruit.id)) {
       console.log(
         `⏸️ Sync already in progress for fruit ${fruit.id}, skipping`,
@@ -224,7 +234,7 @@ class FruitService {
         return;
       }
 
-      let imageUrl = null;
+      let imageUrl = "";
       if (fruit.image_uri) {
         try {
           imageUrl = await this.uploadImageToServer(fruit);
@@ -253,7 +263,18 @@ class FruitService {
         updated_at: fruit.updated_at ? fruit.updated_at.toISOString() : null,
         image_url: imageUrl,
         is_synced: true,
+        // Farmer assessment fields
+        farmer_extra_days: fruit.farmer_extra_days || 0,
+        farmer_assessed_at: fruit.farmer_assessed_at
+          ? new Date(fruit.farmer_assessed_at).toISOString()
+          : null,
+        next_check_date: fruit.next_check_date
+          ? new Date(fruit.next_check_date).toISOString()
+          : null,
+        farmer_notes: fruit.farmer_notes || null,
       };
+
+      console.log("payload" + JSON.stringify(payload));
 
       console.log(`📤 Syncing fruit ${fruit.id}...`);
 
@@ -496,13 +517,13 @@ class FruitService {
           const existing = localMap.get(rf.id);
 
           // DOWNLOAD IMAGE if it's a URL
-          let imagePath = rf.image_uri || "";
-          if (rf.image_uri?.startsWith("http")) {
+          let imagePath = rf.image_url || "";
+          if (rf.image_url?.startsWith("http")) {
             try {
               const filename = `fruit_${rf.id}_${Date.now()}.jpg`;
               const localPath = imgDir + filename;
               const { uri } = await FileSystem.downloadAsync(
-                rf.image_uri,
+                rf.image_url,
                 localPath,
               );
               imagePath = uri;
@@ -511,7 +532,7 @@ class FruitService {
               console.warn(
                 `⚠️ Image download failed for fruit ${rf.id}, using URL`,
               );
-              imagePath = rf.image_uri; // fallback to URL
+              imagePath = rf.image_url;
             }
           }
 

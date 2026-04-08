@@ -54,7 +54,6 @@ export default function TreeInfoScreen() {
   const [flowerCount, setFlowerCount] = useState(0);
   const router = useRouter();
   const [distance, setDistance] = useState<string | null>(null);
-  // Date input states - THESE WERE MISSING
   const [dateInput, setDateInput] = useState("");
   const [timeInput, setTimeInput] = useState("");
 
@@ -73,14 +72,43 @@ export default function TreeInfoScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
 
-  // Initial map position centered on the tree
+  // Initial map position centered on the tree - FIXED
   const [initialPosition, setInitialPosition] = useState({
     coordinates: {
-      latitude: treeData.coordinates.latitude || 14.5995,
-      longitude: treeData.coordinates.longitude || 120.9842,
+      latitude: treeData?.latitude || 14.5995,
+      longitude: treeData?.longitude || 120.9842,
     },
-    zoom: 18, // Zoom in closer for single tree view
+    zoom: 18,
   });
+
+  // Create marker for the current tree only - FIXED
+  const treeMarker = treeData
+    ? [
+        {
+          id: treeData.id || treeData._id || "tree-marker",
+          coordinates: {
+            latitude: treeData.latitude,
+            longitude: treeData.longitude,
+          },
+          title: treeData.description || "Tree",
+          snippet: `Type: ${treeData.type || "Unknown"}`,
+          color: "green",
+          icon: {
+            url: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
+          },
+        },
+      ]
+    : [];
+
+  // User location for the map
+  const userLocation = location
+    ? {
+        coordinates: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+      }
+    : undefined;
 
   // Create a string from the tree data for the QR code
   const qrCodeData = treeData
@@ -89,10 +117,8 @@ export default function TreeInfoScreen() {
         description: treeData.description,
         image_path: treeData.image_path,
         is_synced: treeData.is_synced,
-        coordinates: {
-          latitude: treeData.coordinates.latitude,
-          longitude: treeData.coordinates.longitude,
-        },
+        latitude: treeData.latitude,
+        longitude: treeData.longitude,
         type: treeData.type,
         status: treeData.status,
         timestamp: treeData.created_at || new Date().toISOString(),
@@ -139,8 +165,8 @@ export default function TreeInfoScreen() {
 
   const calculateDistance = async () => {
     const distanceText = await treeService.getTreeDistance(
-      treeData?.coordinates.latitude,
-      treeData?.coordinates.longitude,
+      treeData?.latitude,
+      treeData?.longitude,
     );
     setDistance(distanceText);
   };
@@ -185,8 +211,8 @@ export default function TreeInfoScreen() {
     if (mapRef.current && treeData) {
       mapRef.current.setCameraPosition({
         coordinates: {
-          latitude: treeData.coordinates.latitude,
-          longitude: treeData.coordinates.longitude,
+          latitude: treeData.latitude,
+          longitude: treeData.longitude,
         },
         zoom: 18,
       });
@@ -225,7 +251,7 @@ export default function TreeInfoScreen() {
   }, [showDateModal]);
 
   useEffect(() => {
-    if (treeData?.coordinates.latitude && treeData?.coordinates.longitude) {
+    if (treeData?.latitude && treeData?.longitude) {
       calculateDistance();
     }
   }, [treeData]);
@@ -504,36 +530,6 @@ export default function TreeInfoScreen() {
   const toggleCameraFacing = () => {
     setFacing((current) => (current === "back" ? "front" : "back"));
   };
-
-  // Create marker for the current tree only
-  const treeMarker = treeData
-    ? [
-        {
-          id: treeData.id || treeData._id || "tree-marker",
-          coordinates: {
-            latitude: treeData.coordinates.latitude,
-            longitude: treeData.coordinates.longitude,
-          },
-          title: treeData.description || "Tree",
-          snippet: `Type: ${treeData.type || "Unknown"}`,
-          color: "green",
-          // Custom marker with tree icon
-          icon: {
-            url: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-          },
-        },
-      ]
-    : [];
-
-  // User location for the map
-  const userLocation = location
-    ? {
-        coordinates: {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        },
-      }
-    : undefined;
 
   if (Platform.OS === "android") {
     return (
@@ -861,7 +857,7 @@ export default function TreeInfoScreen() {
                     ref={mapRef}
                     style={{ flex: 1, width: "100%", height: "100%" }}
                     cameraPosition={initialPosition}
-                    markers={treeMarker} // Only one marker for current tree
+                    markers={treeMarker}
                     userLocation={userLocation}
                     properties={{
                       isMyLocationEnabled: true,

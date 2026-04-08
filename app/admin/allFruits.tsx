@@ -136,7 +136,10 @@ export default function AllFruits() {
 
       // Get fruits from local SQLite database
       const localFruits = await FruitService.getAllFruits();
-
+      console.log(
+        "Fetched fruits from local database:",
+        JSON.stringify(localFruits),
+      );
       if (localFruits.success && localFruits.data) {
         setFruits(localFruits.data);
         setFilteredFruits(localFruits.data);

@@ -17,7 +17,6 @@ export interface Token {
   token_type: string;
 }
 
-// types/index.ts
 export interface Tree {
   id: string;
   type: string;
@@ -25,10 +24,10 @@ export interface Tree {
   latitude: number;
   longitude: number;
   status: "active" | "inactive";
-  created_at: Date | null;
-  image_path: string;
-  updated_at: Date | null;
   is_synced: boolean;
+  image_path: string;
+  created_at: Date | null;
+  updated_at: Date | null;
 }
 
 export interface Flower {
@@ -55,6 +54,10 @@ export interface Fruit {
   created_at: Date;
   updated_at: Date;
   image_uri: string;
+  farmer_extra_days?: number;
+  farmer_assessed_at?: Date;
+  next_check_date?: Date;
+  farmer_notes?: string;
   description?: string;
   type?: string;
   latitude?: number;
