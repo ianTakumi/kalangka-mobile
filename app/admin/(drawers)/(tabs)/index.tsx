@@ -63,7 +63,6 @@ export default function FarmerHomeScreen() {
     totalFlowers: 0,
     totalFruits: 0,
     totalUsers: 0,
-    totalContacts: 0,
     totalHarvests: 0,
     totalWeight: 0,
     totalWaste: 0,
@@ -180,7 +179,6 @@ export default function FarmerHomeScreen() {
         totalFlowers,
         totalFruits,
         totalUsers,
-        totalContacts: completedStats.totalContacts || 0,
         totalHarvests: completedStats.totalHarvest,
         totalWeight: completedStats.totalWeight,
         totalWaste: completedStats.totalWaste,
@@ -505,7 +503,7 @@ export default function FarmerHomeScreen() {
     {
       id: "totalWeight",
       title: "Total Weight",
-      value: `${userStats.totalWeight} kg`,
+      value: `${userStats.totalWeight.toFixed(2)} kg`,
       icon: <Banana size={24} color="#059669" />,
       iconBgColor: "bg-emerald-100",
       route: "/admin/allHarvest",
@@ -528,15 +526,6 @@ export default function FarmerHomeScreen() {
       iconBgColor: "bg-violet-100",
       route: "/admin/users",
       subtitle: "Active",
-    },
-    {
-      id: "totalContacts",
-      title: "Total Contacts",
-      value: userStats.totalContacts,
-      icon: <MapPin size={24} color="#2563EB" />,
-      iconBgColor: "bg-blue-100",
-      route: "/admin/contacts",
-      subtitle: "All contacts",
     },
   ];
 

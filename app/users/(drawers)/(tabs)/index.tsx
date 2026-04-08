@@ -347,6 +347,65 @@ export default function FarmerHomeScreen() {
   const syncData = async () => {
     // Sync harvest data
     try {
+      // Sync all flowers that is unsynced maybe new or user updated it offline
+      try {
+        FlowerService.syncAll();
+      } catch (err) {
+        console.error("Error syncing flower data:", err);
+      }
+
+      // ===== FLOWER SYNC Get all new data or updated data =====
+      try {
+        const { needsSync: flowersNeedSync, flowerCount } =
+          await FlowerService.checkAndSync();
+
+        if (flowersNeedSync) {
+          const flowerResult = await FlowerService.syncFlowersFromServer();
+
+          if (flowerResult.synced > 0) {
+            console.log(`✅ Synced ${flowerResult.synced} flowers from server`);
+          }
+
+          if (flowerResult.errors.length > 0) {
+            console.warn("Flower sync errors:", flowerResult.errors);
+          }
+        } else {
+          console.log("✅ Flowers are up to date");
+        }
+      } catch (flowerError) {
+        console.error("❌ Flower sync from server failed:", flowerError);
+      }
+
+      // Sync all fruit that is unsynced maybe new or user updated it offline
+
+      try {
+        FruitService.syncAll();
+      } catch (err) {
+        console.error("Error syncing fruit data:", err);
+      }
+
+      // ===== FRUIT SYNC Get all new data or updated data =====
+      try {
+        const { needsSync: fruitsNeedSync, fruitCount } =
+          await FruitService.checkAndSync(); // <- CHECK muna
+
+        if (fruitsNeedSync) {
+          const fruitResult = await FruitService.syncFruitsFromServer();
+
+          if (fruitResult.synced > 0) {
+            console.log(`✅ Synced ${fruitResult.synced} fruits from server`);
+          }
+
+          if (fruitResult.errors.length > 0) {
+            console.warn("Fruit sync errors:", fruitResult.errors);
+          }
+        } else {
+          console.log("✅ Fruits are up to date");
+        }
+      } catch (fruitError) {
+        console.error("❌ Fruit sync from server failed:", fruitError);
+      }
+
       // Get unsynced harvests count
       const unsyncedCount = await HarvestService.getUnsyncedCount();
 
@@ -375,63 +434,12 @@ export default function FarmerHomeScreen() {
       console.error("❌ Harvest sync failed:", harvestError);
     }
 
-    // Sync all flowers that is unsynced maybe new or user updated it offline
-    try {
-      FlowerService.syncAll();
-    } catch (err) {
-      console.error("Error syncing flower data:", err);
-    }
+    console.log("📥 Checking for new harvests from server...");
 
-    // ===== FLOWER SYNC Get all new data or updated data =====
-    try {
-      const { needsSync: flowersNeedSync, flowerCount } =
-        await FlowerService.checkAndSync();
+    const harvestResult = await HarvestService.syncHarvestsFromServer();
 
-      if (flowersNeedSync) {
-        const flowerResult = await FlowerService.syncFlowersFromServer();
-
-        if (flowerResult.synced > 0) {
-          console.log(`✅ Synced ${flowerResult.synced} flowers from server`);
-        }
-
-        if (flowerResult.errors.length > 0) {
-          console.warn("Flower sync errors:", flowerResult.errors);
-        }
-      } else {
-        console.log("✅ Flowers are up to date");
-      }
-    } catch (flowerError) {
-      console.error("❌ Flower sync from server failed:", flowerError);
-    }
-
-    // Sync all fruit that is unsynced maybe new or user updated it offline
-
-    try {
-      FruitService.syncAll();
-    } catch (err) {
-      console.error("Error syncing fruit data:", err);
-    }
-
-    // ===== FRUIT SYNC Get all new data or updated data =====
-    try {
-      const { needsSync: fruitsNeedSync, fruitCount } =
-        await FruitService.checkAndSync(); // <- CHECK muna
-
-      if (fruitsNeedSync) {
-        const fruitResult = await FruitService.syncFruitsFromServer(); // <- DOWNLOAD kung kailangan
-
-        if (fruitResult.synced > 0) {
-          console.log(`✅ Synced ${fruitResult.synced} fruits from server`);
-        }
-
-        if (fruitResult.errors.length > 0) {
-          console.warn("Fruit sync errors:", fruitResult.errors);
-        }
-      } else {
-        console.log("✅ Fruits are up to date");
-      }
-    } catch (fruitError) {
-      console.error("❌ Fruit sync from server failed:", fruitError);
+    if (harvestResult.synced > 0) {
+      console.log(`✅ Downloaded ${harvestResult.synced} harvests from server`);
     }
   };
 
