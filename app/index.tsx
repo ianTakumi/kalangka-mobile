@@ -95,21 +95,21 @@ export default function Index() {
       await treeService.init();
       console.log("✅ Tree database initialized");
 
-      setInitProgress("Initializing harvest module...");
-      await HarvestService.init();
-      console.log("✅ Harvest database initialized");
+      setInitProgress("Initializing user module...");
+      await userService.init();
+      console.log("✅ User database initialized");
 
       setInitProgress("Initializing flower module...");
       await flowerService.init();
       console.log("✅ Flower database initialized");
 
-      setInitProgress("Initializing user module...");
-      await userService.init();
-      console.log("✅ User database initialized");
-
       setInitProgress("Initializing fruit module...");
       await fruitService.init();
       console.log("✅ Fruit database initialized");
+
+      setInitProgress("Initializing harvest module...");
+      await HarvestService.init();
+      console.log("✅ Harvest database initialized");
 
       // Step 2: Maghintay ng konti para masiguradong ready na lahat
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -189,6 +189,29 @@ export default function Index() {
         setInitProgress("Trees are up to date");
       }
 
+      // ===== USER SYNC (ADD THIS) =====
+      setInitProgress("Checking users...");
+      try {
+        // Use the syncUsersFromServer method directly
+        const userResult = await userService.syncUsersFromServer();
+
+        if (userResult.synced > 0) {
+          console.log(`✅ Synced ${userResult.synced} users from server`);
+          setInitProgress(`Downloaded ${userResult.synced} users...`);
+        } else {
+          console.log("✅ Users are up to date");
+          setInitProgress("Users up to date");
+        }
+
+        if (userResult.errors.length > 0) {
+          console.warn("User sync errors:", userResult.errors);
+        }
+      } catch (userError) {
+        console.error("❌ User sync from server failed:", userError);
+        // Don't stop the whole sync, just log the error
+        setInitProgress("User sync failed - continuing...");
+      }
+
       // ===== FLOWER SYNC =====
       setInitProgress("Checking flowers...");
       try {
@@ -239,29 +262,6 @@ export default function Index() {
         }
       } catch (fruitError) {
         console.error("❌ Fruit sync from server failed:", fruitError);
-      }
-
-      // ===== USER SYNC (ADD THIS) =====
-      setInitProgress("Checking users...");
-      try {
-        // Use the syncUsersFromServer method directly
-        const userResult = await userService.syncUsersFromServer();
-
-        if (userResult.synced > 0) {
-          console.log(`✅ Synced ${userResult.synced} users from server`);
-          setInitProgress(`Downloaded ${userResult.synced} users...`);
-        } else {
-          console.log("✅ Users are up to date");
-          setInitProgress("Users up to date");
-        }
-
-        if (userResult.errors.length > 0) {
-          console.warn("User sync errors:", userResult.errors);
-        }
-      } catch (userError) {
-        console.error("❌ User sync from server failed:", userError);
-        // Don't stop the whole sync, just log the error
-        setInitProgress("User sync failed - continuing...");
       }
 
       // ===== HARVEST SYNC (DOWNLOAD) - ADD THIS AFTER FRUIT SYNC =====

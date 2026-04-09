@@ -1,6 +1,7 @@
 import FlowerService from "@/services/FlowerService";
 import FruitService from "@/services/FruitService";
 import HarvestService from "@/services/HarvestService";
+import UserService from "@/services/UserService";
 import { User as UserType } from "@/types/index";
 import { getTimeBasedGreeting } from "@/utils/helpers";
 import NetInfo from "@react-native-community/netinfo";
@@ -346,6 +347,12 @@ export default function FarmerHomeScreen() {
 
   const syncData = async () => {
     // Sync harvest data
+    try {
+      await UserService.syncUsersFromServer();
+    } catch (err) {
+      console.error("Error syncing user data:", err);
+    }
+
     try {
       // Sync all flowers that is unsynced maybe new or user updated it offline
       try {

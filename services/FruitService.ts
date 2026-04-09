@@ -30,8 +30,21 @@ class FruitService {
       console.log("Initializing SQLite database for fruits...");
       this.db = await SQLite.openDatabaseAsync("kalangka.db");
 
-      await this.db.execAsync(CREATE_FRUITS_TABLE);
+      // ✅ I-CHECK MUNA KUNG EXISTING ANG TABLE
+      const tableInfo = await this.db.getAllAsync("PRAGMA table_info(fruits)");
+      const hasUserId = tableInfo.some((col) => col.name === "user_id");
 
+      // ✅ KUNG WALANG USER_ID, I-DROP ANG LUMANG TABLE
+      if (!hasUserId) {
+        console.log(
+          "⚠️ Old fruits table detected (missing user_id), dropping...",
+        );
+        await this.db.execAsync("DROP TABLE IF EXISTS fruits");
+        console.log("✅ Old fruits table dropped");
+      }
+
+      // ✅ NGAYON I-CREATE ANG BAGONG TABLE
+      await this.db.execAsync(CREATE_FRUITS_TABLE);
       await this.db.execAsync(CREATE_FRUITS_INDEXES);
 
       console.log("Fruits SQLite database initialized successfully");

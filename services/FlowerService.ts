@@ -30,6 +30,20 @@ class FlowerService {
       console.log("Initializing SQLite database for flowers...");
       this.db = await SQLite.openDatabaseAsync("kalangka.db");
 
+      // ✅ I-CHECK MUNA KUNG EXISTING ANG TABLE
+      const tableInfo = await this.db.getAllAsync("PRAGMA table_info(flowers)");
+      const hasUserId = tableInfo.some((col) => col.name === "user_id");
+
+      // ✅ KUNG WALANG USER_ID, I-DROP ANG LUMANG TABLE
+      if (!hasUserId) {
+        console.log(
+          "⚠️ Old flowers table detected (missing user_id), dropping...",
+        );
+        await this.db.execAsync("DROP TABLE IF EXISTS flowers");
+        console.log("✅ Old flowers table dropped");
+      }
+
+      // ✅ NGAYON I-CREATE ANG BAGONG TABLE
       await this.db.execAsync(CREATE_FLOWERS_TABLE);
       await this.db.execAsync(CREATE_FLOWER_INDEXES);
 
