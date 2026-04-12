@@ -71,23 +71,28 @@ export default function FruitReportScreen() {
   const tagOptions = [
     {
       id: 1,
-      label: "Batch 1",
+      label: "Tag 1",
       color: "bg-blue-100",
       textColor: "text-blue-700",
     },
     {
       id: 2,
-      label: "Batch 2",
+      label: "Tag 2",
       color: "bg-green-100",
       textColor: "text-green-700",
     },
     {
       id: 3,
-      label: "Batch 3",
+      label: "Tag 3",
       color: "bg-yellow-100",
       textColor: "text-yellow-700",
     },
-    { id: 4, label: "Batch 4", color: "bg-red-100", textColor: "text-red-700" },
+    {
+      id: 4,
+      label: "Tag 4",
+      color: "bg-orange-100",
+      textColor: "text-orange-700",
+    },
   ];
 
   useEffect(() => {

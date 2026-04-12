@@ -5,6 +5,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import {
+  ArrowLeft,
   Camera,
   Edit2,
   MapPin,
@@ -30,6 +31,7 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+
 // Create directory for tree images
 const TREE_IMAGES_DIR = FileSystem.documentDirectory + "tree_images/";
 
@@ -212,6 +214,7 @@ export default function TreesScreen() {
       setRefreshing(false);
     }
   };
+
   const loadTrees = async () => {
     try {
       const data = await TreeService.getTreesWithDistance();
@@ -657,11 +660,18 @@ export default function TreesScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Header */}
+      {/* Header with Back Button */}
       <View className="bg-white pt-12 pb-4 px-4 shadow-sm border-b border-gray-200">
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-2xl font-bold text-gray-800">My Trees</Text>
-
+        <View className="flex-row items-center mb-4">
+          <TouchableOpacity
+            onPress={() => router.push("/admin/index")}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 mr-3"
+          >
+            <ArrowLeft size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text className="flex-1 text-2xl font-bold text-gray-800">
+            My Trees
+          </Text>
           <View className="flex-row items-center">
             {isOnline ? (
               <Wifi size={20} color="#059669" />
@@ -752,13 +762,12 @@ export default function TreesScreen() {
         renderItem={renderTreeItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16 }}
-        // Add RefreshControl here
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#059669"]} // Android
-            tintColor="#059669" // iOS
+            colors={["#059669"]}
+            tintColor="#059669"
             title="Pull to refresh"
             titleColor="#6b7280"
           />

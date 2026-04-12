@@ -1,6 +1,7 @@
 import client from "@/utils/axiosInstance";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -68,6 +69,7 @@ interface Tree {
 }
 
 export default function AllFlowers() {
+  const router = useRouter();
   const [flowers, setFlowers] = useState<Flower[]>([]);
   const [filteredFlowers, setFilteredFlowers] = useState<Flower[]>([]);
   const [loading, setLoading] = useState(true);
@@ -834,9 +836,15 @@ export default function AllFlowers() {
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
 
-      {/* Header */}
+      {/* Header with Back Button */}
       <View className="bg-white px-5 pt-4 pb-5 border-b border-gray-200">
-        <View className="flex-row justify-between items-center mb-4">
+        <View className="flex-row items-center mb-4">
+          <TouchableOpacity
+            onPress={() => router.push("/admin/(drawers)/(tabs)/")}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 mr-3"
+          >
+            <Ionicons name="arrow-back" size={22} color="#374151" />
+          </TouchableOpacity>
           <View>
             <Text className="text-3xl font-bold text-gray-900">
               All Flowers
@@ -846,7 +854,7 @@ export default function AllFlowers() {
             </Text>
           </View>
           <TouchableOpacity
-            className="bg-gray-100 px-4 py-2 rounded-full"
+            className="bg-gray-100 px-4 py-2 rounded-full ml-auto"
             onPress={openFilterModal}
           >
             <View className="flex-row items-center">

@@ -1,19 +1,19 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Image,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useSelector, useDispatch } from "react-redux";
-import { RootState } from "@/redux/store";
 import { logout } from "@/redux/slices/authSlice";
+import { RootState } from "@/redux/store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useDispatch, useSelector } from "react-redux";
 
 export default function ProfileScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -32,7 +32,6 @@ export default function ProfileScreen() {
         style: "destructive",
         onPress: () => {
           setLoading(true);
-          // Simulate API call
           setTimeout(() => {
             dispatch(logout());
             setLoading(false);
@@ -51,6 +50,10 @@ export default function ProfileScreen() {
     router.push("/users/changePassword");
   };
 
+  const handleGoBack = () => {
+    router.push("/admin/(drawers)/(tabs)");
+  };
+
   if (!user) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
@@ -63,6 +66,19 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
+      {/* Header with Back Button */}
+      <View className="bg-white pt-4 pb-2 px-4 border-b border-gray-100 flex-row items-center">
+        <TouchableOpacity
+          onPress={handleGoBack}
+          className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+        >
+          <Ionicons name="arrow-back" size={22} color="#374151" />
+        </TouchableOpacity>
+        <Text className="flex-1 text-center text-xl font-bold text-gray-800">
+          My Profile
+        </Text>
+      </View>
+
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="bg-white pt-8 pb-6 px-6">
@@ -75,17 +91,11 @@ export default function ProfileScreen() {
             ) : (
               <View className="w-32 h-32 bg-green-600 rounded-full items-center justify-center border-4 border-green-100">
                 <Text className="text-white text-4xl font-bold">
-                  {user.first_name?.[0]}
-                  {user.last_name?.[0]}
+                  {user.first_name?.[0]?.toUpperCase()}
+                  {user.last_name?.[0]?.toUpperCase()}
                 </Text>
               </View>
             )}
-            <TouchableOpacity
-              className="absolute bottom-0 right-24 bg-green-600 p-3 rounded-full"
-              onPress={handleEditProfile}
-            >
-              <Ionicons name="camera" size={20} color="white" />
-            </TouchableOpacity>
           </View>
 
           <View className="items-center">

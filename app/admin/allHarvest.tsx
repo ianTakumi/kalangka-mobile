@@ -1,4 +1,6 @@
 import HarvestService from "@/services/HarvestService";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Harvest {
   id: string;
@@ -43,6 +46,7 @@ interface Harvest {
 }
 
 export default function AllHarvest() {
+  const router = useRouter();
   const [harvests, setHarvests] = useState<Harvest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -97,7 +101,10 @@ export default function AllHarvest() {
       : harvests.filter((h) => h.status === selectedStatus);
 
   const renderHarvestCard = ({ item }: { item: Harvest }) => (
-    <TouchableOpacity className="bg-white rounded-2xl mb-4 shadow-sm overflow-hidden">
+    <TouchableOpacity
+      activeOpacity={0.9}
+      className="bg-white rounded-2xl mb-4 shadow-sm overflow-hidden"
+    >
       {/* Header */}
       <View className="flex-row justify-between items-center p-4 border-b border-gray-100">
         <View className="flex-1">
@@ -221,34 +228,54 @@ export default function AllHarvest() {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4caf50" />
-        <Text className="mt-2 text-gray-500">Loading harvests...</Text>
-      </View>
+      <SafeAreaView className="flex-1 bg-gray-100">
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#4caf50" />
+          <Text className="mt-2 text-gray-500">Loading harvests...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <FlatList
-      data={filteredHarvests}
-      renderItem={renderHarvestCard}
-      keyExtractor={(item) => item.id}
-      ListHeaderComponent={renderHeader}
-      contentContainerStyle={{ padding: 16, backgroundColor: "#f5f5f5" }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={["#4caf50"]}
-        />
-      }
-      ListEmptyComponent={() => (
-        <View className="flex-1 justify-center items-center py-16">
-          <Text className="text-gray-400 text-base">
-            No harvest records found
+    <SafeAreaView className="flex-1 bg-gray-100" edges={["top"]}>
+      {/* Header with Back Button */}
+      <View className="bg-white px-5 pt-4 pb-4 border-b border-gray-200">
+        <View className="flex-row items-center">
+          <TouchableOpacity
+            onPress={() => router.push("/admin/(drawers)/(tabs)")}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 mr-3"
+          >
+            <Ionicons name="arrow-back" size={22} color="#374151" />
+          </TouchableOpacity>
+          <Text className="text-xl font-bold text-gray-800">
+            Harvest Records
           </Text>
         </View>
-      )}
-    />
+      </View>
+
+      <FlatList
+        data={filteredHarvests}
+        renderItem={renderHarvestCard}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        contentContainerStyle={{ padding: 16, backgroundColor: "#f5f5f5" }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#4caf50"]}
+            tintColor="#4caf50"
+          />
+        }
+        ListEmptyComponent={() => (
+          <View className="flex-1 justify-center items-center py-16">
+            <Text className="text-gray-400 text-base">
+              No harvest records found
+            </Text>
+          </View>
+        )}
+      />
+    </SafeAreaView>
   );
 }

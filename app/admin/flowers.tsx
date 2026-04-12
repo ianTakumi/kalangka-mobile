@@ -7,6 +7,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  ArrowLeft,
   Calendar,
   Flower as FlowerIcon,
   Package,
@@ -507,10 +508,17 @@ export default function FlowersScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <View className="bg-white pt-12 pb-4 px-4 shadow-sm border-b border-gray-100">
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-2xl font-bold text-gray-800">
-            {treeDetails.description} Flowers
+      {/* Custom Header with Back Button */}
+      <View className="bg-white pt-12 pb-4 px-4 border-b border-gray-100">
+        <View className="flex-row items-center mb-4">
+          <TouchableOpacity
+            onPress={() => router.push("/users/treeinfo?treeId=" + treeId)}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 mr-3"
+          >
+            <ArrowLeft size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text className="flex-1 text-xl font-bold text-gray-800">
+            {treeDetails?.description || "Tree"} Flowers
           </Text>
           <View className="flex-row items-center">
             {isOnline ? (

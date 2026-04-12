@@ -250,48 +250,35 @@ export default function EditProfile() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity onPress={handleCancel}>
-          <Ionicons name="arrow-back" size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text className="text-lg font-semibold text-gray-800">
-          Edit Profile
-        </Text>
-        <TouchableOpacity
-          onPress={handleSaveChanges}
-          disabled={loading || !isOnline}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#16a34a" />
-          ) : (
-            <Text
-              className={`font-semibold ${
-                !isOnline ? "text-gray-400" : "text-green-600"
-              }`}
-            >
-              Save
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
+    <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
       {/* Offline Banner */}
       {!isOnline && (
-        <View className="bg-red-50 px-6 py-3 border-b border-red-200">
-          <View className="flex-row items-center">
-            <Ionicons name="wifi-outline" size={20} color="#dc2626" />
-            <Text className="text-red-600 ml-2 flex-1">
-              You are offline. Connect to the internet to edit your profile.
+        <View className="bg-yellow-500 py-2 px-4">
+          <View className="flex-row items-center justify-center">
+            <Ionicons name="cloud-offline-outline" size={18} color="white" />
+            <Text className="text-white font-medium ml-2">
+              You're offline. Some features are disabled.
             </Text>
           </View>
         </View>
       )}
 
+      {/* Header with Back Button - Same as Profile Screen */}
+      <View className="bg-white pt-4 pb-2 px-4 flex-row items-center border-b border-gray-100">
+        <TouchableOpacity
+          onPress={handleCancel}
+          className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+        >
+          <Ionicons name="chevron-back" size={24} color="#374151" />
+        </TouchableOpacity>
+        <Text className="flex-1 text-center text-xl font-semibold text-gray-800 mr-10">
+          Edit Profile
+        </Text>
+      </View>
+
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Form Section */}
-        <View className="px-6 mt-2">
+        <View className="px-6 mt-6">
           {/* First Name */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">First Name</Text>

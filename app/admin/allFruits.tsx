@@ -2,6 +2,7 @@ import FruitService from "@/services/FruitService";
 import { Ionicons } from "@expo/vector-icons";
 import Entypo from "@expo/vector-icons/Entypo";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,12 +18,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
 interface Fruit {
   id: string;
   flower_id: string;
   tree_id: string;
   user_id: string;
-  tag_id: number; // Add tag_id
+  tag_id: number;
   quantity: number;
   bagged_at: string;
   image_url: string;
@@ -76,6 +78,7 @@ interface Tree {
 }
 
 export default function AllFruits() {
+  const router = useRouter();
   const [fruits, setFruits] = useState<Fruit[]>([]);
   const [filteredFruits, setFilteredFruits] = useState<Fruit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,7 +89,7 @@ export default function AllFruits() {
   // Filter states
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedTreeId, setSelectedTreeId] = useState<string>("");
-  const [selectedTagId, setSelectedTagId] = useState<number | null>(null); // Add tag_id filter
+  const [selectedTagId, setSelectedTagId] = useState<number | null>(null);
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
@@ -94,7 +97,7 @@ export default function AllFruits() {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [tempUserId, setTempUserId] = useState<string>("");
   const [tempTreeId, setTempTreeId] = useState<string>("");
-  const [tempTagId, setTempTagId] = useState<number | null>(null); // Add temp tag_id
+  const [tempTagId, setTempTagId] = useState<number | null>(null);
   const [tempFromDate, setTempFromDate] = useState<string>("");
   const [tempToDate, setTempToDate] = useState<string>("");
 
@@ -197,7 +200,7 @@ export default function AllFruits() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchFruits(); // Just re-fetch from local database
+    await fetchFruits();
     resetFilters();
     setRefreshing(false);
   };
@@ -986,9 +989,15 @@ export default function AllFruits() {
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
 
-      {/* Header */}
+      {/* Header with Back Button */}
       <View className="bg-white px-5 pt-4 pb-5 border-b border-gray-200">
-        <View className="flex-row justify-between items-center mb-4">
+        <View className="flex-row items-center mb-4">
+          <TouchableOpacity
+            onPress={() => router.push("/admin/(drawers)/(tabs)/")}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 mr-3"
+          >
+            <Ionicons name="arrow-back" size={22} color="#374151" />
+          </TouchableOpacity>
           <View>
             <Text className="text-3xl font-bold text-gray-900">All Fruits</Text>
             <Text className="text-gray-500 text-sm mt-1">
@@ -996,7 +1005,7 @@ export default function AllFruits() {
             </Text>
           </View>
           <TouchableOpacity
-            className="bg-gray-100 px-4 py-2 rounded-full"
+            className="bg-gray-100 px-4 py-2 rounded-full ml-auto"
             onPress={openFilterModal}
           >
             <View className="flex-row items-center">

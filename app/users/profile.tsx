@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from "react";
+import { logout } from "@/redux/slices/authSlice";
+import { RootState } from "@/redux/store";
+import { Ionicons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
   Text,
   TouchableOpacity,
-  ScrollView,
-  Alert,
-  Image,
-  ActivityIndicator,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useSelector, useDispatch } from "react-redux";
-import { RootState } from "@/redux/store";
-import { logout } from "@/redux/slices/authSlice";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import NetInfo from "@react-native-community/netinfo";
+import { useDispatch, useSelector } from "react-redux";
 
 export default function ProfileScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -84,6 +83,10 @@ export default function ProfileScreen() {
     router.push("/users/changePassword");
   };
 
+  const handleGoBack = () => {
+    router.back();
+  };
+
   if (!user) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
@@ -102,11 +105,24 @@ export default function ProfileScreen() {
           <View className="flex-row items-center justify-center">
             <Ionicons name="cloud-offline-outline" size={18} color="white" />
             <Text className="text-white font-medium ml-2">
-              You're offline. Some features are disabled.
+              You&apos;re offline. Some features are disabled.
             </Text>
           </View>
         </View>
       )}
+
+      {/* Header with Back Button */}
+      <View className="bg-white pt-4 pb-2 px-4 flex-row items-center border-b border-gray-100">
+        <TouchableOpacity
+          onPress={handleGoBack}
+          className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+        >
+          <Ionicons name="chevron-back" size={24} color="#374151" />
+        </TouchableOpacity>
+        <Text className="flex-1 text-center text-xl font-semibold text-gray-800 mr-10">
+          Profile
+        </Text>
+      </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}

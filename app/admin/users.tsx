@@ -1,4 +1,3 @@
-// screens/Users.tsx
 import {
   default as userService,
   User as UserType,
@@ -7,6 +6,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { useRouter } from "expo-router";
 import {
   AlertCircle,
+  ArrowLeft,
   Calendar,
   Cloud,
   CloudOff,
@@ -289,6 +289,11 @@ export default function Users() {
     );
   };
 
+  // Go back to admin index
+  const handleGoBack = () => {
+    router.push("/admin/index");
+  };
+
   // Render user item
   const renderUserItem = (user: UserType) => (
     <View
@@ -396,8 +401,15 @@ export default function Users() {
       >
         {/* Header */}
         <View className="bg-white border-b border-gray-200 px-4 pt-4 pb-3">
-          <View className="flex-row justify-between items-center mb-4">
-            <View className="flex-row items-center">
+          {/* Back Button and Title Row */}
+          <View className="flex-row items-center mb-4">
+            <TouchableOpacity
+              onPress={handleGoBack}
+              className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 mr-3"
+            >
+              <ArrowLeft size={22} color="#374151" />
+            </TouchableOpacity>
+            <View className="flex-row items-center flex-1">
               <Text className="text-2xl font-bold text-gray-900">Users</Text>
               {/* Online/Offline Status */}
               <View className="ml-3 flex-row items-center bg-gray-100 px-2 py-1 rounded-full">
@@ -413,37 +425,6 @@ export default function Users() {
                   </>
                 )}
               </View>
-            </View>
-
-            <View className="flex-row items-center gap-3">
-              <TouchableOpacity
-                className="w-11 h-11 rounded-full items-center justify-center bg-gray-100 relative"
-                onPress={() => setShowFilters(!showFilters)}
-              >
-                <Filter size={22} color="#6b7280" />
-                {filterGender && (
-                  <View className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className={`w-11 h-11 rounded-full items-center justify-center ${syncing ? "bg-blue-300" : "bg-blue-500"}`}
-                onPress={handleSyncAll}
-                disabled={syncing}
-              >
-                {syncing ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Cloud size={22} color="#fff" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="w-11 h-11 rounded-full items-center justify-center bg-green-500"
-                onPress={handleCreateUser}
-              >
-                <UserPlus size={22} color="#fff" />
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -475,6 +456,38 @@ export default function Users() {
                 <Text className="text-xs text-gray-600">Pending</Text>
               </View>
             </View>
+          </View>
+
+          {/* Action Buttons Row */}
+          <View className="flex-row justify-end gap-3 mb-2">
+            <TouchableOpacity
+              className="w-11 h-11 rounded-full items-center justify-center bg-gray-100 relative"
+              onPress={() => setShowFilters(!showFilters)}
+            >
+              <Filter size={22} color="#6b7280" />
+              {filterGender && (
+                <View className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500" />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className={`w-11 h-11 rounded-full items-center justify-center ${syncing ? "bg-blue-300" : "bg-blue-500"}`}
+              onPress={handleSyncAll}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Cloud size={22} color="#fff" />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="w-11 h-11 rounded-full items-center justify-center bg-green-500"
+              onPress={handleCreateUser}
+            >
+              <UserPlus size={22} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           {/* Filter Options */}
