@@ -1,14 +1,22 @@
 export const CREATE_TREES_TABLE = `
   CREATE TABLE IF NOT EXISTS trees (
-    uuid TEXT UNIQUE,
+    id TEXT PRIMARY KEY,
     description TEXT NOT NULL,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    status TEXT CHECK(status IN ('active', 'inactive')) NOT NULL DEFAULT 'active',
-    is_synced BOOLEAN DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    type TEXT NOT NULL,
+    latitude REAL,
+    longitude REAL,
+    status TEXT NOT NULL DEFAULT 'active',
+    is_synced INTEGER DEFAULT 0,
+    image_path TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,  -- Changed from DATETIME
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP   -- Changed from DATETIME
   );
+`;
+
+export const CREATE_TREES_INDEXES = `
+  CREATE INDEX IF NOT EXISTS idx_trees_status ON trees(status);
+  CREATE INDEX IF NOT EXISTS idx_trees_synced ON trees(is_synced);
+  CREATE INDEX IF NOT EXISTS idx_trees_created ON trees(created_at);
 `;
 
 export const CREATE_FLOWERS_TABLE = `   

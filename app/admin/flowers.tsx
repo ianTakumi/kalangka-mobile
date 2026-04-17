@@ -10,10 +10,8 @@ import {
   ArrowLeft,
   Calendar,
   Flower as FlowerIcon,
-  Package,
   Plus,
   RefreshCw,
-  Trees as TreeIcon,
   Wifi,
   WifiOff,
   X,
@@ -161,6 +159,7 @@ export default function FlowersScreen() {
   const loadFlowers = async (treeId?: string) => {
     try {
       const data = await FlowerService.getFlowersByTreeId(treeId, false);
+      console.log("Loaded flowers:", data);
       setFlowers(data);
     } catch (error) {
       console.error("Load flowers error:", error);
@@ -411,27 +410,14 @@ export default function FlowersScreen() {
               </View>
             )}
 
-            {/* Content Section - may malaking right margin para hindi matakpan ng buttons */}
-            <View className="flex-1 mr-28">
+            {/* Content Section */}
+            <View className="flex-1 mr-16">
               {/* Flower ID Badge */}
-              <View className="bg-gray-100 px-2 py-0.5 rounded-full self-start mb-1">
+              <View className="bg-gray-100 px-2 py-0.5 rounded-full self-start mb-2">
                 <Text className="text-xs font-mono text-gray-600">
                   FLOWER-{flowerShortId}
                 </Text>
               </View>
-
-              {/* Tree Info */}
-              {treeDetails && (
-                <View className="flex-row items-center mb-1">
-                  <TreeIcon size={14} color="#6b7280" />
-                  <Text
-                    className="text-sm text-gray-600 ml-1 flex-1"
-                    numberOfLines={1}
-                  >
-                    {treeDetails.type} - {treeDetails.description}
-                  </Text>
-                </View>
-              )}
 
               {/* User Info */}
               {userData && (
@@ -444,13 +430,13 @@ export default function FlowersScreen() {
               <View className="flex-row items-center mb-1">
                 <Calendar size={14} color="#6b7280" />
                 <Text className="text-sm text-gray-600 ml-1">
-                  {item.wrapped_at.toLocaleDateString()}
+                  {item.wrapped_at.toLocaleString("en-PH")}
                 </Text>
               </View>
 
               {/* Quantity */}
               <View className="flex-row items-center mb-2">
-                <Package size={14} color="#6b7280" />
+                <FlowerIcon size={14} color="#6b7280" />
                 <Text className="text-sm text-gray-600 ml-1 font-semibold">
                   {item.quantity} flower{item.quantity !== 1 ? "s" : ""}
                 </Text>
@@ -468,16 +454,11 @@ export default function FlowersScreen() {
                     {item.is_synced ? "Synced" : "Pending"}
                   </Text>
                 </View>
-                <Text className="text-xs text-gray-400">
-                  {item.created_at
-                    ? new Date(item.created_at).toLocaleDateString()
-                    : "No date"}
-                </Text>
               </View>
             </View>
 
-            {/* Action Buttons - nakaposisyon sa kanan */}
-            <View className="absolute right-2 top-1/2 -translate-y-1/2 flex-row gap-2">
+            {/* Action Buttons - Stacked vertically */}
+            <View className="absolute right-2 top-1/2 -translate-y-1/2 flex-col gap-2">
               <TouchableOpacity
                 className="p-2 bg-blue-500 rounded-lg"
                 onPress={() => handleEdit(item)}
@@ -534,41 +515,9 @@ export default function FlowersScreen() {
           </View>
         </View>
 
-        {treeDetails && (
-          <View className="bg-gray-50 rounded-xl p-3 mb-4">
-            <View className="flex-row items-center">
-              <TreeIcon size={20} color="#6b7280" />
-              <Text className="text-gray-700 ml-2">
-                {treeDetails.type} - {treeDetails.description}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        <View className="flex-row bg-gray-100 rounded-xl p-3 mb-4">
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-bold text-gray-800">
-              {stats.total}
-            </Text>
-            <Text className="text-xs text-gray-500">Total</Text>
-          </View>
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-bold text-amber-600">
-              {stats.unsynced}
-            </Text>
-            <Text className="text-xs text-gray-500">Pending</Text>
-          </View>
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-bold text-green-600">
-              {stats.synced}
-            </Text>
-            <Text className="text-xs text-gray-500">Synced</Text>
-          </View>
-        </View>
-
         <View className="flex-row gap-3">
           <TouchableOpacity
-            className="flex-1 bg-indigo-500 py-3 rounded-xl flex-row items-center justify-center"
+            className="flex-1 bg-green-500 py-3 rounded-xl flex-row items-center justify-center"
             onPress={handleTakePhoto}
           >
             <Plus size={18} color="white" />
@@ -576,7 +525,7 @@ export default function FlowersScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            className={`px-4 py-3 rounded-xl flex-row items-center ${isOnline && !syncing ? "bg-indigo-500" : "bg-gray-200"}`}
+            className={`px-4 py-3 rounded-xl flex-row items-center ${isOnline && !syncing ? "bg-blue-500" : "bg-gray-200"}`}
             onPress={manualSync}
             disabled={!isOnline || syncing}
           >

@@ -1,3 +1,4 @@
+import { CREATE_TREES_INDEXES, CREATE_TREES_TABLE } from "@/database/schema";
 import { Tree } from "@/types/index";
 import client from "@/utils/axiosInstance";
 import { supabase } from "@/utils/supabase";
@@ -39,27 +40,10 @@ class TreeService {
       this.db = await SQLite.openDatabaseAsync("kalangka.db");
 
       // Create tables
-      await this.db.execAsync(`
-            CREATE TABLE IF NOT EXISTS trees (
-              id TEXT PRIMARY KEY,
-              description TEXT NOT NULL,
-              type TEXT NOT NULL,
-              latitude REAL NOT NULL,
-              longitude REAL NOT NULL,
-              status TEXT NOT NULL DEFAULT 'active',
-              is_synced INTEGER DEFAULT 0,
-              image_path TEXT NOT NULL,
-              created_at TEXT,
-              updated_at TEXT
-            );
-          `);
+      await this.db.execAsync(CREATE_TREES_TABLE);
 
       // Add indexes for better performance
-      await this.db.execAsync(`
-            CREATE INDEX IF NOT EXISTS idx_trees_status ON trees(status);
-            CREATE INDEX IF NOT EXISTS idx_trees_synced ON trees(is_synced);
-            CREATE INDEX IF NOT EXISTS idx_trees_created ON trees(created_at);
-          `);
+      await this.db.execAsync(CREATE_TREES_INDEXES);
 
       await this.initImagesDirectory();
 
