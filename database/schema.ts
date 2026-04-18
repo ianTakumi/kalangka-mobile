@@ -47,7 +47,7 @@ export const CREATE_FLOWER_INDEXES = `
 export const CREATE_FRUITS_TABLE = `
    CREATE TABLE IF NOT EXISTS fruits (
           id TEXT PRIMARY KEY,
-          flower_id TEXT NOT NULL,
+          flower_id TEXT,
           tree_id TEXT NOT NULL,
           user_id TEXT NOT NULL,
           

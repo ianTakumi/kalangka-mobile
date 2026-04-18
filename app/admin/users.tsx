@@ -13,6 +13,7 @@ import {
   Filter,
   Mail,
   Pencil,
+  Shield,
   Trash2,
   User,
   UserPlus,
@@ -45,9 +46,12 @@ export default function Users() {
     other: 0,
     synced: 0,
     unsynced: 0,
+    adminCount: 0,
+    userCount: 0,
   });
   const router = useRouter();
   const [filterGender, setFilterGender] = useState<string | null>(null);
+  const [filterRole, setFilterRole] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
   // Monitor network status
@@ -58,7 +62,6 @@ export default function Users() {
 
       setIsOnline(state.isConnected ?? false);
 
-      // If we just came online, trigger auto-sync
       if (wasOffline && nowOnline) {
         console.log("📱 Device came online, triggering auto-sync...");
         handleAutoSync();
@@ -72,7 +75,6 @@ export default function Users() {
     return () => unsubscribe();
   }, [isOnline]);
 
-  // Load users on component mount
   useEffect(() => {
     const initialize = async () => {
       await loadUsers();
@@ -83,12 +85,11 @@ export default function Users() {
     initialize();
   }, []);
 
-  // Load users when filter changes
   useEffect(() => {
     if (!loading) {
       loadFilteredUsers();
     }
-  }, [filterGender]);
+  }, [filterGender, filterRole]);
 
   const checkInitialSync = async () => {
     const netState = await NetInfo.fetch();
@@ -129,18 +130,24 @@ export default function Users() {
     }
   };
 
-  // Load filtered users based on current filter
+  // Load filtered users - SHOW ALL USERS (Admin + User)
   const loadFilteredUsers = async () => {
     try {
       setLoading(true);
       await userService.init();
-      const allUsers = await userService.getUsers();
-      // Apply gender filter if set
-      const filteredUsers = filterGender
-        ? allUsers.filter((user) => user.gender === filterGender)
-        : allUsers;
+      let allUsers = await userService.getUsers();
 
-      setUsers(filteredUsers);
+      // Apply gender filter if set
+      if (filterGender) {
+        allUsers = allUsers.filter((user) => user.gender === filterGender);
+      }
+
+      // Apply role filter if set
+      if (filterRole) {
+        allUsers = allUsers.filter((user) => user.role === filterRole);
+      }
+
+      setUsers(allUsers);
     } catch (error) {
       console.error("Error loading filtered users:", error);
       Alert.alert("Error", "Failed to load users");
@@ -149,25 +156,25 @@ export default function Users() {
     }
   };
 
-  // Load users from database
+  // Load users - SHOW ALL USERS (Admin + User)
   const loadUsers = async () => {
     try {
       setLoading(true);
       await userService.init();
-      const allUsers = await userService.getUsers();
-      console.log("All users loaded for filtering:", allUsers);
-
-      // Filter out admin users AND apply gender filter if set
-      let filteredUsers = allUsers.filter((user) => user.role !== "admin");
+      let allUsers = await userService.getUsers();
+      console.log("All users loaded:", allUsers);
 
       // Apply gender filter if set
       if (filterGender) {
-        filteredUsers = filteredUsers.filter(
-          (user) => user.gender === filterGender,
-        );
+        allUsers = allUsers.filter((user) => user.gender === filterGender);
       }
 
-      setUsers(filteredUsers);
+      // Apply role filter if set
+      if (filterRole) {
+        allUsers = allUsers.filter((user) => user.role === filterRole);
+      }
+
+      setUsers(allUsers);
     } catch (error) {
       console.error("Error loading users:", error);
       Alert.alert("Error", "Failed to load users");
@@ -181,13 +188,22 @@ export default function Users() {
   const loadStats = async () => {
     try {
       const statsData = await userService.getStats();
-      setStats(statsData);
+      const allUsers = await userService.getUsers();
+
+      // Count admins and users
+      const adminCount = allUsers.filter((u) => u.role === "admin").length;
+      const userCount = allUsers.filter((u) => u.role === "user").length;
+
+      setStats({
+        ...statsData,
+        adminCount,
+        userCount,
+      });
     } catch (error) {
       console.error("Error loading stats:", error);
     }
   };
 
-  // Handle pull to refresh
   const onRefresh = async () => {
     setRefreshing(true);
     await loadUsers();
@@ -198,7 +214,6 @@ export default function Users() {
     setRefreshing(false);
   };
 
-  // Sync all users with server
   const handleSyncAll = async () => {
     setSyncing(true);
     try {
@@ -216,12 +231,10 @@ export default function Users() {
     }
   };
 
-  // Create a new user
   const handleCreateUser = () => {
     router.push("/createuser");
   };
 
-  // Delete a user
   const handleDeleteUser = (user: UserType) => {
     Alert.alert(
       "Delete User",
@@ -246,18 +259,21 @@ export default function Users() {
     );
   };
 
-  // Filter users by gender
-  const handleFilter = (gender: string | null) => {
-    setFilterGender(gender);
-    setShowFilters(false);
+  const handleFilter = (type: "gender" | "role", value: string | null) => {
+    if (type === "gender") {
+      setFilterGender(value);
+    } else {
+      setFilterRole(value);
+    }
   };
 
-  // Clear filter
-  const clearFilter = () => {
+  const clearAllFilters = () => {
     setFilterGender(null);
+    setFilterRole(null);
   };
 
-  // Clear all data (for testing)
+  const hasActiveFilters = filterGender || filterRole;
+
   const handleClearData = () => {
     Alert.alert(
       "Clear All Data",
@@ -279,6 +295,8 @@ export default function Users() {
                 other: 0,
                 synced: 0,
                 unsynced: 0,
+                adminCount: 0,
+                userCount: 0,
               });
             } catch (error) {
               Alert.alert("Error", "Failed to clear data");
@@ -289,12 +307,22 @@ export default function Users() {
     );
   };
 
-  // Go back to admin index
   const handleGoBack = () => {
     router.push("/admin/index");
   };
 
-  // Render user item
+  const getRoleBadgeColor = (role: string) => {
+    return role === "admin" ? "bg-purple-100" : "bg-emerald-100";
+  };
+
+  const getRoleTextColor = (role: string) => {
+    return role === "admin" ? "text-purple-800" : "text-emerald-800";
+  };
+
+  const getRoleDisplay = (role: string) => {
+    return role?.charAt(0).toUpperCase() + role?.slice(1) || "User";
+  };
+
   const renderUserItem = (user: UserType) => (
     <View
       key={user.id}
@@ -325,26 +353,45 @@ export default function Users() {
           </View>
 
           <View className="flex-row items-center justify-between">
-            <View
-              className={`px-3 py-1 rounded-full ${
-                user.gender === "male"
-                  ? "bg-blue-100"
-                  : user.gender === "female"
-                    ? "bg-pink-100"
-                    : "bg-gray-100"
-              }`}
-            >
-              <Text
-                className={`text-xs font-medium ${
+            <View className="flex-row items-center gap-2">
+              {/* Gender Badge */}
+              <View
+                className={`px-3 py-1 rounded-full ${
                   user.gender === "male"
-                    ? "text-blue-800"
+                    ? "bg-blue-100"
                     : user.gender === "female"
-                      ? "text-pink-800"
-                      : "text-gray-800"
+                      ? "bg-pink-100"
+                      : "bg-gray-100"
                 }`}
               >
-                {user.gender.charAt(0).toUpperCase() + user.gender.slice(1)}
-              </Text>
+                <Text
+                  className={`text-xs font-medium ${
+                    user.gender === "male"
+                      ? "text-blue-800"
+                      : user.gender === "female"
+                        ? "text-pink-800"
+                        : "text-gray-800"
+                  }`}
+                >
+                  {user.gender?.charAt(0).toUpperCase() + user.gender?.slice(1)}
+                </Text>
+              </View>
+
+              {/* Role Badge - Admin or User */}
+              <View
+                className={`px-3 py-1 rounded-full flex-row items-center ${getRoleBadgeColor(user.role)}`}
+              >
+                {user.role === "admin" ? (
+                  <Shield size={10} color="#6b21a8" />
+                ) : (
+                  <User size={10} color="#047857" />
+                )}
+                <Text
+                  className={`text-xs font-medium ml-1 ${getRoleTextColor(user.role)}`}
+                >
+                  {getRoleDisplay(user.role)}
+                </Text>
+              </View>
             </View>
 
             <View className="flex-row items-center">
@@ -401,7 +448,6 @@ export default function Users() {
       >
         {/* Header */}
         <View className="bg-white border-b border-gray-200 px-4 pt-4 pb-3">
-          {/* Back Button and Title Row */}
           <View className="flex-row items-center mb-4">
             <TouchableOpacity
               onPress={handleGoBack}
@@ -411,7 +457,6 @@ export default function Users() {
             </TouchableOpacity>
             <View className="flex-row items-center flex-1">
               <Text className="text-2xl font-bold text-gray-900">Users</Text>
-              {/* Online/Offline Status */}
               <View className="ml-3 flex-row items-center bg-gray-100 px-2 py-1 rounded-full">
                 {isOnline ? (
                   <>
@@ -428,7 +473,7 @@ export default function Users() {
             </View>
           </View>
 
-          {/* Stats */}
+          {/* Stats - Shows Admin and User counts */}
           <View className="bg-gray-50 rounded-xl p-3 mb-3">
             <View className="flex-row">
               <View className="flex-1 items-center">
@@ -441,7 +486,25 @@ export default function Users() {
               <View className="w-px bg-gray-300 mx-2" />
 
               <View className="flex-1 items-center">
-                <Text className="text-lg font-bold text-green-600">
+                <Text className="text-lg font-bold text-purple-600">
+                  {stats.adminCount || 0}
+                </Text>
+                <Text className="text-xs text-gray-600">Admins</Text>
+              </View>
+
+              <View className="w-px bg-gray-300 mx-2" />
+
+              <View className="flex-1 items-center">
+                <Text className="text-lg font-bold text-emerald-600">
+                  {stats.userCount || 0}
+                </Text>
+                <Text className="text-xs text-gray-600">Users</Text>
+              </View>
+            </View>
+
+            <View className="flex-row mt-3 pt-3 border-t border-gray-200">
+              <View className="flex-1 items-center">
+                <Text className="text-base font-bold text-green-600">
                   {stats.synced}
                 </Text>
                 <Text className="text-xs text-gray-600">Synced</Text>
@@ -450,7 +513,7 @@ export default function Users() {
               <View className="w-px bg-gray-300 mx-2" />
 
               <View className="flex-1 items-center">
-                <Text className="text-lg font-bold text-yellow-600">
+                <Text className="text-base font-bold text-yellow-600">
                   {stats.unsynced}
                 </Text>
                 <Text className="text-xs text-gray-600">Pending</Text>
@@ -458,14 +521,14 @@ export default function Users() {
             </View>
           </View>
 
-          {/* Action Buttons Row */}
+          {/* Action Buttons */}
           <View className="flex-row justify-end gap-3 mb-2">
             <TouchableOpacity
               className="w-11 h-11 rounded-full items-center justify-center bg-gray-100 relative"
               onPress={() => setShowFilters(!showFilters)}
             >
               <Filter size={22} color="#6b7280" />
-              {filterGender && (
+              {hasActiveFilters && (
                 <View className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500" />
               )}
             </TouchableOpacity>
@@ -496,10 +559,10 @@ export default function Users() {
               <Text className="text-sm font-semibold text-gray-700 mb-2">
                 Filter by Gender:
               </Text>
-              <View className="flex-row flex-wrap gap-2">
+              <View className="flex-row flex-wrap gap-2 mb-3">
                 <TouchableOpacity
                   className={`px-4 py-2 rounded-full ${filterGender === "male" ? "bg-blue-500" : "bg-gray-200"}`}
-                  onPress={() => handleFilter("male")}
+                  onPress={() => handleFilter("gender", "male")}
                 >
                   <Text
                     className={`text-sm font-medium ${filterGender === "male" ? "text-white" : "text-gray-700"}`}
@@ -510,7 +573,7 @@ export default function Users() {
 
                 <TouchableOpacity
                   className={`px-4 py-2 rounded-full ${filterGender === "female" ? "bg-pink-500" : "bg-gray-200"}`}
-                  onPress={() => handleFilter("female")}
+                  onPress={() => handleFilter("gender", "female")}
                 >
                   <Text
                     className={`text-sm font-medium ${filterGender === "female" ? "text-white" : "text-gray-700"}`}
@@ -518,14 +581,49 @@ export default function Users() {
                     Female
                   </Text>
                 </TouchableOpacity>
+              </View>
 
-                {filterGender && (
+              <Text className="text-sm font-semibold text-gray-700 mb-2">
+                Filter by Role:
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                <TouchableOpacity
+                  className={`px-4 py-2 rounded-full flex-row items-center ${filterRole === "admin" ? "bg-purple-500" : "bg-gray-200"}`}
+                  onPress={() => handleFilter("role", "admin")}
+                >
+                  <Shield
+                    size={14}
+                    color={filterRole === "admin" ? "#fff" : "#6b7280"}
+                  />
+                  <Text
+                    className={`text-sm font-medium ml-1 ${filterRole === "admin" ? "text-white" : "text-gray-700"}`}
+                  >
+                    Admin
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className={`px-4 py-2 rounded-full flex-row items-center ${filterRole === "user" ? "bg-emerald-500" : "bg-gray-200"}`}
+                  onPress={() => handleFilter("role", "user")}
+                >
+                  <User
+                    size={14}
+                    color={filterRole === "user" ? "#fff" : "#6b7280"}
+                  />
+                  <Text
+                    className={`text-sm font-medium ml-1 ${filterRole === "user" ? "text-white" : "text-gray-700"}`}
+                  >
+                    User
+                  </Text>
+                </TouchableOpacity>
+
+                {hasActiveFilters && (
                   <TouchableOpacity
                     className="px-4 py-2 rounded-full bg-red-500"
-                    onPress={clearFilter}
+                    onPress={clearAllFilters}
                   >
                     <Text className="text-sm font-medium text-white">
-                      Clear
+                      Clear All
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -534,7 +632,7 @@ export default function Users() {
           )}
         </View>
 
-        {/* Content */}
+        {/* User List */}
         <View className="p-4">
           {users.length === 0 ? (
             <View className="bg-white rounded-xl p-8 items-center justify-center">
@@ -543,19 +641,19 @@ export default function Users() {
                 No users found
               </Text>
               <Text className="text-gray-500 text-center mt-2">
-                {filterGender
-                  ? `No ${filterGender} users available`
+                {hasActiveFilters
+                  ? "No users match your filters"
                   : "Add a new user to get started"}
               </Text>
-              {filterGender && (
+              {hasActiveFilters && (
                 <TouchableOpacity
                   className="mt-4 px-6 py-2 bg-blue-500 rounded-full"
-                  onPress={clearFilter}
+                  onPress={clearAllFilters}
                 >
-                  <Text className="text-white font-medium">Clear Filter</Text>
+                  <Text className="text-white font-medium">Clear Filters</Text>
                 </TouchableOpacity>
               )}
-              {!filterGender && (
+              {!hasActiveFilters && (
                 <TouchableOpacity
                   className="mt-6 px-6 py-3 bg-green-500 rounded-full flex-row items-center"
                   onPress={handleCreateUser}
@@ -571,7 +669,6 @@ export default function Users() {
             <>
               {users.map(renderUserItem)}
 
-              {/* Debug Actions (for testing) */}
               {__DEV__ && (
                 <TouchableOpacity
                   className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl items-center"

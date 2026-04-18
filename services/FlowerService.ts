@@ -1,6 +1,7 @@
 import { CREATE_FLOWER_INDEXES, CREATE_FLOWERS_TABLE } from "@/database/schema";
 import { Flower } from "@/types/index";
 import client from "@/utils/axiosInstance";
+import { formatForMySQL } from "@/utils/helpers";
 import { supabase } from "@/utils/supabase";
 import NetInfo from "@react-native-community/netinfo";
 import { decode } from "base64-arraybuffer";
@@ -467,7 +468,7 @@ class FlowerService {
         tree_id: flower.tree_id,
         user_id: flower.user_id,
         quantity: flower.quantity,
-        wrapped_at: flower.wrapped_at.toISOString(),
+        wrapped_at: formatForMySQL(flower.wrapped_at), //flower.wrapped_at.toISOString(),
         created_at: flower.created_at ? flower.created_at.toISOString() : null,
         updated_at: flower.updated_at ? flower.updated_at.toISOString() : null,
         image_url: imageUrl, // server na bahala mag-detect kung may image o wala

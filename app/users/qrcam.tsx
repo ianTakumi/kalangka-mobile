@@ -75,7 +75,7 @@ export default function QRScannerScreen() {
 
         if (tree) {
           router.push({
-            pathname: "/users/treeinfo",
+            pathname: "/users/(tabs)/treeinfo",
             params: { treeData: JSON.stringify(tree) },
           });
           return;
@@ -95,7 +95,7 @@ export default function QRScannerScreen() {
               {
                 text: "Cancel",
                 style: "cancel",
-                onPress: () => router.back(),
+                onPress: () => router.push("/users/(drawers)/(tabs)"),
               },
             ],
           );
@@ -123,7 +123,7 @@ export default function QRScannerScreen() {
         if (tree) {
           setTimeout(() => {
             router.push({
-              pathname: "/users/treeinfo",
+              pathname: "/users/(tabs)/treeinfo",
               params: { treeData: JSON.stringify(tree) },
             });
           }, 500);
@@ -165,7 +165,7 @@ export default function QRScannerScreen() {
 
             if (tree) {
               router.push({
-                pathname: "/users/treeinfo",
+                pathname: "/users/(tabs)/treeinfo",
                 params: { treeData: JSON.stringify(tree) },
               });
             } else {
@@ -245,7 +245,7 @@ export default function QRScannerScreen() {
     if (match) {
       const treeId = match[1];
       router.push({
-        pathname: "/tree-info",
+        pathname: "/users/(tabs)/treeinfo",
         params: { treeId },
       });
     } else {
@@ -293,7 +293,7 @@ export default function QRScannerScreen() {
           </Text>
           <TouchableOpacity
             className="mt-6 bg-emerald-600 py-3 px-6 rounded-full"
-            onPress={() => router.back()}
+            onPress={() => router.push("/users/(drawers)/(tabs)")}
           >
             <Text className="text-white font-semibold">Go Back</Text>
           </TouchableOpacity>
@@ -308,7 +308,7 @@ export default function QRScannerScreen() {
       <View className="absolute top-0 left-0 right-0 z-10 pt-4 px-4">
         <View className="flex-row justify-between items-center">
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => router.push("/users/(drawers)/(tabs)")}
             className="bg-black/70 p-2 rounded-full"
           >
             <X size={24} color="white" />

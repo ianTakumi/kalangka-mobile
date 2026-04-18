@@ -10,9 +10,7 @@ import {
   Camera,
   ChevronDown,
   Package,
-  RefreshCw,
   Tag,
-  TreePine,
   Wifi,
   WifiOff,
   X,
@@ -413,16 +411,7 @@ export default function FruitReportScreen() {
                 <ActivityIndicator size="small" color="#059669" />
               </View>
             )}
-            <TouchableOpacity
-              onPress={onRefresh}
-              disabled={refreshing || autoSyncInProgress}
-              className="bg-gray-100 p-2 rounded-full mr-2"
-            >
-              <RefreshCw
-                size={20}
-                color={refreshing || autoSyncInProgress ? "#9ca3af" : "#059669"}
-              />
-            </TouchableOpacity>
+
             <View className="flex-row items-center bg-gray-100 px-3 py-1 rounded-full">
               {isOnline ? (
                 <>
@@ -459,50 +448,6 @@ export default function FruitReportScreen() {
         showsVerticalScrollIndicator={true}
       >
         <View className="bg-white rounded-xl p-6 shadow-sm">
-          {/* Tree Description */}
-          <View className="mb-4">
-            <Text className="text-gray-700 font-medium mb-2">
-              Tree Description
-            </Text>
-            <View className="flex-row items-center border border-gray-300 rounded-xl px-4 py-3 bg-gray-100">
-              <TreePine size={18} color="#6b7280" />
-              <Text className="text-gray-800 flex-1 ml-2">
-                {tree?.description || "No tree description"}
-              </Text>
-            </View>
-          </View>
-
-          {/* Flower ID */}
-          <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">Flower ID</Text>
-            <View className="flex-row items-center border border-gray-300 rounded-xl px-4 py-3 bg-gray-100">
-              <Text className="text-gray-800 font-mono flex-1">
-                FLOWER-
-                {flowerData
-                  ? getFlowerShortId(flowerData.id)
-                  : getFlowerShortId(flowerId)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Actual Flower Quantity */}
-          <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">
-              Actual Flower Quantity
-            </Text>
-            <View className="flex-row items-center border border-gray-300 rounded-xl px-4 py-3 bg-gray-100">
-              <Package size={18} color="#6b7280" />
-              <Text className="text-gray-800 flex-1 ml-2">
-                {flowerData?.quantity || 0} flower
-                {flowerData?.quantity !== 1 ? "s" : ""}
-              </Text>
-            </View>
-            <Text className="text-xs text-gray-500 mt-1">
-              Number of flowers that were originally bagged
-            </Text>
-          </View>
-
-          {/* Batch Number Dropdown */}
           <View className="mb-6">
             <Text className="text-gray-700 font-medium mb-2">
               Batch Number <Text className="text-red-500">*</Text>
@@ -597,7 +542,6 @@ export default function FruitReportScreen() {
               />
             </View>
           </View>
-
           {/* If may fruit na */}
           {fruit ? (
             <View>

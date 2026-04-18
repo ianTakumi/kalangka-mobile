@@ -9,8 +9,6 @@ import {
   Camera,
   Edit2,
   MapPin,
-  PlusIcon,
-  RefreshCw,
   Trash2,
   Wifi,
   WifiOff,
@@ -717,15 +715,15 @@ export default function TreesScreen() {
         </View>
 
         <View className="flex-row">
-          <TouchableOpacity
+          {/* <TouchableOpacity
             className="flex-1 bg-green-600 py-3 rounded-xl flex-row items-center justify-center"
             onPress={handleTakePhoto}
           >
             <PlusIcon size={20} color="white" />
             <Text className="text-white font-semibold ml-2">Add Tree</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             className={`ml-3 px-4 py-3 rounded-xl flex-row items-center ${isOnline && !syncing ? "bg-blue-600" : "bg-gray-300"}`}
             onPress={manualSync}
             disabled={!isOnline || syncing}
@@ -740,7 +738,7 @@ export default function TreesScreen() {
             >
               {syncing ? "Syncing..." : "Sync"}
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Debug button - remove in production */}

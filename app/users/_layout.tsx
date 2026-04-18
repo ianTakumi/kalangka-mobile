@@ -13,6 +13,7 @@ export default function _layout() {
       <Stack.Screen name="treeinfo" options={{ headerShown: false }} />
       <Stack.Screen name="assigned" options={{ headerShown: false }} />
       <Stack.Screen name="assess" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
 }

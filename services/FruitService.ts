@@ -1,6 +1,7 @@
 import { CREATE_FRUITS_INDEXES, CREATE_FRUITS_TABLE } from "@/database/schema";
 import { Fruit, Tree } from "@/types/index";
 import client from "@/utils/axiosInstance";
+import { formatForMySQL } from "@/utils/helpers";
 import { supabase } from "@/utils/supabase";
 import NetInfo from "@react-native-community/netinfo";
 import { decode } from "base64-arraybuffer";
@@ -271,7 +272,7 @@ class FruitService {
         user_id: fruit.user_id,
         tag_id: fruit.tag_id,
         quantity: fruit.quantity,
-        bagged_at: fruit.bagged_at.toISOString(),
+        bagged_at: formatForMySQL(fruit.bagged_at),
         created_at: fruit.created_at ? fruit.created_at.toISOString() : null,
         updated_at: fruit.updated_at ? fruit.updated_at.toISOString() : null,
         image_url: imageUrl,
@@ -471,9 +472,7 @@ class FruitService {
           fruitData.user_id,
           fruitData.tag_id,
           fruitData.quantity || 1,
-          fruitData.bagged_at instanceof Date
-            ? fruitData.bagged_at.toISOString()
-            : fruitData.bagged_at,
+          fruitData.bagged_at,
           fruitData.image_uri,
           fruitData.status || "active",
           0,

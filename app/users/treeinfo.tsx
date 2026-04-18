@@ -68,6 +68,7 @@ export default function TreeInfoScreen() {
   const [treeData, setTreeData] = useState<TreeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Get tree ID from params
   const treeId =
@@ -111,6 +112,10 @@ export default function TreeInfoScreen() {
   const [showCamera, setShowCamera] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
+  // Simple missing image state
+  const [isMissingImage, setIsMissingImage] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+
   // Map position
   const [initialPosition, setInitialPosition] = useState({
     coordinates: {
@@ -128,6 +133,7 @@ export default function TreeInfoScreen() {
           try {
             const parsed = JSON.parse(params.treeData);
             setTreeData(parsed);
+            checkForMissingImage(parsed);
             setLoading(false);
             return;
           } catch (e) {
@@ -147,6 +153,7 @@ export default function TreeInfoScreen() {
 
         if (tree) {
           setTreeData(tree);
+          checkForMissingImage(tree);
           if (tree.latitude && tree.longitude) {
             setInitialPosition({
               coordinates: {
@@ -170,6 +177,134 @@ export default function TreeInfoScreen() {
     loadTreeData();
   }, [treeId]);
 
+  // Check if tree is missing image
+  const checkForMissingImage = (tree: TreeData) => {
+    const missingImage = !tree.image_path || tree.image_path === "";
+    setIsMissingImage(missingImage);
+  };
+
+  // Update tree with new image and redirect
+  // Update tree with new image, location, and redirect
+  const updateTreeAndRedirect = async () => {
+    if (!capturedImage || !treeData?.id) {
+      Toast.show({
+        type: "error",
+        text1: "Missing Data",
+        text2: "Please take a photo first",
+      });
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+
+      const treeId = treeData.id || treeData._id;
+      if (!treeId) return;
+
+      // ✅ ALWAYS get current location since it's null by default
+      let latitude: number | undefined;
+      let longitude: number | undefined;
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Toast.show({
+            type: "error",
+            text1: "Permission Denied",
+            text2: "Location permission is required to save tree",
+          });
+          setIsUpdating(false);
+          return;
+        }
+
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        latitude = currentLocation.coords.latitude;
+        longitude = currentLocation.coords.longitude;
+        console.log(`📍 Got current location: ${latitude}, ${longitude}`);
+      } catch (locationError) {
+        console.error("❌ Failed to get location:", locationError);
+        Toast.show({
+          type: "error",
+          text1: "Location Error",
+          text2: "Could not get current location. Please try again.",
+        });
+        setIsUpdating(false);
+        return;
+      }
+
+      // ✅ Update tree with both image and location
+      const updateData: Partial<TreeData> = {
+        image_path: capturedImage,
+        latitude: latitude,
+        longitude: longitude,
+      };
+
+      console.log(`📝 Updating tree ${treeId} with:`, updateData);
+
+      await TreeService.updateTree(treeId, updateData);
+
+      Toast.show({
+        type: "success",
+        text1: "Tree Updated",
+        text2: "Image and location saved successfully",
+      });
+
+      // Try to sync if online
+      try {
+        await TreeService.syncAll();
+        console.log("✅ Sync completed");
+      } catch (syncError) {
+        console.log("⚠️ Will sync when online");
+      }
+
+      // Redirect to users/index
+      router.replace("/users/(drawers)/(tabs)");
+    } catch (error) {
+      console.error("❌ Error updating tree:", error);
+      Toast.show({
+        type: "error",
+        text1: "Update Failed",
+        text2: "Failed to save tree data",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Capture photo for missing image
+  const captureMissingImagePhoto = async () => {
+    if (cameraRef.current) {
+      try {
+        const photo = await (cameraRef.current as any).takePictureAsync({
+          quality: 0.8,
+          skipProcessing: false,
+        });
+        setCapturedImage(photo.uri);
+        setShowCamera(false);
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: "Failed to take photo",
+        });
+      }
+    }
+  };
+
+  // Retake photo
+  const retakePhoto = () => {
+    setCapturedImage(null);
+    setShowCamera(true);
+  };
+
+  // Skip image capture
+  const skipImageCapture = () => {
+    router.replace("/users/index");
+  };
+
   // Load flower data
   useEffect(() => {
     const loadFlowerForTree = async () => {
@@ -188,8 +323,8 @@ export default function TreeInfoScreen() {
       }
     };
 
-    if (treeData) loadFlowerForTree();
-  }, [treeData]);
+    if (treeData && !isMissingImage) loadFlowerForTree();
+  }, [treeData, isMissingImage]);
 
   // Calculate distance
   useEffect(() => {
@@ -225,8 +360,10 @@ export default function TreeInfoScreen() {
   }, []);
 
   useEffect(() => {
-    if (!permission?.granted) requestPermission();
-  }, [permission]);
+    if (!permission?.granted && isMissingImage) {
+      requestPermission();
+    }
+  }, [permission, isMissingImage]);
 
   // Initialize date inputs
   useEffect(() => {
@@ -530,11 +667,13 @@ export default function TreeInfoScreen() {
   const qrCodeData = treeData?.id || treeData?._id || "";
 
   // Loading state
-  if (loading) {
+  if (loading || isUpdating) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50 justify-center items-center">
         <ActivityIndicator size="large" color="#059669" />
-        <Text className="mt-4 text-gray-600">Loading tree details...</Text>
+        <Text className="mt-4 text-gray-600">
+          {isUpdating ? "Updating tree data..." : "Loading tree details..."}
+        </Text>
       </SafeAreaView>
     );
   }
@@ -562,7 +701,149 @@ export default function TreeInfoScreen() {
     );
   }
 
-  // Main Android UI
+  // MISSING IMAGE SCREEN - Simple form with just header and camera
+  if (isMissingImage) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        {/* Header */}
+        <View className="bg-white pt-4 pb-2 px-4 flex-row items-center border-b border-gray-100">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+          >
+            <ArrowLeft size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text className="flex-1 text-center text-xl font-semibold text-gray-800 mr-10">
+            Tree Details
+          </Text>
+        </View>
+
+        {/* Camera View */}
+        {showCamera && permission?.granted && (
+          <View className="absolute top-0 left-0 right-0 bottom-0 z-50 bg-black">
+            <CameraView
+              ref={cameraRef}
+              style={{ flex: 1 }}
+              facing={facing}
+              mode="picture"
+            >
+              <View className="flex-1 bg-transparent">
+                <View className="flex-row justify-between items-center p-6 pt-12 bg-black/30">
+                  <TouchableOpacity
+                    onPress={() => setShowCamera(false)}
+                    className="p-2"
+                  >
+                    <X size={24} color="#fff" />
+                  </TouchableOpacity>
+                  <Text className="text-white text-lg font-semibold">
+                    Take Tree Photo
+                  </Text>
+                  <TouchableOpacity
+                    onPress={toggleCameraFacing}
+                    className="p-2"
+                  >
+                    <CameraIcon size={24} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+                <View className="flex-1 justify-center items-center">
+                  <View className="w-72 h-72 border-2 border-white/50 rounded-lg" />
+                </View>
+                <View className="p-8 bg-black/30 justify-center items-center">
+                  <TouchableOpacity
+                    onPress={captureMissingImagePhoto}
+                    className="w-20 h-20 bg-white rounded-full justify-center items-center border-4 border-white/30"
+                  >
+                    <View className="w-16 h-16 bg-white rounded-full" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </CameraView>
+          </View>
+        )}
+
+        {/* Main Content - Photo Form */}
+        <View className="flex-1 p-6">
+          <View className="bg-white rounded-2xl shadow-lg p-6">
+            <View className="items-center mb-6">
+              <View className="bg-emerald-50 p-4 rounded-full mb-4">
+                <Leaf size={48} color="#059669" />
+              </View>
+              <Text className="text-2xl font-bold text-gray-900 text-center">
+                Add Tree Photo
+              </Text>
+            </View>
+
+            {/* Tree Info Summary */}
+            <View className="bg-gray-50 rounded-lg p-4 mb-6">
+              <Text className="font-semibold text-gray-800 mb-2">
+                {treeData.description || "Unnamed Tree"}
+              </Text>
+              <Text className="text-gray-600 text-sm">
+                Type: {treeData.type || "Unknown"}
+              </Text>
+              {treeData.created_at && (
+                <Text className="text-gray-600 text-sm">
+                  Added: {formatDate(treeData.created_at)}
+                </Text>
+              )}
+            </View>
+
+            {/* Captured Image Preview */}
+            {capturedImage ? (
+              <View className="mb-6">
+                <Text className="text-sm font-medium text-gray-700 mb-2">
+                  Captured Photo
+                </Text>
+                <Image
+                  source={{ uri: capturedImage }}
+                  className="w-full h-64 rounded-lg"
+                  resizeMode="cover"
+                />
+                <TouchableOpacity
+                  onPress={retakePhoto}
+                  className="mt-3 bg-gray-100 py-3 rounded-lg items-center"
+                >
+                  <Text className="text-gray-700 font-medium">
+                    Retake Photo
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowCamera(true)}
+                className="bg-emerald-50 border-2 border-dashed border-emerald-300 rounded-xl p-8 items-center mb-6"
+              >
+                <CameraIcon size={48} color="#059669" />
+                <Text className="text-emerald-700 font-medium mt-3">
+                  Tap to Take Photo
+                </Text>
+                <Text className="text-emerald-600 text-sm mt-1">
+                  Camera will open
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Action Buttons */}
+            <View className="flex-row space-x-3">
+              <TouchableOpacity
+                onPress={updateTreeAndRedirect}
+                disabled={!capturedImage}
+                className={`flex-1 py-3 rounded-lg items-center ${
+                  capturedImage ? "bg-emerald-500" : "bg-gray-300"
+                }`}
+              >
+                <Text className="text-white font-medium">Save & Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <Toast />
+      </SafeAreaView>
+    );
+  }
+
+  // Main Android UI (shown when tree has image)
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
@@ -578,7 +859,7 @@ export default function TreeInfoScreen() {
         </Text>
       </View>
 
-      {/* Camera View */}
+      {/* Camera View for flowers */}
       {showCamera && permission?.granted && (
         <View className="flex-1 absolute top-0 left-0 right-0 bottom-0 z-50">
           <CameraView

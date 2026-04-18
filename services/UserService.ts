@@ -92,16 +92,17 @@ class UserService {
       // Check if your table has password column
       // If wala pang password column sa table, kailangan mo i-update ang schema
       await this.db!.runAsync(
-        `INSERT INTO users (id, first_name, last_name, email, gender, password, is_synced, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, // ← Added password
+        `INSERT INTO users (id, first_name, last_name, email,role, gender, password, is_synced, created_at, updated_at) 
+       VALUES (?, ?, ?,?, ?, ?, ?, ?, ?, ?)`, // ← Added password
         [
           id,
           userData.first_name,
           userData.last_name,
           userData.email,
+          userData.role || "user",
           userData.gender,
-          userData.password, // ← Add password
-          0, // is_synced = false initially
+          userData.password,
+          0,
           now,
           now,
         ],
@@ -273,13 +274,14 @@ class UserService {
   }
 
   // Get all users
+
   async getUsers(): Promise<User[]> {
     await this.ensureDatabaseReady();
 
     try {
+      // Remove the WHERE clause to get ALL users
       const result = await this.db!.getAllAsync(
-        "SELECT * FROM users WHERE role != ? ORDER BY created_at DESC",
-        ["admin"], // Parameter to prevent SQL injection
+        "SELECT * FROM users ORDER BY created_at DESC",
       );
 
       return result.map((user: any) => ({
@@ -340,7 +342,13 @@ class UserService {
 
     try {
       // Build update query dynamically
-      const allowedFields = ["first_name", "last_name", "email", "gender"];
+      const allowedFields = [
+        "first_name",
+        "last_name",
+        "email",
+        "gender",
+        "role",
+      ];
 
       const fieldsToUpdate = Object.keys(updates).filter((key) =>
         allowedFields.includes(key),
@@ -420,7 +428,7 @@ class UserService {
     }
   }
 
-  // Get database statistics
+  // Get database statistics (including admin users)
   async getStats(): Promise<{
     total: number;
     male: number;
@@ -435,13 +443,12 @@ class UserService {
       const stats = await this.db!.getAllAsync(`
       SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN gender = 'male' AND role != 'admin' THEN 1 ELSE 0 END) as male,
-        SUM(CASE WHEN gender = 'female' AND role != 'admin' THEN 1 ELSE 0 END) as female,
-        SUM(CASE WHEN gender NOT IN ('male', 'female') AND role != 'admin' THEN 1 ELSE 0 END) as other,
-        SUM(CASE WHEN is_synced = 1 AND role != 'admin' THEN 1 ELSE 0 END) as synced,
-        SUM(CASE WHEN is_synced = 0 AND role != 'admin' THEN 1 ELSE 0 END) as unsynced
+        SUM(CASE WHEN gender = 'male' THEN 1 ELSE 0 END) as male,
+        SUM(CASE WHEN gender = 'female' THEN 1 ELSE 0 END) as female,
+        SUM(CASE WHEN gender NOT IN ('male', 'female') THEN 1 ELSE 0 END) as other,
+        SUM(CASE WHEN is_synced = 1 THEN 1 ELSE 0 END) as synced,
+        SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced
       FROM users
-      WHERE role != 'admin'
     `);
 
       return {

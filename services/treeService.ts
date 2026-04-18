@@ -403,7 +403,7 @@ class TreeService {
         "longitude",
         "status",
         "type",
-        // "image_path",
+        "image_path",
       ];
 
       const fieldsToUpdate = Object.keys(updates).filter((key) =>
@@ -516,6 +516,7 @@ class TreeService {
       return;
     }
 
+    console.log(`🔄 Starting sync for tree:`, tree);
     // If already synced, skip
     if (tree.is_synced) {
       console.log(`✅ Tree ${tree.id} already synced, skipping`);
