@@ -48,7 +48,6 @@ export default function _layout() {
       <Tabs.Screen name="treeinfo" options={{ title: "Tree Info" }} />
       <Tabs.Screen name="flowers" options={{ title: "Flowers" }} />
       <Tabs.Screen name="fruits" options={{ title: "Fruits" }} />
-      {/* <Tabs.Screen name="profile" options={{ title: "Profile" }} /> */}
     </Tabs>
   );
 }
