@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import {
   ArrowLeft,
   Calendar,
-  CheckCircle2,
   ChevronRight,
   Clock,
   Clock3,
@@ -29,7 +28,7 @@ export default function AssignedHarvestsScreen() {
   const [filteredHarvests, setFilteredHarvests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'pending', 'partial', 'harvested'
+  const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'pending', 'partial'
   const user = useSelector((state) => state.auth.user);
 
   useEffect(() => {
@@ -60,7 +59,13 @@ export default function AssignedHarvestsScreen() {
         "Fetched assigned harvests:",
         JSON.stringify(harvests, null, 2),
       );
-      setAssignedHarvests(harvests);
+
+      // ✅ FIX 1: Filter out completed harvests (harvested and wasted) from the list entirely
+      const activeHarvests = harvests.filter(
+        (item) => item.status !== "harvested" && item.status !== "wasted",
+      );
+
+      setAssignedHarvests(activeHarvests);
     } catch (error) {
       console.error("Error fetching assigned harvests:", error);
     }
@@ -70,23 +75,15 @@ export default function AssignedHarvestsScreen() {
     if (activeFilter === "all") {
       setFilteredHarvests(assignedHarvests);
     } else if (activeFilter === "pending") {
-      // ✅ FIX: Filter by status = 'pending' (no harvest started)
       const pending = assignedHarvests.filter(
         (item) => item.status === "pending",
       );
       setFilteredHarvests(pending);
     } else if (activeFilter === "partial") {
-      // ✅ FIX: Filter by status = 'partial' (some fruits harvested)
       const partial = assignedHarvests.filter(
         (item) => item.status === "partial",
       );
       setFilteredHarvests(partial);
-    } else if (activeFilter === "harvested") {
-      // ✅ FIX: Filter by status = 'harvested' or 'wasted' (completed)
-      const harvested = assignedHarvests.filter(
-        (item) => item.status === "harvested" || item.status === "wasted",
-      );
-      setFilteredHarvests(harvested);
     }
   };
 
@@ -99,16 +96,19 @@ export default function AssignedHarvestsScreen() {
   }, [user]);
 
   const renderItem = ({ item }) => {
-    // Determine if harvest is completed (harvested or wasted)
-    const isCompleted = item.status === "harvested" || item.status === "wasted";
-
     // Calculate processed fruits count
     const fruitWeightsCount = item.fruit_weights?.length || 0;
     const wasteCount =
       item.wastes?.reduce((sum, w) => sum + (w.waste_quantity || 0), 0) || 0;
     const totalProcessed = fruitWeightsCount + wasteCount;
     const totalFruits = item.fruit?.quantity || 0;
-    const remainingFruits = item.fruit?.remaining_quantity || 0;
+
+    // ✅ FIX 2: Correct remaining calculation
+    // remaining_quantity should come from backend, but fallback to calculation
+    const remainingFruits =
+      item.fruit?.remaining_quantity !== undefined
+        ? item.fruit.remaining_quantity
+        : totalFruits - totalProcessed;
 
     return (
       <TouchableOpacity
@@ -147,11 +147,7 @@ export default function AssignedHarvestsScreen() {
                     ? "bg-blue-100"
                     : item.status === "partial"
                       ? "bg-yellow-100"
-                      : item.status === "harvested"
-                        ? "bg-green-100"
-                        : item.status === "wasted"
-                          ? "bg-red-100"
-                          : "bg-gray-100"
+                      : "bg-gray-100"
                 }`}
               >
                 <Text
@@ -160,22 +156,14 @@ export default function AssignedHarvestsScreen() {
                       ? "text-blue-700"
                       : item.status === "partial"
                         ? "text-yellow-700"
-                        : item.status === "harvested"
-                          ? "text-green-700"
-                          : item.status === "wasted"
-                            ? "text-red-700"
-                            : "text-gray-700"
+                        : "text-gray-700"
                   }`}
                 >
                   {item.status === "pending"
                     ? "Pending Harvest"
                     : item.status === "partial"
                       ? `Partial (${remainingFruits} left)`
-                      : item.status === "harvested"
-                        ? "Harvested"
-                        : item.status === "wasted"
-                          ? "Wasted"
-                          : "Unknown"}
+                      : "Unknown"}
                 </Text>
               </View>
             </View>
@@ -192,15 +180,6 @@ export default function AssignedHarvestsScreen() {
                 <Calendar size={14} color="#6B7280" />
                 <Text className="text-xs text-gray-600 ml-1">
                   Bagged: {new Date(item.fruit.bagged_at).toLocaleDateString()}
-                </Text>
-              </View>
-            )}
-
-            {isCompleted && item.harvest_at && (
-              <View className="flex-row items-center mt-1">
-                <Calendar size={14} color="#059669" />
-                <Text className="text-xs text-green-600 ml-1">
-                  Completed: {new Date(item.harvest_at).toLocaleDateString()}
                 </Text>
               </View>
             )}
@@ -227,7 +206,7 @@ export default function AssignedHarvestsScreen() {
               </View>
             )}
 
-            {!isCompleted && totalFruits > 0 && (
+            {item.status === "pending" && totalFruits > 0 && (
               <Text className="text-sm text-gray-700 mt-2">
                 Total: {totalFruits} fruit(s)
               </Text>
@@ -249,10 +228,6 @@ export default function AssignedHarvestsScreen() {
       (item) => item.status === "partial",
     ).length;
 
-    const harvestedCount = assignedHarvests.filter(
-      (item) => item.status === "harvested" || item.status === "wasted",
-    ).length;
-
     return (
       <View className="bg-white border-b border-gray-200">
         <View className="px-4 py-4">
@@ -266,7 +241,7 @@ export default function AssignedHarvestsScreen() {
           </View>
         </View>
 
-        {/* Filter Tabs */}
+        {/* Filter Tabs - removed Completed tab */}
         <View className="flex-row px-4 pb-2">
           <TouchableOpacity
             onPress={() => setActiveFilter("all")}
@@ -310,7 +285,7 @@ export default function AssignedHarvestsScreen() {
 
           <TouchableOpacity
             onPress={() => setActiveFilter("partial")}
-            className={`mr-4 pb-2 ${
+            className={`pb-2 ${
               activeFilter === "partial" ? "border-b-2 border-orange-500" : ""
             }`}
           >
@@ -330,29 +305,6 @@ export default function AssignedHarvestsScreen() {
               </Text>
             </View>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setActiveFilter("harvested")}
-            className={`pb-2 ${
-              activeFilter === "harvested" ? "border-b-2 border-orange-500" : ""
-            }`}
-          >
-            <View className="flex-row items-center">
-              <CheckCircle2
-                size={16}
-                color={activeFilter === "harvested" ? "#F97316" : "#6B7280"}
-              />
-              <Text
-                className={`ml-1 ${
-                  activeFilter === "harvested"
-                    ? "text-orange-600 font-semibold"
-                    : "text-gray-500"
-                }`}
-              >
-                Completed ({harvestedCount})
-              </Text>
-            </View>
-          </TouchableOpacity>
         </View>
       </View>
     );
@@ -364,8 +316,6 @@ export default function AssignedHarvestsScreen() {
       message += "pending harvest assignments.";
     } else if (activeFilter === "partial") {
       message += "partial harvests.";
-    } else if (activeFilter === "harvested") {
-      message += "completed harvests yet.";
     } else {
       message += "harvest assignments.";
     }

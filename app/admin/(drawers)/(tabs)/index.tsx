@@ -58,8 +58,8 @@ export default function FarmerHomeScreen() {
   const [quickActions] = useState([
     {
       id: 1,
-      title: "Register Tree",
-      description: "Add new jackfruit tree",
+      title: "View Trees",
+      description: "All trees list",
       icon: <Trees size={28} color="#059669" />,
       bgColor: "bg-emerald-50",
       iconColor: "text-emerald-600",
@@ -67,42 +67,6 @@ export default function FarmerHomeScreen() {
     },
     {
       id: 2,
-      title: "Scan QR",
-      description: "Quick tree access",
-      icon: <QrCode size={28} color="#2563EB" />,
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-600",
-      route: "/admin/qrcam",
-    },
-    {
-      id: 3,
-      title: "View Map",
-      description: "Tree locations",
-      icon: <MapPin size={28} color="#059669" />,
-      bgColor: "bg-emerald-50",
-      iconColor: "text-emerald-600",
-      route: "admin/map",
-    },
-    {
-      id: 4,
-      title: "User Management",
-      description: "Manage farm workers",
-      icon: <User size={28} color="#7C3AED" />,
-      bgColor: "bg-violet-50",
-      iconColor: "text-violet-600",
-      route: "/admin/users",
-    },
-    {
-      id: 5,
-      title: "Assign Harvest",
-      description: "Schedule harvest",
-      icon: <CalendarCheck size={28} color="#E67E22" />,
-      bgColor: "bg-orange-50",
-      iconColor: "text-orange-600",
-      route: "/admin/assign",
-    },
-    {
-      id: 6,
       title: "View Flowers",
       description: "All flowers list",
       icon: <Flower2 size={28} color="#EC4899" />,
@@ -111,22 +75,58 @@ export default function FarmerHomeScreen() {
       route: "/admin/allFlowers",
     },
     {
-      id: 7,
+      id: 3,
       title: "View Fruits",
       description: "All fruits list",
-      icon: <Banana size={28} color="#F97316" />,
-      bgColor: "bg-orange-50",
-      iconColor: "text-orange-600",
+      icon: <Banana size={28} color="#EA580C" />,
+      bgColor: "bg-amber-50",
+      iconColor: "text-amber-600",
       route: "/admin/allFruits",
     },
     {
-      id: 8,
+      id: 4,
       title: "View Harvests",
       description: "All harvests list",
-      icon: <Banana size={28} color="#F97316" />,
-      bgColor: "bg-orange-50",
-      iconColor: "text-orange-600",
+      icon: <Package size={28} color="#16A34A" />,
+      bgColor: "bg-lime-50",
+      iconColor: "text-lime-600",
       route: "/admin/allHarvest",
+    },
+    {
+      id: 5,
+      title: "Assign Harvest",
+      description: "Schedule harvest",
+      icon: <CalendarCheck size={28} color="#E11D48" />,
+      bgColor: "bg-rose-50",
+      iconColor: "text-rose-600",
+      route: "/admin/assign",
+    },
+    {
+      id: 6,
+      title: "User Management",
+      description: "Manage farm workers",
+      icon: <User size={28} color="#7C3AED" />,
+      bgColor: "bg-purple-50",
+      iconColor: "text-purple-600",
+      route: "/admin/users",
+    },
+    {
+      id: 7,
+      title: "Scan QR",
+      description: "Quick tree access",
+      icon: <QrCode size={28} color="#2563EB" />,
+      bgColor: "bg-sky-50",
+      iconColor: "text-sky-600",
+      route: "/admin/qrcam",
+    },
+    {
+      id: 8,
+      title: "View Map",
+      description: "Tree locations",
+      icon: <MapPin size={28} color="#0891B2" />,
+      bgColor: "bg-cyan-50",
+      iconColor: "text-cyan-600",
+      route: "/admin/map",
     },
   ]);
 
@@ -359,28 +359,14 @@ export default function FarmerHomeScreen() {
                 key={action.id}
                 href={action.route}
                 asChild
-                className={`px-2 mb-4 ${
-                  action.title === "User Management" ? "w-2/3" : "w-1/3"
-                }`}
+                className="px-2 mb-4 w-1/2"
               >
                 <TouchableOpacity activeOpacity={0.8}>
                   <View
-                    className={`${action.bgColor} rounded-2xl p-4 items-center justify-center ${
-                      action.title === "User Management"
-                        ? "h-32 flex-row"
-                        : "h-32"
-                    } shadow-sm`}
+                    className={`${action.bgColor} rounded-2xl p-4 items-center justify-center h-32 shadow-sm`}
                   >
-                    <View
-                      className={`${action.title === "User Management" ? "mr-3" : "mb-3"}`}
-                    >
-                      {action.icon}
-                    </View>
-                    <View
-                      className={
-                        action.title === "User Management" ? "flex-1" : ""
-                      }
-                    >
+                    <View className="mb-3">{action.icon}</View>
+                    <View>
                       <Text className="font-semibold text-gray-900 text-center">
                         {action.title}
                       </Text>
@@ -393,65 +379,6 @@ export default function FarmerHomeScreen() {
               </Link>
             ))}
           </View>
-        </View>
-
-        {/* Stats Overview */}
-        <View className="px-6 pt-6">
-          <View className="mb-4">
-            <Text className="text-2xl font-bold text-gray-900">
-              Farm Overview
-            </Text>
-            <Text className="text-gray-600">Real-time farm statistics</Text>
-          </View>
-
-          {loadingStats ? (
-            <View className="mb-6 items-center py-12">
-              <ActivityIndicator size="large" color="#059669" />
-              <Text className="text-gray-500 mt-3">Loading statistics...</Text>
-            </View>
-          ) : (
-            <View className="mb-6">
-              {/* Stats Grid - 2 columns */}
-              <View className="flex-row flex-wrap -mx-2">
-                {statsCards.map((card) => (
-                  <View key={card.id} className="w-1/2 px-2 mb-4">
-                    <View className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                      <View className="p-4">
-                        {/* Header with icon and arrow */}
-                        <View className="flex-row justify-between items-start mb-3">
-                          <View
-                            className={`${card.iconBgColor} w-12 h-12 rounded-xl items-center justify-center`}
-                          >
-                            {card.icon}
-                          </View>
-                        </View>
-
-                        {/* Value */}
-                        <Text className="text-2xl font-bold text-gray-900 mb-1">
-                          {card.value}
-                        </Text>
-
-                        {/* Title */}
-                        <Text className="text-gray-700 font-medium">
-                          {card.title}
-                        </Text>
-
-                        {/* Subtitle if exists */}
-                        {card.subtitle && (
-                          <Text className="text-xs text-gray-500 mt-1">
-                            {card.subtitle}
-                          </Text>
-                        )}
-                      </View>
-
-                      {/* Bottom indicator bar */}
-                      <View className="h-1 bg-emerald-500 w-full" />
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
         </View>
 
         {/* Bagged Fruits Pending Assignment Section */}
@@ -602,6 +529,65 @@ export default function FarmerHomeScreen() {
                   </Text>
                 </TouchableOpacity>
               </Link>
+            </View>
+          )}
+        </View>
+
+        {/* Stats Overview */}
+        <View className="px-6 pt-6">
+          <View className="mb-4">
+            <Text className="text-2xl font-bold text-gray-900">
+              Farm Overview
+            </Text>
+            <Text className="text-gray-600">Real-time farm statistics</Text>
+          </View>
+
+          {loadingStats ? (
+            <View className="mb-6 items-center py-12">
+              <ActivityIndicator size="large" color="#059669" />
+              <Text className="text-gray-500 mt-3">Loading statistics...</Text>
+            </View>
+          ) : (
+            <View className="mb-6">
+              {/* Stats Grid - 2 columns */}
+              <View className="flex-row flex-wrap -mx-2">
+                {statsCards.map((card) => (
+                  <View key={card.id} className="w-1/2 px-2 mb-4">
+                    <View className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                      <View className="p-4">
+                        {/* Header with icon and arrow */}
+                        <View className="flex-row justify-between items-start mb-3">
+                          <View
+                            className={`${card.iconBgColor} w-12 h-12 rounded-xl items-center justify-center`}
+                          >
+                            {card.icon}
+                          </View>
+                        </View>
+
+                        {/* Value */}
+                        <Text className="text-2xl font-bold text-gray-900 mb-1">
+                          {card.value}
+                        </Text>
+
+                        {/* Title */}
+                        <Text className="text-gray-700 font-medium">
+                          {card.title}
+                        </Text>
+
+                        {/* Subtitle if exists */}
+                        {card.subtitle && (
+                          <Text className="text-xs text-gray-500 mt-1">
+                            {card.subtitle}
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Bottom indicator bar */}
+                      <View className="h-1 bg-emerald-500 w-full" />
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
         </View>

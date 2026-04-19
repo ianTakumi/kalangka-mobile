@@ -458,7 +458,7 @@ export default function TreeInfoScreen() {
       <SafeAreaView className="flex-1 bg-gray-50">
         <Stack.Screen
           options={{
-            title: treeData?.description || "Tree Details",
+            title: treeData?.description + "'s Info" || "Tree Details",
             headerStyle: {
               backgroundColor: "#059669",
             },

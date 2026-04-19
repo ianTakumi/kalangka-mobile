@@ -30,9 +30,6 @@ export default function _layout() {
             case "flowers":
               return <Ionicons name="flower" size={22} color={color} />;
 
-            case "harvest":
-              return <FontAwesome5 name="seedling" size={22} color={color} />;
-
             case "fruits":
               return (
                 <MaterialCommunityIcons
@@ -52,9 +49,6 @@ export default function _layout() {
       <Tabs.Screen name="trees" options={{ title: "Trees" }} />
       <Tabs.Screen name="flowers" options={{ title: "Flowers" }} />
       <Tabs.Screen name="fruits" options={{ title: "Fruits" }} />
-      <Tabs.Screen name="harvest" options={{ title: "Harvest" }} />
-
-      {/* <Tabs.Screen name="profile" options={{ title: "Profile" }} /> */}
     </Tabs>
   );
 }

@@ -105,7 +105,14 @@ export default function FarmerHomeScreen() {
     try {
       // Get harvests assigned to this user that are not yet completed
       const harvests = await HarvestService.getAssignmentsByUserId(userId);
-      setAssignedHarvests(harvests);
+
+      // Filter out harvested/completed items
+      const activeHarvests = harvests.filter(
+        (harvest) =>
+          harvest.status !== "harvested" && harvest.status !== "completed",
+      );
+
+      setAssignedHarvests(activeHarvests);
     } catch (error) {
       console.error("Error fetching assigned harvests:", error);
     } finally {

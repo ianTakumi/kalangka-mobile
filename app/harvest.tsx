@@ -555,9 +555,7 @@ export default function HarvestScreen() {
       if (remaining > 0 && result.harvest.status !== "harvested") {
         setShowBacklogModal(true);
       } else {
-        setTimeout(() => {
-          router.back();
-        }, 1500);
+        router.back();
       }
     } catch (error: any) {
       console.error("Error saving harvest:", error);
@@ -599,9 +597,7 @@ export default function HarvestScreen() {
       });
 
       setShowBacklogModal(false);
-      setTimeout(() => {
-        router.back();
-      }, 1500);
+      router.push("/users/assigned");
     } catch (error) {
       console.error("Error setting backlog reminder:", error);
       Toast.show({
@@ -639,7 +635,7 @@ export default function HarvestScreen() {
         <AlertCircle size={48} color="#ef4444" />
         <Text className="text-red-500 text-lg mt-2">No fruit data found</Text>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.push("/users/assigned")}
           className="mt-4 bg-green-600 px-6 py-3 rounded-xl"
         >
           <Text className="text-white font-semibold">Go Back</Text>
@@ -729,8 +725,7 @@ export default function HarvestScreen() {
         }
       >
         {/* Fruit Info Card */}
-        {/* Fruit Info Card */}
-        <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
+        {/* <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
           <Text className="text-gray-500 text-sm mb-3">FRUIT DETAILS</Text>
 
           <View className="flex-row items-center mb-3">
@@ -772,20 +767,20 @@ export default function HarvestScreen() {
               </View>
             )}
 
-            {/* 👇 ITO ANG IDAGDAG - Farmer Assessment Info (ipakita lang pag may backlog/partial) */}
+          
             {hasBacklog &&
               fruit.remaining_quantity > 0 &&
               !isHarvestCompleted && (
                 <>
-                  {/* Separator line */}
+               
                   <View className="h-px bg-gray-200 my-3" />
 
-                  {/* Farmer Assessment Section */}
+                 
                   <Text className="text-xs font-semibold text-orange-600 mb-2">
                     📋 FARMER ASSESSMENT (Backlog)
                   </Text>
 
-                  {/* farmer_extra_days */}
+              
                   {fruit.farmer_extra_days && fruit.farmer_extra_days > 0 && (
                     <View className="flex-row justify-between mb-2">
                       <Text className="text-gray-600 text-xs">
@@ -798,7 +793,7 @@ export default function HarvestScreen() {
                     </View>
                   )}
 
-                  {/* farmer_assessed_at */}
+                
                   {fruit.farmer_assessed_at && (
                     <View className="flex-row justify-between mb-2">
                       <Text className="text-gray-600 text-xs">
@@ -812,7 +807,7 @@ export default function HarvestScreen() {
                     </View>
                   )}
 
-                  {/* next_check_date */}
+              
                   {fruit.next_check_date && (
                     <View className="flex-row justify-between mb-2">
                       <Text className="text-gray-600 text-xs">
@@ -824,7 +819,7 @@ export default function HarvestScreen() {
                     </View>
                   )}
 
-                  {/* farmer_notes */}
+                 
                   {fruit.farmer_notes && (
                     <View className="mt-2 p-2 bg-orange-50 rounded-lg">
                       <Text className="text-gray-600 text-xs mb-1">
@@ -876,7 +871,7 @@ export default function HarvestScreen() {
               </View>
             )}
           </View>
-        </View>
+        </View> */}
 
         {/* Progress Card */}
         <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
@@ -1404,7 +1399,7 @@ export default function HarvestScreen() {
               keyboardType="numeric"
             />
 
-            <Text className="text-gray-700 font-medium mb-2">
+            {/* <Text className="text-gray-700 font-medium mb-2">
               Reason (Optional)
             </Text>
             <TextInput
@@ -1415,10 +1410,10 @@ export default function HarvestScreen() {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
-            />
+            /> */}
 
             <View className="flex-row space-x-3">
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 className="flex-1 bg-gray-300 py-3 rounded-xl mr-2"
                 onPress={() => {
                   setShowBacklogModal(false);
@@ -1428,7 +1423,7 @@ export default function HarvestScreen() {
                 <Text className="text-center font-semibold text-gray-700">
                   Skip
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               <TouchableOpacity
                 className="flex-1 bg-orange-500 py-3 rounded-xl ml-2"
                 onPress={handleBacklogSubmit}

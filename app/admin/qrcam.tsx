@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Flashlight,
   FlashlightOff,
-  FlipVertical,
   TreePine,
   X,
 } from "lucide-react-native";
@@ -138,11 +137,6 @@ export default function QRScannerScreen() {
     setTorchOn(!torchOn);
   };
 
-  // Switch camera
-  const switchCamera = () => {
-    setCameraType((current) => (current === "back" ? "front" : "back"));
-  };
-
   // Reset scanner
   const resetScanner = () => {
     setScanned(false);
@@ -176,7 +170,7 @@ export default function QRScannerScreen() {
           </Text>
           <TouchableOpacity
             className="mt-6 bg-emerald-600 py-3 px-6 rounded-full"
-            onPress={() => router.back()}
+            onPress={() => router.push("/admin/(drawers)/(tabs)")}
           >
             <Text className="text-white font-semibold">Go Back</Text>
           </TouchableOpacity>
@@ -191,7 +185,7 @@ export default function QRScannerScreen() {
       <View className="absolute top-0 left-0 right-0 z-10 pt-4 px-4">
         <View className="flex-row justify-between items-center">
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => router.push("/admin/(drawers)/(tabs)")}
             className="bg-black/70 p-2 rounded-full"
           >
             <X size={24} color="white" />
@@ -293,13 +287,6 @@ export default function QRScannerScreen() {
                     ) : (
                       <Flashlight size={24} color="white" />
                     )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={switchCamera}
-                    className="bg-white/20 p-4 rounded-full"
-                  >
-                    <FlipVertical size={24} color="white" />
                   </TouchableOpacity>
                 </View>
               </View>
