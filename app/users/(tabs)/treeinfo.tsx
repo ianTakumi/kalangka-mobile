@@ -1,4 +1,5 @@
 import TreeService from "@/services/treeService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { GoogleMaps } from "expo-maps";
@@ -23,7 +24,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -101,6 +102,16 @@ export default function TreeInfoScreen() {
     zoom: 18,
   });
 
+  // Save tree data to AsyncStorage
+  const saveTreeToStorage = async (tree: TreeData) => {
+    try {
+      await AsyncStorage.setItem("currentTree", JSON.stringify(tree));
+      console.log("✅ Tree saved to AsyncStorage:", tree.id || tree._id);
+    } catch (error) {
+      console.error("❌ Failed to save tree to AsyncStorage:", error);
+    }
+  };
+
   // Load tree data
   useEffect(() => {
     const loadTreeData = async () => {
@@ -110,6 +121,8 @@ export default function TreeInfoScreen() {
             const parsed = JSON.parse(params.treeData);
             setTreeData(parsed);
             checkForMissingImage(parsed);
+            // Save to AsyncStorage
+            await saveTreeToStorage(parsed);
             setLoading(false);
             return;
           } catch (e) {
@@ -130,6 +143,8 @@ export default function TreeInfoScreen() {
         if (tree) {
           setTreeData(tree);
           checkForMissingImage(tree);
+          // Save to AsyncStorage
+          await saveTreeToStorage(tree);
           if (tree.latitude && tree.longitude) {
             setInitialPosition({
               coordinates: {
@@ -153,8 +168,15 @@ export default function TreeInfoScreen() {
     loadTreeData();
   }, [treeId]);
 
+  // Also save to AsyncStorage when treeData changes
+  useEffect(() => {
+    if (treeData) {
+      saveTreeToStorage(treeData);
+    }
+  }, [treeData]);
+
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (isMissingImage) {
         navigation.setOptions({ tabBarStyle: { display: "none" } });
       } else {
@@ -171,7 +193,6 @@ export default function TreeInfoScreen() {
       }
 
       return () => {
-        // Reset when leaving screen
         navigation.setOptions({
           tabBarStyle: {
             height: 60,
@@ -249,6 +270,15 @@ export default function TreeInfoScreen() {
 
       await TreeService.updateTree(treeId, updateData);
 
+      // Update local tree data
+      const updatedTree = { ...treeData, ...updateData };
+      setTreeData(updatedTree);
+
+      // Save updated tree to AsyncStorage
+      await saveTreeToStorage(updatedTree);
+
+      setIsMissingImage(false);
+
       Toast.show({
         type: "success",
         text1: "Tree Updated",
@@ -261,7 +291,8 @@ export default function TreeInfoScreen() {
         console.log("Will sync when online");
       }
 
-      router.replace("/users/(drawers)/(tabs)");
+      // Stay on the same screen instead of redirecting
+      // The tabs will reappear because isMissingImage is now false
     } catch (error) {
       console.error("Error updating tree:", error);
       Toast.show({

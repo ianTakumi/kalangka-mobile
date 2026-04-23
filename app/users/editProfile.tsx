@@ -8,13 +8,17 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -25,6 +29,7 @@ export default function EditProfile() {
   const [loading, setLoading] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [isCheckingNetwork, setIsCheckingNetwork] = useState(true);
+  const insets = useSafeAreaInsets();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -250,7 +255,7 @@ export default function EditProfile() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
+    <View className="flex-1 bg-gray-50">
       {/* Offline Banner */}
       {!isOnline && (
         <View className="bg-yellow-500 py-2 px-4">
@@ -263,18 +268,20 @@ export default function EditProfile() {
         </View>
       )}
 
-      {/* Header with Back Button - Same as Profile Screen */}
-      <View className="bg-white pt-4 pb-2 px-4 flex-row items-center border-b border-gray-100">
-        <TouchableOpacity
-          onPress={handleCancel}
-          className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
-        >
-          <Ionicons name="chevron-back" size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text className="flex-1 text-center text-xl font-semibold text-gray-800 mr-10">
-          Edit Profile
-        </Text>
-      </View>
+      {/* Header with Back Button */}
+      <SafeAreaView edges={["top"]} className="bg-white">
+        <View className="pt-4 pb-2 px-4 flex-row items-center border-b border-gray-100">
+          <TouchableOpacity
+            onPress={handleCancel}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+          >
+            <Ionicons name="chevron-back" size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text className="flex-1 text-center text-xl font-semibold text-gray-800 mr-10">
+            Edit Profile
+          </Text>
+        </View>
+      </SafeAreaView>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Form Section */}
@@ -388,10 +395,22 @@ export default function EditProfile() {
             </View>
           </View>
         </View>
+
+        {/* Add bottom padding for scroll content */}
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Bottom Save Button */}
-      <View className="p-6 bg-white border-t border-gray-200">
+      {/* Bottom Action Buttons - Now with proper Android padding */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+        }}
+        className="bg-white border-t border-gray-200 px-6 pt-4"
+      >
         <TouchableOpacity
           className={`py-4 rounded-xl items-center ${
             loading || !isOnline ? "bg-gray-400" : "bg-green-600"
@@ -416,6 +435,6 @@ export default function EditProfile() {
           <Text className="text-gray-600 font-medium">Cancel</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

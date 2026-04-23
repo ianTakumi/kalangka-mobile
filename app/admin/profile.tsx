@@ -7,12 +7,16 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
 
 export default function ProfileScreen() {
@@ -20,6 +24,7 @@ export default function ProfileScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -65,19 +70,21 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
+    <View className="flex-1 bg-gray-50">
       {/* Header with Back Button */}
-      <View className="bg-white pt-4 pb-2 px-4 border-b border-gray-100 flex-row items-center">
-        <TouchableOpacity
-          onPress={handleGoBack}
-          className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
-        >
-          <Ionicons name="arrow-back" size={22} color="#374151" />
-        </TouchableOpacity>
-        <Text className="flex-1 text-center text-xl font-bold text-gray-800">
-          My Profile
-        </Text>
-      </View>
+      <SafeAreaView edges={["top"]} className="bg-white">
+        <View className="pt-4 pb-2 px-4 border-b border-gray-100 flex-row items-center">
+          <TouchableOpacity
+            onPress={handleGoBack}
+            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+          >
+            <Ionicons name="arrow-back" size={22} color="#374151" />
+          </TouchableOpacity>
+          <Text className="flex-1 text-center text-xl font-bold text-gray-800">
+            My Profile
+          </Text>
+        </View>
+      </SafeAreaView>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
@@ -250,7 +257,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Account Created Info */}
-        <View className="mt-6 mx-6 mb-10">
+        <View className="mt-6 mx-6">
           <Text className="text-gray-500 text-center text-sm">
             Account created on{" "}
             {new Date(user.created_at).toLocaleDateString("en-US", {
@@ -260,10 +267,22 @@ export default function ProfileScreen() {
             })}
           </Text>
         </View>
+
+        {/* Add bottom padding for scroll content */}
+        <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* Bottom Action Button */}
-      <View className="p-6 bg-white border-t border-gray-200">
+      {/* Bottom Action Button - Now with proper Android padding */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+        }}
+        className="bg-white border-t border-gray-200 px-6 pt-4"
+      >
         <TouchableOpacity
           className="bg-green-600 py-4 rounded-xl items-center"
           onPress={handleEditProfile}
@@ -278,6 +297,6 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

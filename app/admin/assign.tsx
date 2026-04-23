@@ -21,13 +21,17 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   StatusBar,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 export default function AssignHarvestScreen() {
@@ -42,6 +46,7 @@ export default function AssignHarvestScreen() {
   );
   const [assigning, setAssigning] = useState(false);
   const [userDropdownVisible, setUserDropdownVisible] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     fetchData();
@@ -367,7 +372,17 @@ export default function AssignHarvestScreen() {
 
       {/* Bottom Action Bar */}
       {selectedFruits.size > 0 && (
-        <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4 shadow-lg">
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            // Ito ang importanteng part:
+            paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+          }}
+          className="bg-white border-t border-gray-200 px-4 pt-4"
+        >
           <TouchableOpacity
             onPress={handleAssignPress}
             className="bg-orange-600 rounded-xl py-4 flex-row items-center justify-center"
@@ -388,7 +403,12 @@ export default function AssignHarvestScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6">
+          <View
+            style={{
+              paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+            }}
+            className="bg-white rounded-t-3xl p-6"
+          >
             {/* Modal Header */}
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-2xl font-bold text-gray-900">
