@@ -74,7 +74,7 @@ export default function QRScannerScreen() {
         }
 
         if (tree) {
-          router.push({
+          router.replace({
             pathname: "/users/(tabs)/treeinfo",
             params: { treeData: JSON.stringify(tree) },
           });

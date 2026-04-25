@@ -184,7 +184,6 @@ export default function TreeInfoScreen() {
   };
 
   // Update tree with new image and redirect
-  // Update tree with new image, location, and redirect
   const updateTreeAndRedirect = async () => {
     if (!capturedImage || !treeData?.id) {
       Toast.show({
@@ -252,14 +251,6 @@ export default function TreeInfoScreen() {
         text2: "Image and location saved successfully",
       });
 
-      // Try to sync if online
-      try {
-        await TreeService.syncAll();
-        console.log("✅ Sync completed");
-      } catch (syncError) {
-        console.log("⚠️ Will sync when online");
-      }
-
       // Redirect to users/index
       router.replace("/users/(drawers)/(tabs)");
     } catch (error) {
@@ -298,11 +289,6 @@ export default function TreeInfoScreen() {
   const retakePhoto = () => {
     setCapturedImage(null);
     setShowCamera(true);
-  };
-
-  // Skip image capture
-  const skipImageCapture = () => {
-    router.replace("/users/index");
   };
 
   // Load flower data
@@ -714,7 +700,7 @@ export default function TreeInfoScreen() {
             <ArrowLeft size={24} color="#374151" />
           </TouchableOpacity>
           <Text className="flex-1 text-center text-xl font-semibold text-gray-800 mr-10">
-            Tree Details
+            Tree Details test
           </Text>
         </View>
 

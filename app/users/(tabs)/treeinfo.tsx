@@ -182,7 +182,7 @@ export default function TreeInfoScreen() {
       } else {
         navigation.setOptions({
           tabBarStyle: {
-            height: 60,
+            height: 100,
             borderTopWidth: 0.3,
             borderTopColor: "#E5E7EB",
             backgroundColor: "#fff",
@@ -195,7 +195,7 @@ export default function TreeInfoScreen() {
       return () => {
         navigation.setOptions({
           tabBarStyle: {
-            height: 60,
+            height: 100,
             borderTopWidth: 0.3,
             borderTopColor: "#E5E7EB",
             backgroundColor: "#fff",
@@ -284,15 +284,6 @@ export default function TreeInfoScreen() {
         text1: "Tree Updated",
         text2: "Image and location saved successfully",
       });
-
-      try {
-        await TreeService.syncAll();
-      } catch (syncError) {
-        console.log("Will sync when online");
-      }
-
-      // Stay on the same screen instead of redirecting
-      // The tabs will reappear because isMissingImage is now false
     } catch (error) {
       console.error("Error updating tree:", error);
       Toast.show({
@@ -967,7 +958,7 @@ export default function TreeInfoScreen() {
             </View>
           )}
         </View>
-        <View className="h-20" />
+        <View className="h-28" />
       </ScrollView>
 
       <Toast />

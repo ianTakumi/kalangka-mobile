@@ -1,5 +1,5 @@
 import { CREATE_NOTIFICATIONS_TABLE } from "@/database/schema";
-import { store } from "@/redux/store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as BackgroundFetch from "expo-background-fetch";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
@@ -8,6 +8,49 @@ import * as TaskManager from "expo-task-manager";
 
 const CHECK_TASK = "harvest-notification-check";
 const db = SQLite.openDatabaseSync("kalangka.db");
+
+// ==================== BACKGROUND TASK DEFINITION ====================
+// MUST be defined before registerTaskAsync is called
+TaskManager.defineTask(CHECK_TASK, async () => {
+  console.log("🔥🔥🔥 BACKGROUND TASK FIRED AT:", new Date().toLocaleString());
+
+  try {
+    const service = new NotificationService();
+
+    // ✅ Read from Redux Persist's AsyncStorage directly
+    const persistedData = await AsyncStorage.getItem("persist:root");
+
+    if (persistedData) {
+      const parsedData = JSON.parse(persistedData);
+      // redux-persist stores each reducer as a JSON string
+      const authData = JSON.parse(parsedData.auth);
+
+      if (authData?.user && authData?.isAuthenticated) {
+        const user = authData.user;
+        console.log(
+          `👤 Background: Using persisted user - ${user.role} (${user.username || user.id})`,
+        );
+        await service.checkHarvests(user.role, user.id);
+      } else {
+        console.log("🔒 No authenticated user in persisted state");
+        // Fallback: Check all users from database
+        await service.checkAllUsersFromDatabase();
+      }
+    } else {
+      console.log("📭 No persisted data found - checking all users from DB");
+      await service.checkAllUsersFromDatabase();
+    }
+
+    console.log(
+      "✅ Background task completed at:",
+      new Date().toLocaleString(),
+    );
+    return BackgroundFetch.BackgroundFetchResult.NewData;
+  } catch (error) {
+    console.error("❌ Background task failed:", error);
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
+});
 
 class NotificationService {
   // Generate UUID for primary keys
@@ -22,15 +65,25 @@ class NotificationService {
     );
   }
 
-  // Add after generateUUID() method
+  // For foreground use only
   private isUserAuthenticated(): boolean {
-    const state = store.getState();
-    return state.auth.isAuthenticated && !!state.auth.user;
+    try {
+      const { store } = require("@/redux/store");
+      const state = store.getState();
+      return state.auth.isAuthenticated && !!state.auth.user;
+    } catch {
+      return false;
+    }
   }
 
   private getCurrentUser() {
-    const state = store.getState();
-    return state.auth.user;
+    try {
+      const { store } = require("@/redux/store");
+      const state = store.getState();
+      return state.auth.user;
+    } catch {
+      return null;
+    }
   }
 
   private async createTables() {
@@ -64,12 +117,18 @@ class NotificationService {
     });
   }
 
-  // Register background task (every 6 hours)
+  // Register background task
   private async registerBackgroundTask() {
     try {
+      // Check if already registered
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(CHECK_TASK);
+      if (isRegistered) {
+        console.log("🔄 Background task already registered");
+        return;
+      }
+
       await BackgroundFetch.registerTaskAsync(CHECK_TASK, {
         minimumInterval: 60, // 1 minute for testing
-        // minimumInterval: 6 * 60 * 60, // Every 6 hours (production)
         stopOnTerminate: false,
         startOnBoot: true,
       });
@@ -86,7 +145,40 @@ class NotificationService {
     );
   }
 
-  // Add this method to the NotificationService class
+  // ✅ NEW: Check all users from database (fallback for background)
+  async checkAllUsersFromDatabase() {
+    try {
+      const users = await db.getAllAsync(`
+        SELECT DISTINCT u.id, u.role, u.username 
+        FROM users u 
+        WHERE u.deleted_at IS NULL
+        AND (
+          u.role = 'admin' 
+          OR EXISTS(
+            SELECT 1 FROM harvests h 
+            WHERE h.user_id = u.id 
+            AND h.deleted_at IS NULL
+          )
+        )
+      `);
+
+      console.log(`👥 Background: Found ${users.length} users to check`);
+
+      let checkedCount = 0;
+      for (const user of users) {
+        console.log(`  Checking ${user.role}: ${user.username || user.id}`);
+        await this.checkHarvests(user.role, user.id);
+        checkedCount++;
+        // Small delay between users
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      console.log(`✅ Checked ${checkedCount}/${users.length} users`);
+    } catch (error) {
+      console.error("❌ Failed to check all users:", error);
+    }
+  }
+
   private async sendAdminSummaryNotification(
     title: string,
     message: string,
@@ -107,15 +199,7 @@ class NotificationService {
       id, user_id, fruit_id, type, title, message, 
       days_until_return, scheduled_for, is_sent, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
-      [
-        notificationId,
-        null, // null for admin
-        null, // no specific fruit
-        "admin_summary",
-        title,
-        message,
-        0,
-      ],
+      [notificationId, null, null, "admin_summary", title, message, 0],
     );
 
     // Send actual notification
@@ -142,7 +226,6 @@ class NotificationService {
     console.log(`📨 [Admin] Sent summary: ${message.substring(0, 100)}...`);
   }
 
-  // Add this method to the NotificationService class
   private async sendUserSummaryNotification(
     title: string,
     message: string,
@@ -164,15 +247,7 @@ class NotificationService {
       id, user_id, fruit_id, type, title, message, 
       days_until_return, scheduled_for, is_sent, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
-      [
-        notificationId,
-        userId,
-        null, // no specific fruit
-        "user_summary",
-        title,
-        message,
-        0,
-      ],
+      [notificationId, userId, null, "user_summary", title, message, 0],
     );
 
     // Send actual notification
@@ -197,7 +272,7 @@ class NotificationService {
   }
 
   // Handle notification tap
-  private async handleNotificationOpened(response) {
+  private async handleNotificationOpened(response: any) {
     if (!this.isUserAuthenticated()) {
       console.log("🔒 Notification tap ignored - user not authenticated");
       return;
@@ -222,16 +297,14 @@ class NotificationService {
       data?.type === "ready" ||
       data?.type === "overdue"
     ) {
-      // For user notifications - go to tree details
       router.push({
         pathname: "/users/assigned",
         params: { treeId: data.treeId },
       });
     } else if (data?.type === "admin_summary") {
-      // For admin summary notification - go to admin harvest screen
       if (user?.role === "admin") {
         router.push({
-          pathname: "/admin/assign", // or wherever your admin harvest list is
+          pathname: "/admin/assign",
         });
       } else {
         console.log("🔒 Non-admin user tapped admin notification");
@@ -239,7 +312,7 @@ class NotificationService {
     } else if (data?.type === "user_summary") {
       if (user?.role === "user") {
         router.push({
-          pathname: "/users/assigned", // or wherever user sees their assigned harvests
+          pathname: "/users/assigned",
         });
       } else {
         console.log("🔒 Non-user tapped user notification");
@@ -247,10 +320,9 @@ class NotificationService {
     }
   }
 
-  // Helper function to calculate days between two dates (accurate)
+  // Helper function to calculate days between two dates
   private calculateDaysBetween(date1: string, date2: Date): number {
     const d1 = new Date(date1);
-    // Set both to midnight UTC para consistent
     const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
     const utc2 = Date.UTC(
       date2.getFullYear(),
@@ -265,16 +337,33 @@ class NotificationService {
   }
 
   // ==================== MAIN FUNCTION ====================
-  // Check harvests with role-based filtering
   async checkHarvests(userRole?: string, userId?: string) {
     let role = userRole;
     let uid = userId;
 
+    // Try Redux first (foreground)
     if (!role || !uid) {
       const user = this.getCurrentUser();
       if (user && this.isUserAuthenticated()) {
         role = user.role;
         uid = user.id;
+      }
+    }
+
+    // Try AsyncStorage if Redux failed (background)
+    if (!role || !uid) {
+      try {
+        const persistedData = await AsyncStorage.getItem("persist:root");
+        if (persistedData) {
+          const parsedData = JSON.parse(persistedData);
+          const authData = JSON.parse(parsedData.auth);
+          if (authData?.user && authData?.isAuthenticated) {
+            role = authData.user.role;
+            uid = authData.user.id;
+          }
+        }
+      } catch (error) {
+        console.warn("Could not read persisted auth:", error);
       }
     }
 
@@ -288,6 +377,8 @@ class NotificationService {
       new Date().toLocaleString(),
       "Role:",
       role,
+      "UserID:",
+      uid,
     );
 
     const today = new Date();
@@ -316,17 +407,15 @@ class NotificationService {
       AND f.status != 'harvested'
   `);
 
-    // Separate fruits based on harvest record
-    const fruitsWithHarvest = fruits.filter((f) => f.harvest_id);
-    const fruitsWithoutHarvest = fruits.filter((f) => !f.harvest_id);
+    const fruitsWithHarvest = fruits.filter((f: any) => f.harvest_id);
+    const fruitsWithoutHarvest = fruits.filter((f: any) => !f.harvest_id);
 
     console.log(`📊 Total: ${fruits.length} fruits`);
     console.log(`   - May harvest: ${fruitsWithHarvest.length}`);
     console.log(`   - Walang harvest: ${fruitsWithoutHarvest.length}`);
 
-    // For ADMIN: Count unassigned fruit RECORDS (not quantity sum)
+    // For ADMIN
     if (role === "admin") {
-      // Process unassigned fruits for summary
       const unassignedFruits = fruitsWithoutHarvest;
 
       if (unassignedFruits.length === 0) {
@@ -334,9 +423,8 @@ class NotificationService {
         return;
       }
 
-      // Group by tree to get tree names and counts
       const treeSummary = new Map();
-      let totalUnassignedCount = 0; // Count of fruit RECORDS, not quantity sum
+      let totalUnassignedCount = 0;
       let approachingCount = 0;
       let readyCount = 0;
       let overdueCount = 0;
@@ -344,13 +432,12 @@ class NotificationService {
       for (const fruit of unassignedFruits) {
         let days = this.calculateDaysBetween(fruit.bagged_at, today);
 
-        // Handle extra days logic
         if (fruit.farmer_extra_days && fruit.farmer_extra_days > 0) {
           if (fruit.next_check_date) {
             const nextCheck = new Date(fruit.next_check_date);
             nextCheck.setHours(0, 0, 0, 0);
             if (nextCheck > today) {
-              continue; // Skip if not yet ready for re-check
+              continue;
             }
             const adjustedDate = new Date(fruit.bagged_at);
             adjustedDate.setDate(
@@ -360,7 +447,6 @@ class NotificationService {
           }
         }
 
-        // Count fruits by status - each fruit record is 1
         if (days >= 115 && days < 120) {
           approachingCount += 1;
         } else if (days >= 120 && days < 125) {
@@ -369,7 +455,6 @@ class NotificationService {
           overdueCount += 1;
         }
 
-        // Only count fruits that are 115+ days - each fruit record is 1
         if (days >= 115) {
           totalUnassignedCount += 1;
 
@@ -381,7 +466,7 @@ class NotificationService {
             });
           }
           const tree = treeSummary.get(fruit.tree_id);
-          tree.fruit_count += 1; // Count each fruit record as 1
+          tree.fruit_count += 1;
           tree.oldest_days = Math.min(tree.oldest_days, days);
         }
       }
@@ -391,7 +476,6 @@ class NotificationService {
         return;
       }
 
-      // Check if already notified today
       const existingNotification = await db.getFirstAsync(
         `SELECT * FROM notifications 
        WHERE user_id IS NULL 
@@ -399,12 +483,11 @@ class NotificationService {
        AND type = 'admin_summary'`,
       );
 
-      if (existingNotification) {
-        console.log("⏭️ Already sent admin summary today");
-        return;
-      }
+      // if (existingNotification) {
+      //   console.log("⏭️ Already sent admin summary today");
+      //   return;
+      // }
 
-      // Build the summary message
       let statusMessage = "";
       if (approachingCount > 0)
         statusMessage += `${approachingCount} approaching, `;
@@ -412,7 +495,7 @@ class NotificationService {
       if (overdueCount > 0) statusMessage += `${overdueCount} overdue, `;
       statusMessage = statusMessage.slice(0, -2);
 
-      const title = "Harvest Summary";
+      const title = "Assignment Needed";
       const message = `${totalUnassignedCount} unassigned fruit(s) ready from ${treeSummary.size} tree(s). ${statusMessage}`;
 
       await this.sendAdminSummaryNotification(
@@ -424,14 +507,13 @@ class NotificationService {
         Array.from(treeSummary.values()),
       );
 
-      return; // Admin done, don't process per-tree
+      return;
     }
 
-    // For USER: Count assigned harvest RECORDS (each fruit record with harvest is 1 harvest)
+    // For USER
     if (role === "user" && uid) {
-      // Process assigned fruits only
       const fruitsToProcess = fruitsWithHarvest.filter(
-        (f) => f.assigned_user_id === uid,
+        (f: any) => f.assigned_user_id === uid,
       );
 
       console.log(
@@ -443,7 +525,6 @@ class NotificationService {
         return;
       }
 
-      // Collect summary data for user - COUNT HARVESTS (each fruit record is 1 harvest)
       let totalHarvestsCount = 0;
       let approachingCount = 0;
       let readyCount = 0;
@@ -453,7 +534,6 @@ class NotificationService {
       for (const fruit of fruitsToProcess) {
         let days = this.calculateDaysBetween(fruit.bagged_at, today);
 
-        // Handle extra days logic
         if (fruit.farmer_extra_days && fruit.farmer_extra_days > 0) {
           if (fruit.next_check_date) {
             const nextCheck = new Date(fruit.next_check_date);
@@ -472,12 +552,10 @@ class NotificationService {
           }
         }
 
-        // Count EACH HARVEST (fruit record) as 1 harvest
         if (days >= 115) {
           totalHarvestsCount += 1;
           treeNames.add(fruit.tree_name);
 
-          // Count by status
           if (days >= 115 && days < 120) {
             approachingCount += 1;
           } else if (days >= 120 && days < 125) {
@@ -493,7 +571,6 @@ class NotificationService {
         return;
       }
 
-      // Check if already notified today
       const existingNotification = await db.getFirstAsync(
         `SELECT * FROM notifications 
        WHERE user_id = ? 
@@ -502,12 +579,11 @@ class NotificationService {
         [uid],
       );
 
-      if (existingNotification) {
-        console.log("⏭️ Already sent user summary today");
-        return;
-      }
+      // if (existingNotification) {
+      //   console.log("⏭️ Already sent user summary today");
+      //   return;
+      // }
 
-      // Build the summary message for user - SHOW HARVEST COUNT
       let statusMessage = "";
       if (approachingCount > 0)
         statusMessage += `${approachingCount} approaching, `;
@@ -528,11 +604,11 @@ class NotificationService {
         uid,
       );
 
-      return; // User done
+      return;
     }
   }
 
-  // Process tree notification with role-based logic
+  // ==================== OTHER METHODS (unchanged) ====================
   private async processTreeNotification(
     tree: any,
     today: Date,
@@ -543,12 +619,10 @@ class NotificationService {
     const fruitCount = tree.fruit_count;
     const totalFruits = tree.total_fruits;
 
-    // Check if dapat mag-notify based on days
     if (oldestDays < 115) {
-      return; // Too early
+      return;
     }
 
-    // Check if may notification na today para sa tree na ito
     const placeholders = tree.fruit_ids.map(() => "?").join(",");
     let query = `
       SELECT * FROM notifications 
@@ -562,7 +636,7 @@ class NotificationService {
       query += ` AND user_id = ?`;
       params.push(userId);
     } else if (userRole === "admin") {
-      query += ` AND user_id IS NULL`; // Admin notifications have no user
+      query += ` AND user_id IS NULL`;
     }
 
     const notifiedToday = await db.getFirstAsync(query, params);
@@ -572,7 +646,6 @@ class NotificationService {
       return;
     }
 
-    // Determine notification type and message based on role
     let type = "";
     let title = "";
     let message = "";
@@ -609,7 +682,6 @@ class NotificationService {
     }
 
     if (type) {
-      // Add context about harvest status
       if (tree.has_harvest) {
         message += " (Assigned)";
       } else {
@@ -624,12 +696,11 @@ class NotificationService {
         oldestDays,
         fruitCount,
         totalFruits,
-        userRole === "admin" ? null : userId, // Admin: no user_id, User: may user_id
+        userRole === "admin" ? null : userId,
       );
     }
   }
 
-  // Send notification with proper user targeting
   private async sendNotification(
     tree: any,
     type: string,
@@ -642,24 +713,14 @@ class NotificationService {
   ) {
     const notificationId = this.generateUUID();
 
-    // Save to notifications table
     await db.runAsync(
       `INSERT INTO notifications (
         id, user_id, fruit_id, type, title, message, 
         days_until_return, scheduled_for, is_sent, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
-      [
-        notificationId,
-        userId, // null for admin, may value for user
-        tree.fruit_ids[0],
-        type,
-        title,
-        message,
-        days,
-      ],
+      [notificationId, userId, tree.fruit_ids[0], type, title, message, days],
     );
 
-    // Send actual notification
     await Notifications.scheduleNotificationAsync({
       content: {
         title,
@@ -676,7 +737,7 @@ class NotificationService {
         },
         sound: true,
       },
-      trigger: null, // show immediately
+      trigger: null,
     });
 
     console.log(
@@ -684,7 +745,6 @@ class NotificationService {
     );
   }
 
-  // ==================== TESTING METHODS ====================
   async sendTestBackgroundNotifications(count: number = 10) {
     if (!this.isUserAuthenticated()) {
       console.log("🔒 Cannot send test notifications - no authenticated user");
@@ -756,7 +816,6 @@ class NotificationService {
 
       const fullMessage = `${randomTree}: ${randomMessage} (${randomFruitCount} fruits, ~${randomDays} days)`;
 
-      // Save to notifications table
       await db.runAsync(
         `INSERT INTO notifications (
           id, user_id, fruit_id, type, title, message, 
@@ -764,7 +823,7 @@ class NotificationService {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, datetime('now'))`,
         [
           notificationId,
-          null, // no user_id for test
+          null,
           fruitId,
           randomType,
           randomTitle,
@@ -773,7 +832,6 @@ class NotificationService {
         ],
       );
 
-      // Send actual notification
       await Notifications.scheduleNotificationAsync({
         content: {
           title: randomTitle,
@@ -807,7 +865,6 @@ class NotificationService {
     };
   }
 
-  // ==================== ORIGINAL METHODS ====================
   async sendTreeReturnNotification(
     treeId: string,
     treeName: string,
@@ -911,46 +968,15 @@ class NotificationService {
       }
     }
 
-    return result.sort((a, b) => b.oldest_days - a.oldest_days);
+    return result.sort((a: any, b: any) => b.oldest_days - a.oldest_days);
   }
 
   async manualCheck(userRole?: string, userId?: string) {
     console.log("🔍 Running manual check...");
-    await this.clearTodayNotifications(); // TEMPORARY
+    await this.clearTodayNotifications();
     await this.checkHarvests(userRole, userId);
     console.log("✅ Manual check completed");
   }
 }
-
-// ==================== BACKGROUND TASK ====================
-TaskManager.defineTask(CHECK_TASK, async () => {
-  console.log("🔥🔥🔥 BACKGROUND TASK FIRED AT:", new Date().toLocaleString());
-
-  try {
-    const service = new NotificationService();
-
-    // Get current user from Redux
-    const state = store.getState();
-    const user = state.auth.user;
-
-    if (user) {
-      // If user is logged in, run check with their role
-      await service.checkHarvests(user.role, user.id);
-    } else {
-      console.log(
-        "🔒 No user logged in, skipping background notification check",
-      );
-    }
-
-    console.log(
-      "✅ Background task completed at:",
-      new Date().toLocaleString(),
-    );
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch (error) {
-    console.error("❌ Background task failed:", error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
-  }
-});
 
 export default new NotificationService();

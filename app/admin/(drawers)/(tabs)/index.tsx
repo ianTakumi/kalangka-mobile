@@ -5,11 +5,11 @@ import treeService from "@/services/treeService";
 import UserService from "@/services/UserService";
 import { Fruit } from "@/types";
 import { getTimeBasedGreeting } from "@/utils/helpers";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import NetInfo from "@react-native-community/netinfo";
 import { Link } from "expo-router";
 import {
   AlertTriangle,
-  Banana,
   Calendar,
   CalendarCheck,
   Cloud,
@@ -37,7 +37,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 const { width } = Dimensions.get("window");
-
 export default function FarmerHomeScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,7 +77,9 @@ export default function FarmerHomeScreen() {
       id: 3,
       title: "View Fruits",
       description: "All fruits list",
-      icon: <Banana size={28} color="#EA580C" />,
+      icon: (
+        <MaterialCommunityIcons name="fruit-pear" size={28} color="#EA580C" />
+      ),
       bgColor: "bg-amber-50",
       iconColor: "text-amber-600",
       route: "/admin/allFruits",
@@ -228,7 +229,9 @@ export default function FarmerHomeScreen() {
       id: "totalFruits",
       title: "Total Fruits",
       value: userStats.totalFruits,
-      icon: <Banana size={24} color="#F97316" />,
+      icon: (
+        <MaterialCommunityIcons name="fruit-pear" size={28} color="#F97316" />
+      ),
       iconBgColor: "bg-orange-100",
       route: "/admin/allFruits",
       subtitle: "All fruits",
@@ -246,7 +249,9 @@ export default function FarmerHomeScreen() {
       id: "totalWeight",
       title: "Total Weight",
       value: `${userStats.totalWeight.toFixed(2)} kg`,
-      icon: <Banana size={24} color="#059669" />,
+      icon: (
+        <MaterialCommunityIcons name="fruit-pear" size={28} color="#059669" />
+      ),
       iconBgColor: "bg-emerald-100",
       route: "/admin/allHarvest",
       subtitle: "This year",
