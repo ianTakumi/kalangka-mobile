@@ -1225,6 +1225,7 @@ class FruitService {
       const allowedFields = [
         "flower_id",
         "tree_id",
+        "user_id",
         "remaining_quantity",
         "quantity",
         "bagged_at",

@@ -235,11 +235,11 @@ class FlowerService {
         throw new Error(`Flower ${id} not found`);
       }
 
-      // Continue with the rest of your update logic...
       const allowedFields = [
         "tree_id",
         "quantity",
         "wrapped_at",
+        "user_id",
         "image_url",
         "status",
       ];

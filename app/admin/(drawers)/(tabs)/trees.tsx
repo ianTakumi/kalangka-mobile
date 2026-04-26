@@ -6,9 +6,11 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
+  ArrowUpDown,
   Camera,
   Edit2,
   MapPin,
+  Search,
   Trash2,
   Wifi,
   WifiOff,
@@ -42,8 +44,13 @@ const ensureImagesDirExists = async () => {
   }
 };
 
+// Sorting options
+type SortOption = "asc" | "desc" | "none";
+type SortField = "description" | "type";
+
 export default function TreesScreen() {
   const [trees, setTrees] = useState<Tree[]>([]);
+  const [filteredTrees, setFilteredTrees] = useState<Tree[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -51,6 +58,12 @@ export default function TreesScreen() {
   const router = useRouter();
   const [hasSyncedFromServer, setHasSyncedFromServer] = useState(false);
   const [serverTreeCount, setServerTreeCount] = useState(0);
+
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOption>("asc");
+  const [sortField, setSortField] = useState<SortField>("description");
+  const [showSortModal, setShowSortModal] = useState(false);
 
   // For CRUD operations
   const [modalVisible, setModalVisible] = useState(false);
@@ -96,6 +109,53 @@ export default function TreesScreen() {
 
     return () => unsubscribe();
   }, [hasSyncedFromServer]); // Add dependency
+
+  // Apply search and sort whenever trees, searchQuery, sortOrder, or sortField changes
+  useEffect(() => {
+    applySearchAndSort();
+  }, [trees, searchQuery, sortOrder, sortField]);
+
+  const applySearchAndSort = () => {
+    let result = [...trees];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (tree) =>
+          tree.description.toLowerCase().includes(query) ||
+          (tree.type && tree.type.toLowerCase().includes(query)),
+      );
+    }
+
+    // Apply sorting
+    if (sortOrder !== "none") {
+      result.sort((a, b) => {
+        let valueA, valueB;
+
+        if (sortField === "description") {
+          const extractNumber = (str: string): number => {
+            const match = str.match(/\d+/); // Gets first number in string
+            return match ? parseInt(match[0], 10) : 0;
+          };
+
+          valueA = extractNumber(a.description);
+          valueB = extractNumber(b.description);
+        } else {
+          valueA = (a.type || "").toLowerCase();
+          valueB = (b.type || "").toLowerCase();
+        }
+
+        if (sortOrder === "asc") {
+          return valueA < valueB ? -1 : valueA > valueB ? 1 : 0;
+        } else {
+          return valueA > valueB ? -1 : valueA < valueB ? 1 : 0;
+        }
+      });
+    }
+
+    setFilteredTrees(result);
+  };
 
   const syncTreesFromServer = async () => {
     if (!isOnline) {
@@ -530,6 +590,13 @@ export default function TreesScreen() {
     );
   };
 
+  const getSortButtonText = () => {
+    if (sortOrder === "none") return "Sort";
+    const fieldText = sortField === "description" ? "Name" : "Type";
+    const orderText = sortOrder === "asc" ? "A→Z" : "Z→A";
+    return `${fieldText} ${orderText}`;
+  };
+
   const renderTreeItem = ({ item }: { item: Tree & { distance?: string } }) => {
     const hasLocalImage = (item as any).image_path;
 
@@ -601,6 +668,15 @@ export default function TreesScreen() {
                 </View>
               </View>
 
+              {/* Tree Type */}
+              {item.type && (
+                <View className="mb-1">
+                  <Text className="text-sm text-gray-600">
+                    Type: {item.type}
+                  </Text>
+                </View>
+              )}
+
               {/* Distance from user */}
               <View className="flex-row items-center mb-2">
                 <MapPin size={14} color="#6b7280" />
@@ -662,7 +738,7 @@ export default function TreesScreen() {
       <View className="bg-white pt-12 pb-4 px-4 shadow-sm border-b border-gray-200">
         <View className="flex-row items-center mb-4">
           <TouchableOpacity
-            onPress={() => router.push("/admin/index")}
+            onPress={() => router.push("/admin/(drawers)/(tabs)")}
             className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 mr-3"
           >
             <ArrowLeft size={24} color="#374151" />
@@ -714,49 +790,159 @@ export default function TreesScreen() {
           </View>
         </View>
 
-        <View className="flex-row">
-          {/* <TouchableOpacity
-            className="flex-1 bg-green-600 py-3 rounded-xl flex-row items-center justify-center"
-            onPress={handleTakePhoto}
-          >
-            <PlusIcon size={20} color="white" />
-            <Text className="text-white font-semibold ml-2">Add Tree</Text>
-          </TouchableOpacity> */}
+        {/* Search and Filter Bar */}
+        <View className="flex-row gap-3">
+          {/* Search Input */}
+          <View className="flex-1 flex-row items-center bg-gray-100 rounded-xl px-4">
+            <Search size={20} color="#6b7280" />
+            <TextInput
+              className="flex-1 py-3 ml-2 text-gray-800"
+              placeholder="Search by name or type..."
+              placeholderTextColor="#9ca3af"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <X size={18} color="#6b7280" />
+              </TouchableOpacity>
+            )}
+          </View>
 
-          {/* <TouchableOpacity
-            className={`ml-3 px-4 py-3 rounded-xl flex-row items-center ${isOnline && !syncing ? "bg-blue-600" : "bg-gray-300"}`}
-            onPress={manualSync}
-            disabled={!isOnline || syncing}
+          {/* Sort Button */}
+          <TouchableOpacity
+            className={`px-4 rounded-xl flex-row items-center ${
+              sortOrder !== "none" ? "bg-green-600" : "bg-gray-100"
+            }`}
+            onPress={() => setShowSortModal(true)}
           >
-            <RefreshCw
+            <ArrowUpDown
               size={20}
-              color={isOnline && !syncing ? "white" : "#9ca3af"}
-              className={syncing ? "animate-spin" : ""}
+              color={sortOrder !== "none" ? "white" : "#6b7280"}
             />
             <Text
-              className={`ml-2 font-medium ${isOnline && !syncing ? "text-white" : "text-gray-400"}`}
+              className={`ml-2 font-medium ${
+                sortOrder !== "none" ? "text-white" : "text-gray-600"
+              }`}
             >
-              {syncing ? "Syncing..." : "Sync"}
-            </Text>
-          </TouchableOpacity> */}
-        </View>
-
-        {/* Debug button - remove in production */}
-        {__DEV__ && (
-          <TouchableOpacity
-            className="mt-3 bg-red-100 py-2 rounded-xl"
-            onPress={handleClearDatabase}
-          >
-            <Text className="text-red-600 text-center font-medium">
-              [DEV] Clear Database
+              {getSortButtonText()}
             </Text>
           </TouchableOpacity>
-        )}
+        </View>
       </View>
+
+      {/* Sort Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showSortModal}
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <TouchableOpacity
+          className="flex-1 bg-black/50 justify-center items-center"
+          activeOpacity={1}
+          onPress={() => setShowSortModal(false)}
+        >
+          <View className="bg-white rounded-2xl p-6 w-80">
+            <Text className="text-xl font-bold text-gray-800 mb-4">
+              Sort Trees
+            </Text>
+
+            {/* Sort Field */}
+            <Text className="text-gray-700 font-medium mb-2">Sort by</Text>
+            <View className="flex-row gap-3 mb-4">
+              <TouchableOpacity
+                className={`flex-1 py-3 rounded-xl ${
+                  sortField === "description" ? "bg-green-600" : "bg-gray-100"
+                }`}
+                onPress={() => setSortField("description")}
+              >
+                <Text
+                  className={`text-center font-medium ${
+                    sortField === "description" ? "text-white" : "text-gray-700"
+                  }`}
+                >
+                  Name
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 py-3 rounded-xl ${
+                  sortField === "type" ? "bg-green-600" : "bg-gray-100"
+                }`}
+                onPress={() => setSortField("type")}
+              >
+                <Text
+                  className={`text-center font-medium ${
+                    sortField === "type" ? "text-white" : "text-gray-700"
+                  }`}
+                >
+                  Type
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Sort Order */}
+            <Text className="text-gray-700 font-medium mb-2">Order</Text>
+            <View className="flex-row gap-3 mb-6">
+              <TouchableOpacity
+                className={`flex-1 py-3 rounded-xl ${
+                  sortOrder === "asc" ? "bg-green-600" : "bg-gray-100"
+                }`}
+                onPress={() => setSortOrder("asc")}
+              >
+                <Text
+                  className={`text-center font-medium ${
+                    sortOrder === "asc" ? "text-white" : "text-gray-700"
+                  }`}
+                >
+                  A → Z
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 py-3 rounded-xl ${
+                  sortOrder === "desc" ? "bg-green-600" : "bg-gray-100"
+                }`}
+                onPress={() => setSortOrder("desc")}
+              >
+                <Text
+                  className={`text-center font-medium ${
+                    sortOrder === "desc" ? "text-white" : "text-gray-700"
+                  }`}
+                >
+                  Z → A
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Action Buttons */}
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-gray-200"
+                onPress={() => {
+                  setSortOrder("none");
+                  setShowSortModal(false);
+                }}
+              >
+                <Text className="text-center font-medium text-gray-700">
+                  Clear Sort
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-green-600"
+                onPress={() => setShowSortModal(false)}
+              >
+                <Text className="text-center font-medium text-white">
+                  Apply
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Tree List */}
       <FlatList
-        data={trees}
+        data={filteredTrees}
         renderItem={renderTreeItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16 }}
@@ -776,24 +962,43 @@ export default function TreesScreen() {
               <Camera size={48} color="#9ca3af" />
             </View>
             <Text className="text-xl font-medium text-gray-700 mb-2">
-              No Trees Yet
+              {searchQuery ? "No matching trees" : "No Trees Yet"}
             </Text>
             <Text className="text-gray-500 text-center mb-6">
-              Take a photo of your tree to get started
+              {searchQuery
+                ? `No trees found matching "${searchQuery}"`
+                : "Take a photo of your tree to get started"}
             </Text>
-            <TouchableOpacity
-              className="bg-green-600 px-6 py-3 rounded-xl"
-              onPress={handleTakePhoto}
-            >
-              <Text className="text-white font-semibold">Take First Photo</Text>
-            </TouchableOpacity>
+            {!searchQuery && (
+              <TouchableOpacity
+                className="bg-green-600 px-6 py-3 rounded-xl"
+                onPress={handleTakePhoto}
+              >
+                <Text className="text-white font-semibold">
+                  Take First Photo
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
         ListHeaderComponent={
-          trees.length > 0 ? (
+          filteredTrees.length > 0 ? (
             <View className="mb-4">
               <Text className="text-gray-600">
-                Showing {trees.length} tree{trees.length !== 1 ? "s" : ""}
+                Showing {filteredTrees.length} of {trees.length} tree
+                {trees.length !== 1 ? "s" : ""}
+                {searchQuery && (
+                  <Text className="text-blue-600"> (filtered)</Text>
+                )}
+                {sortOrder !== "none" && (
+                  <Text className="text-green-600">
+                    {" "}
+                    • Sorted by {sortField === "description"
+                      ? "name"
+                      : "type"}{" "}
+                    {sortOrder === "asc" ? "A→Z" : "Z→A"}
+                  </Text>
+                )}
                 {stats.unsynced > 0 && (
                   <Text className="text-yellow-600">
                     {" "}

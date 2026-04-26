@@ -377,6 +377,7 @@ export default function FruitsScreen() {
         tag_id: formData.tag_id,
         image_uri: formData.image_url || editingFruit.image_uri,
         flower_id: withoutFlower ? null : formData.flower_id,
+        user_id: user.id,
       });
 
       Toast.show({

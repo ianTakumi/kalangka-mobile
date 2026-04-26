@@ -48,6 +48,7 @@ export default function FruitReportScreen() {
   const flowerData = params.flowerData
     ? JSON.parse(params.flowerData as string)
     : null;
+  console.log("Received flowerData:", flowerData);
   const flowerId = flowerData?.id as string;
   const flowerDate = flowerData.flowerDate as string;
   const [isOnline, setIsOnline] = useState(false);
@@ -326,12 +327,13 @@ export default function FruitReportScreen() {
           quantity: parseInt(quantity),
           tag_id: selectedTagId,
           image_uri: imageUri || fruit.image_uri,
+          user_id: flowerData?.user_id,
         });
       } else {
         await FruitService.createFruit({
           flower_id: flowerId,
           tree_id: flowerData?.tree_id,
-          user_id: flowerData?.user_id, // Make sure this is passed
+          user_id: flowerData?.user_id,
           tag_id: selectedTagId,
           quantity: parseInt(quantity),
           bagged_at: new Date(flowerDate || Date.now()),

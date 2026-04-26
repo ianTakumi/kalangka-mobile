@@ -1,11 +1,17 @@
-// app/login.tsx
 import client from "@/utils/axiosInstance";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "expo-router";
-import { Eye, EyeOff } from "lucide-react-native";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react-native";
 import React, { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Image, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Toast from "react-native-toast-message";
 import { useDispatch } from "react-redux";
@@ -125,102 +131,114 @@ export default function LoginScreen() {
 
           {/* Email Input */}
           <View className="mb-4">
-            <Text className="text-gray-700 mb-2 font-medium">Email *</Text>
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, value, onBlur } }) => (
-                <View>
+            <Text className="text-gray-700 mb-2 font-medium">Email</Text>
+            <View
+              className={`flex-row items-center border rounded-xl px-4 ${
+                errors.email
+                  ? "border-red-500 bg-red-50"
+                  : "border-gray-200 bg-gray-50"
+              }`}
+            >
+              <Mail size={18} color={errors.email ? "#EF4444" : "#9CA3AF"} />
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, value, onBlur } }) => (
                   <TextInput
-                    className={`w-full border rounded-xl px-4 py-3 ${
-                      errors.email
-                        ? "border-red-500 bg-red-50"
-                        : "border-gray-300 bg-gray-50"
-                    }`}
+                    className="flex-1 py-3 ml-2 text-gray-800"
                     placeholder="your.email@example.com"
+                    placeholderTextColor="#9CA3AF"
                     value={value}
-                    placeholderTextColor={"#1f2937"}
                     onChangeText={onChange}
                     onBlur={onBlur}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-                  {errors.email && (
-                    <Text className="text-red-500 text-sm mt-1 ml-1">
-                      {errors.email.message}
-                    </Text>
-                  )}
-                </View>
-              )}
-            />
+                )}
+              />
+            </View>
+            {errors.email && (
+              <Text className="text-red-500 text-sm mt-1 ml-1">
+                {errors.email.message}
+              </Text>
+            )}
           </View>
 
           {/* Password Input */}
           <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-gray-700 font-medium">Password *</Text>
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <View className="flex-row items-center">
-                  {showPassword ? (
-                    <EyeOff size={18} color="#059669" />
-                  ) : (
-                    <Eye size={18} color="#059669" />
-                  )}
-                  <Text className="text-green-600 text-sm ml-1">
-                    {showPassword ? "Hide" : "Show"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, value, onBlur } }) => (
-                <View>
+            <Text className="text-gray-700 mb-2 font-medium">Password</Text>
+            <View
+              className={`flex-row items-center border rounded-xl px-4 ${
+                errors.password
+                  ? "border-red-500 bg-red-50"
+                  : "border-gray-200 bg-gray-50"
+              }`}
+            >
+              <Lock size={18} color={errors.password ? "#EF4444" : "#9CA3AF"} />
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, value, onBlur } }) => (
                   <TextInput
-                    className={`w-full border text-black rounded-xl px-4 py-3 ${
-                      errors.password
-                        ? "border-red-500 bg-red-50"
-                        : "border-gray-300 bg-gray-50"
-                    }`}
+                    className="flex-1 py-3 ml-2 text-gray-800"
                     placeholder="Enter your password"
-                    placeholderTextColor={"#1f2937"}
+                    placeholderTextColor="#9CA3AF"
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
                     secureTextEntry={!showPassword}
                   />
-                  {errors.password && (
-                    <Text className="text-red-500 text-sm mt-1 ml-1">
-                      {errors.password.message}
-                    </Text>
-                  )}
-                </View>
-              )}
-            />
+                )}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                {showPassword ? (
+                  <EyeOff size={18} color="#6B7280" />
+                ) : (
+                  <Eye size={18} color="#6B7280" />
+                )}
+              </TouchableOpacity>
+            </View>
+            {errors.password && (
+              <Text className="text-red-500 text-sm mt-1 ml-1">
+                {errors.password.message}
+              </Text>
+            )}
           </View>
 
           {/* Login Button */}
           <TouchableOpacity
             className={`w-full rounded-xl py-4 ${
-              loading || !isValid ? "bg-green-400" : "bg-green-600"
-            }`}
+              loading || !isValid
+                ? "bg-emerald-300" // ← ITO ANG BAGONG BG COLOR (light green kapag disabled)
+                : "bg-emerald-600" // ← ITO NAMAN (dark green kapag active)
+            } shadow-sm`} // ← DINAGDAG: shadow effect
             onPress={handleSubmit(handleLogin)}
             disabled={loading || !isValid}
+            activeOpacity={0.8} // ← DINAGDAG: nagfa-fade kapag pinindot
           >
-            <Text className="text-white text-center font-semibold text-lg">
-              {loading ? "Signing in..." : "Sign In"}
-            </Text>
+            {loading ? (
+              <View className="flex-row items-center justify-center gap-2">
+                <ActivityIndicator size="small" color="#FFFFFF" />{" "}
+                {/* ← DINAGDAG: loading spinner */}
+                <Text className="text-white text-center font-semibold text-base">
+                  Signing in...
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-white text-center font-semibold text-base">
+                Sign In
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
         {/* Footer */}
-        <View className="mt-12 pt-6 border-t border-gray-200">
+        {/* <View className="mt-12 pt-6 border-t border-gray-200">
           <Text className="text-gray-500 text-center text-sm">
             By signing in, you agree to our Terms and Privacy Policy
           </Text>
-        </View>
+        </View> */}
       </View>
     </KeyboardAwareScrollView>
   );

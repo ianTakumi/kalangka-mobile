@@ -2,7 +2,6 @@ import TreeService from "@/services/treeService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
-import { GoogleMaps } from "expo-maps";
 import * as MediaLibrary from "expo-media-library";
 import {
   useFocusEffect,
@@ -16,10 +15,7 @@ import {
   Camera as CameraIcon,
   Clock,
   Leaf,
-  Locate,
   MapPin,
-  Navigation,
-  QrCode,
   Tag,
   UploadCloud,
   X,
@@ -33,7 +29,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { captureRef } from "react-native-view-shot";
@@ -811,7 +806,7 @@ export default function TreeInfoScreen() {
           </View>
 
           {/* Map Section */}
-          <View className="bg-white rounded-2xl shadow-lg p-6 mb-6 overflow-hidden">
+          {/* <View className="bg-white rounded-2xl shadow-lg p-6 mb-6 overflow-hidden">
             <View className="flex-row justify-between items-center mb-4">
               <View className="flex-row items-center">
                 <View className="bg-emerald-50 p-2 rounded-lg mr-3">
@@ -895,10 +890,10 @@ export default function TreeInfoScreen() {
                 </View>
               )}
             </View>
-          </View>
+          </View> */}
 
           {/* QR Code */}
-          <View className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+          {/* <View className="bg-white rounded-2xl shadow-lg p-6 mb-6">
             <View className="flex-row items-center mb-4">
               <View className="bg-emerald-50 p-2 rounded-lg mr-3">
                 <QrCode size={24} color="#059669" />
@@ -942,7 +937,7 @@ export default function TreeInfoScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </View> */}
 
           {/* Debug Section */}
           {__DEV__ && (
