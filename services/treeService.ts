@@ -127,168 +127,377 @@ class TreeService {
     }
   }
 
+  // async syncTreesFromServer(): Promise<{ synced: number; errors: string[] }> {
+  //   try {
+  //     console.log("🔄 Starting tree sync from server...");
+
+  //     // ✅ ADD THIS SAFETY CHECK
+  //     await this.ensureDatabaseReady();
+
+  //     // ✅ ADD NULL CHECK
+  //     if (!this.db) {
+  //       throw new Error("Database is not initialized");
+  //     }
+  //     const errors: string[] = [];
+  //     let syncedCount = 0;
+
+  //     // Ensure images directory is ready
+  //     await this.initImagesDirectory();
+
+  //     // ✅ AXIOS CALL TO LARAVEL
+  //     const response = await client.get("/trees");
+
+  //     // Check response structure
+  //     if (!response.data.success || !response.data.data) {
+  //       throw new Error("Invalid response from server");
+  //     }
+
+  //     const remoteTrees = response.data.data; // Ito yung array of trees
+
+  //     if (!remoteTrees || remoteTrees.length === 0) {
+  //       console.log("No trees found on server");
+  //       return { synced: 0, errors: ["No trees found on server"] };
+  //     }
+
+  //     console.log(`📥 Found ${remoteTrees.length} trees on server`);
+
+  //     // Process each tree
+  //     for (const remoteTree of remoteTrees) {
+  //       try {
+  //         // Check if tree already exists locally
+  //         const existingTree = await this.getTreeById(remoteTree.id);
+
+  //         if (!existingTree) {
+  //           // New tree - download image from Supabase URL
+  //           let localImagePath = remoteTree.image_url || "";
+
+  //           // Download image if it's a URL from Supabase
+  //           if (
+  //             remoteTree.image_url &&
+  //             remoteTree.image_url.startsWith("http")
+  //           ) {
+  //             try {
+  //               localImagePath = await this.downloadAndSaveImage(
+  //                 remoteTree.image_url, // Supabase URL
+  //                 remoteTree.id,
+  //               );
+  //               console.log(`✅ Downloaded image for tree ${remoteTree.id}`);
+  //             } catch (imageError) {
+  //               console.warn(
+  //                 `❌ Failed to download image for tree ${remoteTree.id}:`,
+  //                 imageError,
+  //               );
+  //               localImagePath = remoteTree.image_url; // Keep Supabase URL as fallback
+  //             }
+  //           }
+
+  //           // Insert into local database
+  //           await this.db!.runAsync(
+  //             `INSERT INTO trees (
+  //             id, description, type, latitude, longitude,
+  //             image_path, status, is_synced,
+  //             created_at, updated_at
+  //           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  //             [
+  //               remoteTree.id,
+  //               remoteTree.description || "Unnamed Tree",
+  //               remoteTree.type || "Unknown",
+  //               remoteTree.latitude,
+  //               remoteTree.longitude,
+  //               localImagePath, // Can be local path or Supabase URL
+  //               remoteTree.status || "active",
+  //               1, // is_synced = true (from server)
+  //               remoteTree.created_at,
+  //               remoteTree.updated_at || remoteTree.created_at,
+  //             ],
+  //           );
+
+  //           syncedCount++;
+  //           console.log(`✅ Added tree ${remoteTree.id} to local database`);
+  //         } else {
+  //           // Tree exists - check if server version is newer
+  //           const localUpdatedAt = existingTree.updated_at?.getTime() || 0;
+  //           const remoteUpdatedAt = new Date(remoteTree.updated_at).getTime();
+
+  //           if (remoteUpdatedAt > localUpdatedAt) {
+  //             let localImagePath =
+  //               remoteTree.image_url || existingTree.image_path;
+
+  //             // Download new image if URL changed
+  //             if (
+  //               remoteTree.image_url &&
+  //               remoteTree.image_url.startsWith("http") &&
+  //               existingTree.image_path !== remoteTree.image_url
+  //             ) {
+  //               try {
+  //                 localImagePath = await this.downloadAndSaveImage(
+  //                   remoteTree.image_url,
+  //                   remoteTree.id,
+  //                 );
+  //               } catch (imageError) {
+  //                 console.warn(
+  //                   `Failed to download updated image for tree ${remoteTree.id}:`,
+  //                   imageError,
+  //                 );
+  //                 localImagePath = remoteTree.image_url;
+  //               }
+  //             }
+
+  //             // Update local tree
+  //             await this.db!.runAsync(
+  //               `UPDATE trees SET
+  //               description = ?,
+  //               type = ?,
+  //               latitude = ?,
+  //               longitude = ?,
+  //               image_path = ?,
+  //               status = ?,
+  //               is_synced = ?,
+  //               updated_at = ?
+  //             WHERE id = ?`,
+  //               [
+  //                 remoteTree.description || existingTree.description,
+  //                 remoteTree.type || existingTree.type,
+  //                 remoteTree.latitude,
+  //                 remoteTree.longitude,
+  //                 localImagePath,
+  //                 remoteTree.status || existingTree.status,
+  //                 1, // Mark as synced
+  //                 remoteTree.updated_at,
+  //                 remoteTree.id,
+  //               ],
+  //             );
+
+  //             syncedCount++;
+  //             console.log(`✅ Updated tree ${remoteTree.id} in local database`);
+  //           }
+  //         }
+  //       } catch (treeError: any) {
+  //         const errorMsg = `Tree ${remoteTree.id}: ${treeError.message}`;
+  //         errors.push(errorMsg);
+  //         console.error(errorMsg);
+  //       }
+  //     }
+
+  //     console.log(
+  //       `✅ Sync completed: ${syncedCount} trees synced, ${errors.length} errors`,
+  //     );
+  //     return { synced: syncedCount, errors };
+  //   } catch (error: any) {
+  //     console.error("❌ Sync failed:", error);
+  //     throw new Error(`Failed to sync trees: ${error.message}`);
+  //   }
+  // }
+
   async syncTreesFromServer(): Promise<{ synced: number; errors: string[] }> {
     try {
-      console.log("🔄 Starting tree sync from server...");
-
-      // ✅ ADD THIS SAFETY CHECK
+      console.log("🔄 Starting OPTIMIZED tree sync...");
       await this.ensureDatabaseReady();
-
-      // ✅ ADD NULL CHECK
-      if (!this.db) {
-        throw new Error("Database is not initialized");
-      }
-      const errors: string[] = [];
-      let syncedCount = 0;
-
-      // Ensure images directory is ready
       await this.initImagesDirectory();
 
-      // ✅ AXIOS CALL TO LARAVEL
+      const errors: string[] = [];
+
+      // STEP 1: Get ALL trees from server
       const response = await client.get("/trees");
 
-      // Check response structure
       if (!response.data.success || !response.data.data) {
         throw new Error("Invalid response from server");
       }
 
-      const remoteTrees = response.data.data; // Ito yung array of trees
-
-      if (!remoteTrees || remoteTrees.length === 0) {
-        console.log("No trees found on server");
-        return { synced: 0, errors: ["No trees found on server"] };
-      }
-
+      const remoteTrees = response.data.data;
       console.log(`📥 Found ${remoteTrees.length} trees on server`);
 
-      // Process each tree
+      if (remoteTrees.length === 0) {
+        console.log("No trees found on server");
+        return { synced: 0, errors: [] };
+      }
+
+      // STEP 2: Get ALL existing local trees in ONE query (including updated_at for better checking)
+      const existingTrees = await this.db!.getAllAsync<{
+        id: string;
+        updated_at: string;
+        image_path: string;
+      }>("SELECT id, updated_at, image_path FROM trees");
+
+      const existingMap = new Map(existingTrees.map((t) => [t.id, t]));
+
+      // STEP 3: Categorize trees with updated_at check (para iwas unnecessary updates)
+      const toInsert: any[] = [];
+      const toUpdate: any[] = [];
+      const toDelete: string[] = [];
+      const imagesToDownload: { treeId: string; imageUrl: string }[] = [];
+
+      // Get remote tree IDs
+      const remoteIds = new Set(remoteTrees.map((t) => t.id));
+
+      // Check for deletions: local trees not in remote
+      for (const [id, existing] of existingMap) {
+        if (!remoteIds.has(id)) {
+          toDelete.push(id);
+          console.log(`🗑️ Tree ${id} marked for deletion`);
+        }
+      }
+
+      // Process remote trees with updated_at check
       for (const remoteTree of remoteTrees) {
-        try {
-          // Check if tree already exists locally
-          const existingTree = await this.getTreeById(remoteTree.id);
+        const existing = existingMap.get(remoteTree.id);
+        const remoteUpdated = new Date(remoteTree.updated_at).getTime();
+        const localUpdated = existing
+          ? new Date(existing.updated_at).getTime()
+          : 0;
 
-          if (!existingTree) {
-            // New tree - download image from Supabase URL
-            let localImagePath = remoteTree.image_url || "";
-
-            // Download image if it's a URL from Supabase
-            if (
-              remoteTree.image_url &&
-              remoteTree.image_url.startsWith("http")
-            ) {
-              try {
-                localImagePath = await this.downloadAndSaveImage(
-                  remoteTree.image_url, // Supabase URL
-                  remoteTree.id,
-                );
-                console.log(`✅ Downloaded image for tree ${remoteTree.id}`);
-              } catch (imageError) {
-                console.warn(
-                  `❌ Failed to download image for tree ${remoteTree.id}:`,
-                  imageError,
-                );
-                localImagePath = remoteTree.image_url; // Keep Supabase URL as fallback
-              }
-            }
-
-            // Insert into local database
-            await this.db!.runAsync(
-              `INSERT INTO trees (
-              id, description, type, latitude, longitude, 
-              image_path, status, is_synced, 
-              created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                remoteTree.id,
-                remoteTree.description || "Unnamed Tree",
-                remoteTree.type || "Unknown",
-                remoteTree.latitude,
-                remoteTree.longitude,
-                localImagePath, // Can be local path or Supabase URL
-                remoteTree.status || "active",
-                1, // is_synced = true (from server)
-                remoteTree.created_at,
-                remoteTree.updated_at || remoteTree.created_at,
-              ],
-            );
-
-            syncedCount++;
-            console.log(`✅ Added tree ${remoteTree.id} to local database`);
+        // Only sync if remote is newer or doesn't exist
+        if (!existing || remoteUpdated > localUpdated) {
+          if (!existing) {
+            toInsert.push(remoteTree);
           } else {
-            // Tree exists - check if server version is newer
-            const localUpdatedAt = existingTree.updated_at?.getTime() || 0;
-            const remoteUpdatedAt = new Date(remoteTree.updated_at).getTime();
-
-            if (remoteUpdatedAt > localUpdatedAt) {
-              let localImagePath =
-                remoteTree.image_url || existingTree.image_path;
-
-              // Download new image if URL changed
-              if (
-                remoteTree.image_url &&
-                remoteTree.image_url.startsWith("http") &&
-                existingTree.image_path !== remoteTree.image_url
-              ) {
-                try {
-                  localImagePath = await this.downloadAndSaveImage(
-                    remoteTree.image_url,
-                    remoteTree.id,
-                  );
-                } catch (imageError) {
-                  console.warn(
-                    `Failed to download updated image for tree ${remoteTree.id}:`,
-                    imageError,
-                  );
-                  localImagePath = remoteTree.image_url;
-                }
-              }
-
-              // Update local tree
-              await this.db!.runAsync(
-                `UPDATE trees SET 
-                description = ?, 
-                type = ?, 
-                latitude = ?, 
-                longitude = ?, 
-                image_path = ?, 
-                status = ?, 
-                is_synced = ?, 
-                updated_at = ?
-              WHERE id = ?`,
-                [
-                  remoteTree.description || existingTree.description,
-                  remoteTree.type || existingTree.type,
-                  remoteTree.latitude,
-                  remoteTree.longitude,
-                  localImagePath,
-                  remoteTree.status || existingTree.status,
-                  1, // Mark as synced
-                  remoteTree.updated_at,
-                  remoteTree.id,
-                ],
-              );
-
-              syncedCount++;
-              console.log(`✅ Updated tree ${remoteTree.id} in local database`);
-            }
+            toUpdate.push(remoteTree);
           }
-        } catch (treeError: any) {
-          const errorMsg = `Tree ${remoteTree.id}: ${treeError.message}`;
-          errors.push(errorMsg);
-          console.error(errorMsg);
+
+          // Track images that need downloading
+          if (remoteTree.image_url?.startsWith("http")) {
+            imagesToDownload.push({
+              treeId: remoteTree.id,
+              imageUrl: remoteTree.image_url,
+            });
+          }
         }
       }
 
       console.log(
-        `✅ Sync completed: ${syncedCount} trees synced, ${errors.length} errors`,
+        `📊 Summary: ${toInsert.length} inserts, ${toUpdate.length} updates, ${toDelete.length} deletes, ${imagesToDownload.length} images`,
       );
-      return { synced: syncedCount, errors };
+
+      // STEP 4: Execute ALL database writes in ONE transaction
+      const hasWriteOperations =
+        toDelete.length > 0 || toInsert.length > 0 || toUpdate.length > 0;
+
+      if (hasWriteOperations) {
+        await this.db!.execAsync("BEGIN TRANSACTION");
+
+        try {
+          // Delete trees not on server
+          for (const id of toDelete) {
+            await this.db!.runAsync("DELETE FROM trees WHERE id = ?", [id]);
+          }
+          if (toDelete.length > 0)
+            console.log(`✅ Deleted ${toDelete.length} trees`);
+
+          // Insert new trees
+          for (const tree of toInsert) {
+            await this.db!.runAsync(
+              `INSERT INTO trees (
+              id, description, type, latitude, longitude, 
+              image_path, status, is_synced, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                tree.id,
+                tree.description || "Unnamed Tree",
+                tree.type || "Unknown",
+                tree.latitude || 0,
+                tree.longitude || 0,
+                "", // Will update after image download
+                tree.status || "active",
+                1,
+                tree.created_at || new Date().toISOString(),
+                tree.updated_at || tree.created_at || new Date().toISOString(),
+              ],
+            );
+          }
+          if (toInsert.length > 0)
+            console.log(`✅ Inserted ${toInsert.length} trees`);
+
+          // Update existing trees
+          for (const tree of toUpdate) {
+            await this.db!.runAsync(
+              `UPDATE trees SET 
+              description = ?, type = ?, latitude = ?, longitude = ?,
+              status = ?, is_synced = 1, updated_at = ?
+            WHERE id = ?`,
+              [
+                tree.description,
+                tree.type,
+                tree.latitude || 0,
+                tree.longitude || 0,
+                tree.status || "active",
+                tree.updated_at || new Date().toISOString(),
+                tree.id,
+              ],
+            );
+          }
+          if (toUpdate.length > 0)
+            console.log(`✅ Updated ${toUpdate.length} trees`);
+
+          await this.db!.execAsync("COMMIT");
+          console.log(`✅ Database operations committed`);
+        } catch (error) {
+          await this.db!.execAsync("ROLLBACK");
+          errors.push(`Database write failed: ${error.message}`);
+          console.error("Database write failed, rolled back:", error);
+          throw error;
+        }
+      }
+
+      // STEP 5: Download images in PARALLEL (using existing downloadAndSaveImage helper)
+      let downloadedImages = 0;
+      if (imagesToDownload.length > 0) {
+        console.log(
+          `📸 Downloading ${imagesToDownload.length} images in parallel (batch size: 10)...`,
+        );
+
+        const batchSize = 10;
+        for (let i = 0; i < imagesToDownload.length; i += batchSize) {
+          const batch = imagesToDownload.slice(i, i + batchSize);
+
+          await Promise.all(
+            batch.map(async ({ treeId, imageUrl }) => {
+              try {
+                // Use existing downloadAndSaveImage helper
+                const localPath = await this.downloadAndSaveImage(
+                  imageUrl,
+                  treeId,
+                );
+
+                // Update database with local path
+                await this.db!.runAsync(
+                  "UPDATE trees SET image_path = ? WHERE id = ?",
+                  [localPath, treeId],
+                );
+
+                downloadedImages++;
+
+                if (
+                  downloadedImages % 10 === 0 ||
+                  downloadedImages === imagesToDownload.length
+                ) {
+                  console.log(
+                    `📸 Downloaded ${downloadedImages}/${imagesToDownload.length} images`,
+                  );
+                }
+              } catch (error) {
+                errors.push(`Image failed for tree ${treeId}`);
+                console.warn(`Failed to download image for ${treeId}:`, error);
+              }
+            }),
+          );
+        }
+
+        console.log(
+          `✅ Downloaded ${downloadedImages}/${imagesToDownload.length} images`,
+        );
+      }
+
+      const totalSynced = toInsert.length + toUpdate.length;
+      console.log(
+        `✅ Sync complete: ${totalSynced} synced, ${toDelete.length} deleted, ${downloadedImages} images`,
+      );
+
+      return { synced: totalSynced, errors };
     } catch (error: any) {
       console.error("❌ Sync failed:", error);
       throw new Error(`Failed to sync trees: ${error.message}`);
     }
   }
-
   // Ensure database is ready before any operation
   private async ensureDatabaseReady(): Promise<void> {
     if (!this.db) {

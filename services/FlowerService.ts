@@ -673,16 +673,133 @@ class FlowerService {
     }
   }
 
+  // async syncFlowersFromServer(): Promise<{ synced: number; errors: string[] }> {
+  //   try {
+  //     console.log("🔄 Starting flower sync from server...");
+  //     await this.ensureDatabaseReady();
+  //     if (!this.db) throw new Error("Database not initialized");
+
+  //     const errors: string[] = [];
+  //     let syncedCount = 0;
+
+  //     // Get flowers from Laravel
+  //     const response = await client.get("/flowers");
+  //     if (!response.data.success || !response.data.data) {
+  //       throw new Error("Invalid response from server");
+  //     }
+
+  //     const remoteFlowers = response.data.data;
+  //     if (!remoteFlowers?.length) {
+  //       return { synced: 0, errors: ["No flowers found on server"] };
+  //     }
+
+  //     console.log(`📥 Found ${remoteFlowers.length} flowers on server`);
+
+  //     // Process each flower
+  //     for (const rf of remoteFlowers) {
+  //       try {
+  //         // Check if exists
+  //         const existing = await this.getFlower(rf.id);
+
+  //         // Download image if it's a URL
+  //         let localImagePath = rf.image_url || "";
+  //         if (rf.image_url?.startsWith("http")) {
+  //           try {
+  //             // Create flowers images directory if not exists
+  //             const dir = `${FileSystem.documentDirectory}flowers_images/`;
+  //             const dirInfo = await FileSystem.getInfoAsync(dir);
+  //             if (!dirInfo.exists) {
+  //               await FileSystem.makeDirectoryAsync(dir, {
+  //                 intermediates: true,
+  //               });
+  //             }
+
+  //             // Download image
+  //             const ext = rf.image_url.split(".").pop()?.split("?")[0] || "jpg";
+  //             const localPath = `${dir}flower_${rf.id}_${Date.now()}.${ext}`;
+  //             const { uri } = await FileSystem.downloadAsync(
+  //               rf.image_url,
+  //               localPath,
+  //             );
+  //             localImagePath = uri;
+  //             console.log(`✅ Downloaded image for flower ${rf.id}`);
+  //           } catch (imgError) {
+  //             console.warn(
+  //               `⚠️ Image download failed for flower ${rf.id}, using URL`,
+  //             );
+  //             localImagePath = rf.image_url; // Keep URL as fallback
+  //           }
+  //         }
+
+  //         if (!existing) {
+  //           // Insert new flower
+  //           await this.db!.runAsync(
+  //             `INSERT INTO flowers (id, tree_id, user_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at)
+  //            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  //             [
+  //               rf.id,
+  //               rf.tree_id,
+  //               rf.user_id,
+  //               rf.quantity || 1,
+  //               rf.wrapped_at,
+  //               localImagePath,
+  //               rf.status || "active",
+  //               1,
+  //               rf.created_at,
+  //               rf.updated_at || rf.created_at,
+  //             ],
+  //           );
+  //           syncedCount++;
+  //           console.log(`✅ Added flower ${rf.id}`);
+  //         } else {
+  //           // Update if newer
+  //           const localUpdated = existing.updated_at?.getTime() || 0;
+  //           const remoteUpdated = new Date(rf.updated_at).getTime();
+
+  //           if (remoteUpdated > localUpdated) {
+  //             await this.db!.runAsync(
+  //               `UPDATE flowers SET tree_id=?, user_id=?, quantity=?, wrapped_at=?, image_url=?,
+  //              status=?, is_synced=?, updated_at=? WHERE id=?`,
+  //               [
+  //                 rf.tree_id,
+  //                 rf.user_id,
+  //                 rf.quantity || 1,
+  //                 rf.wrapped_at,
+  //                 localImagePath,
+  //                 rf.status || "active",
+  //                 1,
+  //                 rf.updated_at,
+  //                 rf.id,
+  //               ],
+  //             );
+  //             syncedCount++;
+  //             console.log(`✅ Updated flower ${rf.id}`);
+  //           }
+  //         }
+  //       } catch (err: any) {
+  //         errors.push(`Flower ${rf.id}: ${err.message}`);
+  //       }
+  //     }
+
+  //     console.log(
+  //       `✅ Flower sync: ${syncedCount} synced, ${errors.length} errors`,
+  //     );
+  //     return { synced: syncedCount, errors };
+  //   } catch (error: any) {
+  //     console.error("❌ Flower sync failed:", error);
+  //     throw new Error(`Failed to sync flowers: ${error.message}`);
+  //   }
+  // }
+
   async syncFlowersFromServer(): Promise<{ synced: number; errors: string[] }> {
     try {
-      console.log("🔄 Starting flower sync from server...");
+      console.log("🔄 Starting OPTIMIZED flower sync from server...");
       await this.ensureDatabaseReady();
       if (!this.db) throw new Error("Database not initialized");
 
       const errors: string[] = [];
-      let syncedCount = 0;
 
-      // Get flowers from Laravel
+      // STEP 1: Get ALL flowers in ONE request
       const response = await client.get("/flowers");
       if (!response.data.success || !response.data.data) {
         throw new Error("Invalid response from server");
@@ -690,101 +807,181 @@ class FlowerService {
 
       const remoteFlowers = response.data.data;
       if (!remoteFlowers?.length) {
-        return { synced: 0, errors: ["No flowers found on server"] };
+        console.log("No flowers found on server");
+        return { synced: 0, errors: [] };
       }
 
       console.log(`📥 Found ${remoteFlowers.length} flowers on server`);
 
-      // Process each flower
-      for (const rf of remoteFlowers) {
-        try {
-          // Check if exists
-          const existing = await this.getFlower(rf.id);
+      // STEP 2: Get ALL existing flowers in ONE query
+      const existingFlowers = await this.db!.getAllAsync<{
+        id: string;
+        updated_at: string;
+        image_url: string;
+      }>(
+        "SELECT id, updated_at, image_url FROM flowers WHERE deleted_at IS NULL",
+      );
 
-          // Download image if it's a URL
-          let localImagePath = rf.image_url || "";
-          if (rf.image_url?.startsWith("http")) {
-            try {
-              // Create flowers images directory if not exists
-              const dir = `${FileSystem.documentDirectory}flowers_images/`;
-              const dirInfo = await FileSystem.getInfoAsync(dir);
-              if (!dirInfo.exists) {
-                await FileSystem.makeDirectoryAsync(dir, {
-                  intermediates: true,
-                });
-              }
+      const existingMap = new Map(existingFlowers.map((f) => [f.id, f]));
 
-              // Download image
-              const ext = rf.image_url.split(".").pop()?.split("?")[0] || "jpg";
-              const localPath = `${dir}flower_${rf.id}_${Date.now()}.${ext}`;
-              const { uri } = await FileSystem.downloadAsync(
-                rf.image_url,
-                localPath,
-              );
-              localImagePath = uri;
-              console.log(`✅ Downloaded image for flower ${rf.id}`);
-            } catch (imgError) {
-              console.warn(
-                `⚠️ Image download failed for flower ${rf.id}, using URL`,
-              );
-              localImagePath = rf.image_url; // Keep URL as fallback
-            }
-          }
+      // STEP 3: Prepare data for batch operations - FIXED SYNTAX HERE
+      const toInsert: any[] = [];
+      const toUpdate: any[] = []; // ← Dapat may = []
+      const toDelete: string[] = [];
+      const imagesToDownload: { id: string; url: string }[] = [];
 
+      const now = new Date().toISOString();
+
+      // Get remote IDs for deletion check
+      const remoteIds = new Set(remoteFlowers.map((f) => f.id));
+
+      // Check for deletions
+      for (const [id, existing] of existingMap) {
+        if (!remoteIds.has(id)) {
+          toDelete.push(id);
+          console.log(`🗑️ Flower ${id} marked for deletion`);
+        }
+      }
+
+      // Process remote flowers
+      for (const remoteFlower of remoteFlowers) {
+        const existing = existingMap.get(remoteFlower.id);
+        const remoteUpdated = new Date(remoteFlower.updated_at || 0).getTime();
+        const localUpdated = existing
+          ? new Date(existing.updated_at || 0).getTime()
+          : 0;
+
+        if (!existing || remoteUpdated > localUpdated) {
           if (!existing) {
-            // Insert new flower
-            await this.db!.runAsync(
-              `INSERT INTO flowers (id, tree_id, user_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                rf.id,
-                rf.tree_id,
-                rf.user_id,
-                rf.quantity || 1,
-                rf.wrapped_at,
-                localImagePath,
-                rf.status || "active",
-                1,
-                rf.created_at,
-                rf.updated_at || rf.created_at,
-              ],
-            );
-            syncedCount++;
-            console.log(`✅ Added flower ${rf.id}`);
+            toInsert.push(remoteFlower);
           } else {
-            // Update if newer
-            const localUpdated = existing.updated_at?.getTime() || 0;
-            const remoteUpdated = new Date(rf.updated_at).getTime();
-
-            if (remoteUpdated > localUpdated) {
-              await this.db!.runAsync(
-                `UPDATE flowers SET tree_id=?, user_id=?, quantity=?, wrapped_at=?, image_url=?, 
-               status=?, is_synced=?, updated_at=? WHERE id=?`,
-                [
-                  rf.tree_id,
-                  rf.user_id,
-                  rf.quantity || 1,
-                  rf.wrapped_at,
-                  localImagePath,
-                  rf.status || "active",
-                  1,
-                  rf.updated_at,
-                  rf.id,
-                ],
-              );
-              syncedCount++;
-              console.log(`✅ Updated flower ${rf.id}`);
-            }
+            toUpdate.push(remoteFlower);
           }
-        } catch (err: any) {
-          errors.push(`Flower ${rf.id}: ${err.message}`);
+
+          // Track image downloads
+          if (remoteFlower.image_url?.startsWith("http")) {
+            imagesToDownload.push({
+              id: remoteFlower.id,
+              url: remoteFlower.image_url,
+            });
+          }
         }
       }
 
       console.log(
-        `✅ Flower sync: ${syncedCount} synced, ${errors.length} errors`,
+        `📊 Summary: ${toInsert.length} inserts, ${toUpdate.length} updates, ${toDelete.length} deletes, ${imagesToDownload.length} images`,
       );
-      return { synced: syncedCount, errors };
+
+      // STEP 4: Execute ALL database operations in ONE transaction
+      await this.db!.execAsync("BEGIN TRANSACTION");
+
+      try {
+        // Delete
+        for (const id of toDelete) {
+          await this.db!.runAsync("DELETE FROM flowers WHERE id = ?", [id]);
+        }
+
+        // Insert
+        for (const flower of toInsert) {
+          await this.db!.runAsync(
+            `INSERT INTO flowers (id, tree_id, user_id, quantity, wrapped_at, image_url, status, is_synced, created_at, updated_at) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              flower.id,
+              flower.tree_id,
+              flower.user_id || null,
+              flower.quantity || 1,
+              flower.wrapped_at || now,
+              "", // Will update after download
+              flower.status || "active",
+              1,
+              flower.created_at || now,
+              flower.updated_at || flower.created_at || now,
+            ],
+          );
+        }
+
+        // Update
+        for (const flower of toUpdate) {
+          await this.db!.runAsync(
+            `UPDATE flowers SET tree_id=?, user_id=?, quantity=?, wrapped_at=?, status=?, is_synced=1, updated_at=? 
+           WHERE id=?`,
+            [
+              flower.tree_id,
+              flower.user_id || null,
+              flower.quantity || 1,
+              flower.wrapped_at || now,
+              flower.status || "active",
+              flower.updated_at || now,
+              flower.id,
+            ],
+          );
+        }
+
+        await this.db!.execAsync("COMMIT");
+        console.log(`✅ Database operations committed`);
+      } catch (error) {
+        await this.db!.execAsync("ROLLBACK");
+        throw error;
+      }
+
+      // STEP 5: Download images in PARALLEL (NO transaction)
+      let downloadedImages = 0;
+      if (imagesToDownload.length > 0) {
+        console.log(
+          `📸 Downloading ${imagesToDownload.length} images in parallel...`,
+        );
+
+        // Create directory if not exists
+        const dir = `${FileSystem.documentDirectory}flowers_images/`;
+        const dirInfo = await FileSystem.getInfoAsync(dir);
+        if (!dirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+        }
+
+        const batchSize = 10;
+        for (let i = 0; i < imagesToDownload.length; i += batchSize) {
+          const batch = imagesToDownload.slice(i, i + batchSize);
+
+          await Promise.all(
+            batch.map(async ({ id, url }) => {
+              try {
+                const ext = url.split(".").pop()?.split("?")[0] || "jpg";
+                const localPath = `${dir}flower_${id}_${Date.now()}.${ext}`;
+                const { uri } = await FileSystem.downloadAsync(url, localPath);
+
+                await this.db!.runAsync(
+                  "UPDATE flowers SET image_url = ? WHERE id = ?",
+                  [uri, id],
+                );
+                downloadedImages++;
+
+                if (
+                  downloadedImages % 10 === 0 ||
+                  downloadedImages === imagesToDownload.length
+                ) {
+                  console.log(
+                    `📸 Downloaded ${downloadedImages}/${imagesToDownload.length} images`,
+                  );
+                }
+              } catch (error) {
+                errors.push(`Image failed for flower ${id}`);
+                console.warn(
+                  `Failed to download image for flower ${id}:`,
+                  error,
+                );
+              }
+            }),
+          );
+        }
+      }
+
+      const totalSynced = toInsert.length + toUpdate.length;
+      console.log(
+        `✅ Flower sync: ${totalSynced} synced, ${toDelete.length} deleted, ${downloadedImages} images`,
+      );
+
+      return { synced: totalSynced, errors };
     } catch (error: any) {
       console.error("❌ Flower sync failed:", error);
       throw new Error(`Failed to sync flowers: ${error.message}`);

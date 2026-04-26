@@ -493,117 +493,340 @@ class FruitService {
     }
   }
 
+  // async syncFruitsFromServer(): Promise<{ synced: number; errors: string[] }> {
+  //   try {
+  //     console.log("🔄 Syncing fruits from server...");
+  //     await this.ensureDatabaseReady();
+  //     if (!this.db) throw new Error("DB not ready");
+
+  //     const errors: string[] = [];
+  //     let synced = 0;
+
+  //     // Create images directory if not exists
+  //     const imgDir = `${FileSystem.documentDirectory}fruits/`;
+  //     const dirInfo = await FileSystem.getInfoAsync(imgDir);
+  //     if (!dirInfo.exists) {
+  //       await FileSystem.makeDirectoryAsync(imgDir, { intermediates: true });
+  //     }
+
+  //     // Get from Laravel
+  //     const res = await client.get("/fruits");
+  //     if (!res.data.success || !res.data.data?.length) {
+  //       return { synced: 0, errors: ["No fruits"] };
+  //     }
+
+  //     // Get local fruits
+  //     const localFruits = await this.getFruits(true);
+  //     const localMap = new Map(localFruits.map((f) => [f.id, f]));
+
+  //     console.log(
+  //       `📥 Server: ${res.data.data.length} fruits, Local: ${localFruits.length} fruits`,
+  //     );
+
+  //     // Process each fruit
+  //     for (const rf of res.data.data) {
+  //       try {
+  //         const existing = localMap.get(rf.id);
+
+  //         // DOWNLOAD IMAGE if it's a URL
+  //         let imagePath = rf.image_url || "";
+  //         if (rf.image_url?.startsWith("http")) {
+  //           try {
+  //             const filename = `fruit_${rf.id}_${Date.now()}.jpg`;
+  //             const localPath = imgDir + filename;
+  //             const { uri } = await FileSystem.downloadAsync(
+  //               rf.image_url,
+  //               localPath,
+  //             );
+  //             imagePath = uri;
+  //             console.log(`✅ Downloaded image for fruit ${rf.id}`);
+  //           } catch (err) {
+  //             console.warn(
+  //               `⚠️ Image download failed for fruit ${rf.id}, using URL`,
+  //             );
+  //             imagePath = rf.image_url;
+  //           }
+  //         }
+
+  //         if (!existing) {
+  //           // Insert new with downloaded image
+  //           await this.db.runAsync(
+  //             `INSERT INTO fruits (id, flower_id, tree_id, user_id, tag_id, quantity, bagged_at, image_uri, status, is_synced, created_at, updated_at)
+  //            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+  //             [
+  //               rf.id,
+  //               rf.flower_id,
+  //               rf.tree_id,
+  //               rf.user_id,
+  //               rf.tag_id,
+  //               rf.quantity || 1,
+  //               rf.bagged_at,
+  //               imagePath,
+  //               rf.status || "active",
+  //               1,
+  //               rf.created_at,
+  //               rf.updated_at || rf.created_at,
+  //             ],
+  //           );
+  //           synced++;
+  //           console.log(`✅ Added fruit ${rf.id}`);
+  //         } else {
+  //           // Update if newer
+  //           const remoteTime = new Date(rf.updated_at).getTime();
+  //           const localTime = existing.updated_at?.getTime() || 0;
+
+  //           if (remoteTime > localTime) {
+  //             await this.db.runAsync(
+  //               `UPDATE fruits SET flower_id=?, tree_id=?, user_id=?, quantity=?, bagged_at=?,
+  //              image_uri=?, status=?, is_synced=1, updated_at=? WHERE id=?`,
+  //               [
+  //                 rf.flower_id,
+  //                 rf.tree_id,
+  //                 rf.user_id,
+  //                 rf.quantity || 1,
+  //                 rf.bagged_at,
+  //                 imagePath,
+  //                 rf.status || "active",
+  //                 rf.updated_at,
+  //                 rf.id,
+  //               ],
+  //             );
+  //             synced++;
+  //             console.log(`✅ Updated fruit ${rf.id}`);
+  //           }
+  //         }
+  //       } catch (e: any) {
+  //         errors.push(e.message);
+  //       }
+  //     }
+
+  //     console.log(`✅ Fruit sync: ${synced} synced, ${errors.length} errors`);
+  //     return { synced, errors };
+  //   } catch (error: any) {
+  //     throw new Error(`Sync failed: ${error.message}`);
+  //   }
+  // }
+
   async syncFruitsFromServer(): Promise<{ synced: number; errors: string[] }> {
     try {
-      console.log("🔄 Syncing fruits from server...");
+      console.log("🔄 Starting OPTIMIZED fruit sync from server...");
       await this.ensureDatabaseReady();
       if (!this.db) throw new Error("DB not ready");
 
       const errors: string[] = [];
-      let synced = 0;
 
-      // Create images directory if not exists
+      // STEP 1: Get ALL fruits in ONE request
+      const res = await client.get("/fruits");
+      if (!res.data.success || !res.data.data?.length) {
+        console.log("No fruits found on server");
+        return { synced: 0, errors: [] };
+      }
+
+      const remoteFruits = res.data.data;
+      console.log(`📥 Found ${remoteFruits.length} fruits on server`);
+
+      // STEP 2: Get ALL existing fruits in ONE query
+      const existingFruits = await this.db!.getAllAsync<{
+        id: string;
+        updated_at: string;
+        image_uri: string;
+      }>(
+        "SELECT id, updated_at, image_uri FROM fruits WHERE deleted_at IS NULL",
+      );
+
+      const existingMap = new Map(existingFruits.map((f) => [f.id, f]));
+
+      // STEP 3: Prepare data for batch operations
+      const toInsert: any[] = [];
+      const toUpdate: any[] = []; // ← FIXED: dapat any[] = [] hindi any[][]
+      const toDelete: string[] = [];
+      const imagesToDownload: { id: string; url: string[] }[] = [];
+
+      const now = new Date().toISOString();
+
+      // Create images directory (once, not per fruit)
       const imgDir = `${FileSystem.documentDirectory}fruits/`;
       const dirInfo = await FileSystem.getInfoAsync(imgDir);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(imgDir, { intermediates: true });
       }
 
-      // Get from Laravel
-      const res = await client.get("/fruits");
-      if (!res.data.success || !res.data.data?.length) {
-        return { synced: 0, errors: ["No fruits"] };
-      }
+      // Get remote IDs for deletion check
+      const remoteIds = new Set(remoteFruits.map((f) => f.id));
 
-      // Get local fruits
-      const localFruits = await this.getFruits(true);
-      const localMap = new Map(localFruits.map((f) => [f.id, f]));
-
-      console.log(
-        `📥 Server: ${res.data.data.length} fruits, Local: ${localFruits.length} fruits`,
-      );
-
-      // Process each fruit
-      for (const rf of res.data.data) {
-        try {
-          const existing = localMap.get(rf.id);
-
-          // DOWNLOAD IMAGE if it's a URL
-          let imagePath = rf.image_url || "";
-          if (rf.image_url?.startsWith("http")) {
-            try {
-              const filename = `fruit_${rf.id}_${Date.now()}.jpg`;
-              const localPath = imgDir + filename;
-              const { uri } = await FileSystem.downloadAsync(
-                rf.image_url,
-                localPath,
-              );
-              imagePath = uri;
-              console.log(`✅ Downloaded image for fruit ${rf.id}`);
-            } catch (err) {
-              console.warn(
-                `⚠️ Image download failed for fruit ${rf.id}, using URL`,
-              );
-              imagePath = rf.image_url;
-            }
-          }
-
-          if (!existing) {
-            // Insert new with downloaded image
-            await this.db.runAsync(
-              `INSERT INTO fruits (id, flower_id, tree_id, user_id, tag_id, quantity, bagged_at, image_uri, status, is_synced, created_at, updated_at) 
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-              [
-                rf.id,
-                rf.flower_id,
-                rf.tree_id,
-                rf.user_id,
-                rf.tag_id,
-                rf.quantity || 1,
-                rf.bagged_at,
-                imagePath,
-                rf.status || "active",
-                1,
-                rf.created_at,
-                rf.updated_at || rf.created_at,
-              ],
-            );
-            synced++;
-            console.log(`✅ Added fruit ${rf.id}`);
-          } else {
-            // Update if newer
-            const remoteTime = new Date(rf.updated_at).getTime();
-            const localTime = existing.updated_at?.getTime() || 0;
-
-            if (remoteTime > localTime) {
-              await this.db.runAsync(
-                `UPDATE fruits SET flower_id=?, tree_id=?, user_id=?, quantity=?, bagged_at=?, 
-               image_uri=?, status=?, is_synced=1, updated_at=? WHERE id=?`,
-                [
-                  rf.flower_id,
-                  rf.tree_id,
-                  rf.user_id,
-                  rf.quantity || 1,
-                  rf.bagged_at,
-                  imagePath,
-                  rf.status || "active",
-                  rf.updated_at,
-                  rf.id,
-                ],
-              );
-              synced++;
-              console.log(`✅ Updated fruit ${rf.id}`);
-            }
-          }
-        } catch (e: any) {
-          errors.push(e.message);
+      // Check for deletions
+      for (const [id, existing] of existingMap) {
+        if (!remoteIds.has(id)) {
+          toDelete.push(id);
+          console.log(`🗑️ Fruit ${id} marked for deletion`);
         }
       }
 
-      console.log(`✅ Fruit sync: ${synced} synced, ${errors.length} errors`);
-      return { synced, errors };
+      // Process remote fruits
+      for (const remoteFruit of remoteFruits) {
+        const existing = existingMap.get(remoteFruit.id);
+        const remoteUpdated = new Date(remoteFruit.updated_at || 0).getTime();
+        const localUpdated = existing
+          ? new Date(existing.updated_at || 0).getTime()
+          : 0;
+
+        if (!existing || remoteUpdated > localUpdated) {
+          if (!existing) {
+            toInsert.push(remoteFruit);
+          } else {
+            toUpdate.push(remoteFruit);
+          }
+
+          // Track image downloads
+          if (remoteFruit.image_url?.startsWith("http")) {
+            imagesToDownload.push({
+              id: remoteFruit.id,
+              url: remoteFruit.image_url,
+            });
+          }
+        }
+      }
+
+      console.log(
+        `📊 Summary: ${toInsert.length} inserts, ${toUpdate.length} updates, ${toDelete.length} deletes, ${imagesToDownload.length} images`,
+      );
+
+      // STEP 4: Execute ALL database operations in ONE transaction
+      await this.db!.execAsync("BEGIN TRANSACTION");
+
+      try {
+        // Delete
+        for (const id of toDelete) {
+          await this.db!.runAsync("DELETE FROM fruits WHERE id = ?", [id]);
+        }
+
+        // Insert
+        for (const fruit of toInsert) {
+          await this.db!.runAsync(
+            `INSERT INTO fruits (
+            id, flower_id, tree_id, user_id, tag_id, quantity, bagged_at, 
+            image_uri, status, is_synced, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              fruit.id,
+              fruit.flower_id,
+              fruit.tree_id,
+              fruit.user_id || null,
+              fruit.tag_id || 1,
+              fruit.quantity || 1,
+              fruit.bagged_at || now,
+              "", // Will update after download
+              fruit.status || "active",
+              1, // is_synced = true
+              fruit.created_at || now,
+              fruit.updated_at || fruit.created_at || now,
+            ],
+          );
+        }
+
+        // Update
+        for (const fruit of toUpdate) {
+          await this.db!.runAsync(
+            `UPDATE fruits SET 
+            flower_id = ?, tree_id = ?, user_id = ?, quantity = ?, bagged_at = ?,
+            status = ?, is_synced = 1, updated_at = ?
+          WHERE id = ?`,
+            [
+              fruit.flower_id,
+              fruit.tree_id,
+              fruit.user_id || null,
+              fruit.quantity || 1,
+              fruit.bagged_at || now,
+              fruit.status || "active",
+              fruit.updated_at || now,
+              fruit.id,
+            ],
+          );
+        }
+
+        await this.db!.execAsync("COMMIT");
+        console.log(`✅ Database operations committed`);
+      } catch (error) {
+        await this.db!.execAsync("ROLLBACK");
+        throw error;
+      }
+
+      // STEP 5: Download images in PARALLEL (NO transaction)
+      let downloadedImages = 0;
+      if (imagesToDownload.length > 0) {
+        console.log(
+          `📸 Downloading ${imagesToDownload.length} images in parallel...`,
+        );
+
+        const batchSize = 10;
+        for (let i = 0; i < imagesToDownload.length; i += batchSize) {
+          const batch = imagesToDownload.slice(i, i + batchSize);
+
+          await Promise.all(
+            batch.map(async ({ id, url }) => {
+              try {
+                const filename = `fruit_${id}_${Date.now()}.jpg`;
+                const localPath = imgDir + filename;
+                const { uri } = await FileSystem.downloadAsync(url, localPath);
+
+                await this.db!.runAsync(
+                  "UPDATE fruits SET image_uri = ? WHERE id = ?",
+                  [uri, id],
+                );
+                downloadedImages++;
+
+                if (
+                  downloadedImages % 10 === 0 ||
+                  downloadedImages === imagesToDownload.length
+                ) {
+                  console.log(
+                    `📸 Downloaded ${downloadedImages}/${imagesToDownload.length} images`,
+                  );
+                }
+              } catch (error) {
+                errors.push(`Image failed for fruit ${id}`);
+                console.warn(
+                  `Failed to download image for fruit ${id}:`,
+                  error,
+                );
+              }
+            }),
+          );
+        }
+      }
+
+      // STEP 6: Update fruit counts on trees after sync
+      if (toInsert.length > 0 || toUpdate.length > 0) {
+        await this.updateTreeFruitCounts();
+      }
+
+      const totalSynced = toInsert.length + toUpdate.length;
+      console.log(
+        `✅ Fruit sync: ${totalSynced} synced, ${toDelete.length} deleted, ${downloadedImages} images`,
+      );
+
+      return { synced: totalSynced, errors };
     } catch (error: any) {
+      console.error("❌ Fruit sync failed:", error);
       throw new Error(`Sync failed: ${error.message}`);
+    }
+  }
+
+  // Helper method to update tree fruit counts
+  private async updateTreeFruitCounts(): Promise<void> {
+    try {
+      await this.db!.execAsync(`
+      UPDATE trees 
+      SET fruit_count = (
+        SELECT COUNT(*) 
+        FROM fruits 
+        WHERE fruits.tree_id = trees.id 
+        AND fruits.deleted_at IS NULL
+      )
+    `);
+      console.log(`✅ Updated fruit counts on trees`);
+    } catch (error) {
+      console.warn("Failed to update tree fruit counts:", error);
     }
   }
 

@@ -149,7 +149,7 @@ class NotificationService {
   async checkAllUsersFromDatabase() {
     try {
       const users = await db.getAllAsync(`
-        SELECT DISTINCT u.id, u.role, u.username 
+        SELECT DISTINCT u.id, u.role, u.first_name, u.last_name 
         FROM users u 
         WHERE u.deleted_at IS NULL
         AND (

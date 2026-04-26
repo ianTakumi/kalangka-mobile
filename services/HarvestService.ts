@@ -348,6 +348,262 @@ class HarvestService {
    * Sync harvests from server to local database
    * This downloads harvests, fruit weights, and wastes from server
    */
+  // async syncHarvestsFromServer(): Promise<{
+  //   synced: number;
+  //   errors: string[];
+  // }> {
+  //   await this.ensureDatabaseReady();
+
+  //   const results = {
+  //     synced: 0,
+  //     errors: [] as string[],
+  //   };
+
+  //   try {
+  //     const netInfo = await NetInfo.fetch();
+  //     if (!netInfo.isConnected) {
+  //       console.log("📴 Offline - Cannot sync harvests from server");
+  //       return results;
+  //     }
+
+  //     console.log("🔄 Syncing harvests from server...");
+
+  //     // Fetch all harvests
+  //     const response = await client.get(`/harvests`);
+
+  //     if (!response.data.success) {
+  //       console.warn(`Failed to fetch harvests`);
+  //       return results;
+  //     }
+
+  //     const allHarvests = response.data.data || [];
+  //     console.log(`📥 Total harvests found: ${allHarvests.length}`);
+
+  //     // Start transaction
+  //     await this.db!.execAsync("BEGIN TRANSACTION");
+
+  //     try {
+  //       for (const remoteHarvest of allHarvests) {
+  //         try {
+  //           // Get fruit details to know total quantity
+  //           const fruit = await this.db!.getFirstAsync<{
+  //             id: string;
+  //             quantity: number;
+  //             remaining_quantity: number;
+  //           }>(
+  //             `SELECT id, quantity, remaining_quantity FROM fruits WHERE id = ? AND deleted_at IS NULL`,
+  //             [remoteHarvest.fruit_id],
+  //           );
+
+  //           // ✅ Use status from server if available, otherwise calculate
+  //           let harvestStatus = remoteHarvest.status || "pending";
+
+  //           // If server has no status, calculate based on fruit_weights and wastes
+  //           if (!remoteHarvest.status) {
+  //             const totalWeights = remoteHarvest.fruit_weights?.length || 0;
+  //             const totalWastes =
+  //               remoteHarvest.wastes?.reduce(
+  //                 (sum: number, w: any) => sum + (w.waste_quantity || 0),
+  //                 0,
+  //               ) || 0;
+  //             const totalProcessed = totalWeights + totalWastes;
+
+  //             if (fruit) {
+  //               const fruitTotal = fruit.remaining_quantity || fruit.quantity;
+  //               if (totalProcessed >= fruitTotal) {
+  //                 harvestStatus = "harvested";
+  //               } else if (totalProcessed > 0) {
+  //                 harvestStatus = "partial";
+  //               } else {
+  //                 harvestStatus = "pending";
+  //               }
+  //             }
+  //           }
+
+  //           // Check if harvest already exists locally
+  //           const existingHarvest = await this.db!.getFirstAsync<Harvest>(
+  //             `SELECT * FROM harvests WHERE id = ? AND deleted_at IS NULL`,
+  //             [remoteHarvest.id],
+  //           );
+
+  //           const now = new Date().toISOString();
+
+  //           if (!existingHarvest) {
+  //             // Insert new harvest with status from server
+  //             await this.db!.runAsync(
+  //               `INSERT INTO harvests (
+  //               id, fruit_id, user_id, ripe_quantity, harvest_at, status,
+  //               is_synced, created_at, updated_at
+  //             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  //               [
+  //                 remoteHarvest.id,
+  //                 remoteHarvest.fruit_id,
+  //                 remoteHarvest.user_id || null,
+  //                 remoteHarvest.ripe_quantity || 0,
+  //                 remoteHarvest.harvest_at || now,
+  //                 harvestStatus,
+  //                 1, // is_synced = true (from server)
+  //                 remoteHarvest.created_at || now,
+  //                 remoteHarvest.updated_at || now,
+  //               ],
+  //             );
+  //             results.synced++;
+  //             console.log(
+  //               `✅ Added harvest ${remoteHarvest.id} to local DB (status: ${harvestStatus})`,
+  //             );
+  //           } else {
+  //             // Update existing harvest if newer or status changed
+  //             const localUpdatedAt = new Date(existingHarvest.updated_at || 0);
+  //             const remoteUpdatedAt = new Date(remoteHarvest.updated_at || 0);
+
+  //             if (
+  //               remoteUpdatedAt > localUpdatedAt ||
+  //               existingHarvest.status !== harvestStatus
+  //             ) {
+  //               await this.db!.runAsync(
+  //                 `UPDATE harvests SET
+  //                 fruit_id = ?,
+  //                 user_id = ?,
+  //                 ripe_quantity = ?,
+  //                 harvest_at = ?,
+  //                 status = ?,
+  //                 is_synced = 1,
+  //                 updated_at = ?
+  //               WHERE id = ?`,
+  //                 [
+  //                   remoteHarvest.fruit_id,
+  //                   remoteHarvest.user_id || null,
+  //                   remoteHarvest.ripe_quantity || 0,
+  //                   remoteHarvest.harvest_at || now,
+  //                   harvestStatus,
+  //                   remoteHarvest.updated_at || now,
+  //                   remoteHarvest.id,
+  //                 ],
+  //               );
+  //               results.synced++;
+  //               console.log(
+  //                 `✅ Updated harvest ${remoteHarvest.id} in local DB (status: ${existingHarvest.status} → ${harvestStatus})`,
+  //               );
+  //             }
+  //           }
+
+  //           // ✅ SYNC FRUIT WEIGHTS
+  //           if (
+  //             remoteHarvest.fruit_weights &&
+  //             remoteHarvest.fruit_weights.length > 0
+  //           ) {
+  //             // Delete existing weights for this harvest
+  //             await this.db!.runAsync(
+  //               `DELETE FROM fruit_weights WHERE harvest_id = ?`,
+  //               [remoteHarvest.id],
+  //             );
+
+  //             // Insert new weights
+  //             for (const weight of remoteHarvest.fruit_weights) {
+  //               await this.db!.runAsync(
+  //                 `INSERT INTO fruit_weights (
+  //                 id, harvest_id, weight, status, is_synced, created_at, updated_at
+  //               ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  //                 [
+  //                   weight.id,
+  //                   remoteHarvest.id,
+  //                   parseFloat(weight.weight),
+  //                   weight.status || "local",
+  //                   1,
+  //                   weight.created_at || now,
+  //                   weight.updated_at || now,
+  //                 ],
+  //               );
+  //             }
+  //             console.log(
+  //               `  ⚖️ Synced ${remoteHarvest.fruit_weights.length} fruit weights for harvest ${remoteHarvest.id}`,
+  //             );
+  //           }
+
+  //           // ✅ SYNC WASTES
+  //           if (remoteHarvest.wastes && remoteHarvest.wastes.length > 0) {
+  //             // Delete existing wastes for this harvest
+  //             await this.db!.runAsync(
+  //               `DELETE FROM wastes WHERE harvest_id = ?`,
+  //               [remoteHarvest.id],
+  //             );
+
+  //             // Insert new wastes
+  //             for (const waste of remoteHarvest.wastes) {
+  //               await this.db!.runAsync(
+  //                 `INSERT INTO wastes (
+  //                 id, harvest_id, waste_quantity, reason, reported_at,
+  //                 is_synced, created_at, updated_at
+  //               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  //                 [
+  //                   waste.id,
+  //                   remoteHarvest.id,
+  //                   waste.waste_quantity,
+  //                   waste.reason,
+  //                   waste.reported_at || now,
+  //                   1,
+  //                   waste.created_at || now,
+  //                   waste.updated_at || now,
+  //                 ],
+  //               );
+  //             }
+  //             console.log(
+  //               `  🗑️ Synced ${remoteHarvest.wastes.length} wastes for harvest ${remoteHarvest.id}`,
+  //             );
+  //           }
+
+  //           // ✅ Update fruit's remaining quantity based on harvest data
+  //           if (fruit) {
+  //             // Calculate total processed from weights and wastes
+  //             const totalWeights = remoteHarvest.fruit_weights?.length || 0;
+  //             const totalWastes =
+  //               remoteHarvest.wastes?.reduce(
+  //                 (sum: number, w: any) => sum + (w.waste_quantity || 0),
+  //                 0,
+  //               ) || 0;
+  //             const totalProcessed = totalWeights + totalWastes;
+
+  //             if (totalProcessed > 0) {
+  //               const currentRemaining =
+  //                 fruit.remaining_quantity || fruit.quantity;
+  //               const newRemaining = Math.max(
+  //                 0,
+  //                 currentRemaining - totalProcessed,
+  //               );
+
+  //               await this.db!.runAsync(
+  //                 `UPDATE fruits SET remaining_quantity = ?, updated_at = ? WHERE id = ?`,
+  //                 [newRemaining, now, fruit.id],
+  //               );
+  //               console.log(
+  //                 `  🍎 Updated fruit ${fruit.id} remaining quantity: ${currentRemaining} → ${newRemaining}`,
+  //               );
+  //             }
+  //           }
+  //         } catch (harvestError: any) {
+  //           const errorMsg = `Harvest ${remoteHarvest.id}: ${harvestError.message}`;
+  //           results.errors.push(errorMsg);
+  //           console.error(errorMsg);
+  //         }
+  //       }
+
+  //       // Commit transaction
+  //       await this.db!.execAsync("COMMIT");
+  //       console.log(
+  //         `✅ Harvest sync completed: ${results.synced} harvests synced, ${results.errors.length} errors`,
+  //       );
+  //     } catch (error) {
+  //       await this.db!.execAsync("ROLLBACK");
+  //       throw error;
+  //     }
+
+  //     return results;
+  //   } catch (error: any) {
+  //     console.error("❌ Failed to sync harvests from server:", error);
+  //     throw new Error(`Failed to sync harvests: ${error.message}`);
+  //   }
+  // }
+
   async syncHarvestsFromServer(): Promise<{
     synced: number;
     errors: string[];
@@ -368,7 +624,7 @@ class HarvestService {
 
       console.log("🔄 Syncing harvests from server...");
 
-      // Fetch all harvests
+      // STEP 1: Fetch all harvests in ONE request
       const response = await client.get(`/harvests`);
 
       if (!response.data.success) {
@@ -379,218 +635,306 @@ class HarvestService {
       const allHarvests = response.data.data || [];
       console.log(`📥 Total harvests found: ${allHarvests.length}`);
 
-      // Start transaction
-      await this.db!.execAsync("BEGIN TRANSACTION");
+      if (allHarvests.length === 0) {
+        return results;
+      }
 
-      try {
-        for (const remoteHarvest of allHarvests) {
-          try {
-            // Get fruit details to know total quantity
-            const fruit = await this.db!.getFirstAsync<{
-              id: string;
-              quantity: number;
-              remaining_quantity: number;
-            }>(
-              `SELECT id, quantity, remaining_quantity FROM fruits WHERE id = ? AND deleted_at IS NULL`,
-              [remoteHarvest.fruit_id],
-            );
+      // STEP 2: Get ALL existing harvests in ONE query
+      const existingHarvests = await this.db!.getAllAsync<{
+        id: string;
+        updated_at: string;
+        status: string;
+      }>(
+        "SELECT id, updated_at, status FROM harvests WHERE deleted_at IS NULL",
+      );
 
-            // ✅ Use status from server if available, otherwise calculate
-            let harvestStatus = remoteHarvest.status || "pending";
+      const existingHarvestMap = new Map(
+        existingHarvests.map((h) => [h.id, h]),
+      );
 
-            // If server has no status, calculate based on fruit_weights and wastes
-            if (!remoteHarvest.status) {
-              const totalWeights = remoteHarvest.fruit_weights?.length || 0;
-              const totalWastes =
-                remoteHarvest.wastes?.reduce(
-                  (sum: number, w: any) => sum + (w.waste_quantity || 0),
-                  0,
-                ) || 0;
-              const totalProcessed = totalWeights + totalWastes;
+      // STEP 3: Get ALL existing fruit weights in ONE query
+      const existingWeights = await this.db!.getAllAsync<{
+        id: string;
+        harvest_id: string;
+      }>("SELECT id, harvest_id FROM fruit_weights");
 
-              if (fruit) {
-                const fruitTotal = fruit.remaining_quantity || fruit.quantity;
-                if (totalProcessed >= fruitTotal) {
-                  harvestStatus = "harvested";
-                } else if (totalProcessed > 0) {
-                  harvestStatus = "partial";
-                } else {
-                  harvestStatus = "pending";
-                }
-              }
+      const weightsByHarvest = new Map<string, Set<string>>();
+      for (const weight of existingWeights) {
+        if (!weightsByHarvest.has(weight.harvest_id)) {
+          weightsByHarvest.set(weight.harvest_id, new Set());
+        }
+        weightsByHarvest.get(weight.harvest_id)!.add(weight.id);
+      }
+
+      // STEP 4: Get ALL existing wastes in ONE query
+      const existingWastes = await this.db!.getAllAsync<{
+        id: string;
+        harvest_id: string;
+      }>("SELECT id, harvest_id FROM wastes");
+
+      const wastesByHarvest = new Map<string, Set<string>>();
+      for (const waste of existingWastes) {
+        if (!wastesByHarvest.has(waste.harvest_id)) {
+          wastesByHarvest.set(waste.harvest_id, new Set());
+        }
+        wastesByHarvest.get(waste.harvest_id)!.add(waste.id);
+      }
+
+      // STEP 5: Get ALL fruits for remaining quantity updates
+      const allFruits = await this.db!.getAllAsync<{
+        id: string;
+        quantity: number;
+        remaining_quantity: number;
+      }>(
+        "SELECT id, quantity, remaining_quantity FROM fruits WHERE deleted_at IS NULL",
+      );
+
+      const fruitMap = new Map(allFruits.map((f) => [f.id, f]));
+
+      // STEP 6: Prepare data for bulk operations
+      const toInsert: any[] = [];
+      const toUpdate: any[] = [];
+      const weightsToInsert: any[] = [];
+      const wastesToInsert: any[] = [];
+      const weightsToDelete: string[] = [];
+      const wastesToDelete: string[] = [];
+      const fruitUpdates: Map<string, number> = new Map();
+
+      const now = new Date().toISOString();
+
+      for (const remoteHarvest of allHarvests) {
+        const existing = existingHarvestMap.get(remoteHarvest.id);
+        const remoteUpdated = new Date(remoteHarvest.updated_at || 0).getTime();
+        const localUpdated = existing
+          ? new Date(existing.updated_at || 0).getTime()
+          : 0;
+
+        // Calculate harvest status
+        let harvestStatus = remoteHarvest.status || "pending";
+
+        if (!remoteHarvest.status) {
+          const totalWeights = remoteHarvest.fruit_weights?.length || 0;
+          const totalWastes =
+            remoteHarvest.wastes?.reduce(
+              (sum: number, w: any) => sum + (w.waste_quantity || 0),
+              0,
+            ) || 0;
+          const totalProcessed = totalWeights + totalWastes;
+
+          const fruit = fruitMap.get(remoteHarvest.fruit_id);
+          if (fruit) {
+            const fruitTotal = fruit.remaining_quantity || fruit.quantity;
+            if (totalProcessed >= fruitTotal) {
+              harvestStatus = "harvested";
+            } else if (totalProcessed > 0) {
+              harvestStatus = "partial";
             }
-
-            // Check if harvest already exists locally
-            const existingHarvest = await this.db!.getFirstAsync<Harvest>(
-              `SELECT * FROM harvests WHERE id = ? AND deleted_at IS NULL`,
-              [remoteHarvest.id],
-            );
-
-            const now = new Date().toISOString();
-
-            if (!existingHarvest) {
-              // Insert new harvest with status from server
-              await this.db!.runAsync(
-                `INSERT INTO harvests (
-                id, fruit_id, user_id, ripe_quantity, harvest_at, status,
-                is_synced, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  remoteHarvest.id,
-                  remoteHarvest.fruit_id,
-                  remoteHarvest.user_id || null,
-                  remoteHarvest.ripe_quantity || 0,
-                  remoteHarvest.harvest_at || now,
-                  harvestStatus,
-                  1, // is_synced = true (from server)
-                  remoteHarvest.created_at || now,
-                  remoteHarvest.updated_at || now,
-                ],
-              );
-              results.synced++;
-              console.log(
-                `✅ Added harvest ${remoteHarvest.id} to local DB (status: ${harvestStatus})`,
-              );
-            } else {
-              // Update existing harvest if newer or status changed
-              const localUpdatedAt = new Date(existingHarvest.updated_at || 0);
-              const remoteUpdatedAt = new Date(remoteHarvest.updated_at || 0);
-
-              if (
-                remoteUpdatedAt > localUpdatedAt ||
-                existingHarvest.status !== harvestStatus
-              ) {
-                await this.db!.runAsync(
-                  `UPDATE harvests SET 
-                  fruit_id = ?,
-                  user_id = ?,
-                  ripe_quantity = ?,
-                  harvest_at = ?,
-                  status = ?,
-                  is_synced = 1,
-                  updated_at = ?
-                WHERE id = ?`,
-                  [
-                    remoteHarvest.fruit_id,
-                    remoteHarvest.user_id || null,
-                    remoteHarvest.ripe_quantity || 0,
-                    remoteHarvest.harvest_at || now,
-                    harvestStatus,
-                    remoteHarvest.updated_at || now,
-                    remoteHarvest.id,
-                  ],
-                );
-                results.synced++;
-                console.log(
-                  `✅ Updated harvest ${remoteHarvest.id} in local DB (status: ${existingHarvest.status} → ${harvestStatus})`,
-                );
-              }
-            }
-
-            // ✅ SYNC FRUIT WEIGHTS
-            if (
-              remoteHarvest.fruit_weights &&
-              remoteHarvest.fruit_weights.length > 0
-            ) {
-              // Delete existing weights for this harvest
-              await this.db!.runAsync(
-                `DELETE FROM fruit_weights WHERE harvest_id = ?`,
-                [remoteHarvest.id],
-              );
-
-              // Insert new weights
-              for (const weight of remoteHarvest.fruit_weights) {
-                await this.db!.runAsync(
-                  `INSERT INTO fruit_weights (
-                  id, harvest_id, weight, status, is_synced, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                  [
-                    weight.id,
-                    remoteHarvest.id,
-                    parseFloat(weight.weight),
-                    weight.status || "local",
-                    1,
-                    weight.created_at || now,
-                    weight.updated_at || now,
-                  ],
-                );
-              }
-              console.log(
-                `  ⚖️ Synced ${remoteHarvest.fruit_weights.length} fruit weights for harvest ${remoteHarvest.id}`,
-              );
-            }
-
-            // ✅ SYNC WASTES
-            if (remoteHarvest.wastes && remoteHarvest.wastes.length > 0) {
-              // Delete existing wastes for this harvest
-              await this.db!.runAsync(
-                `DELETE FROM wastes WHERE harvest_id = ?`,
-                [remoteHarvest.id],
-              );
-
-              // Insert new wastes
-              for (const waste of remoteHarvest.wastes) {
-                await this.db!.runAsync(
-                  `INSERT INTO wastes (
-                  id, harvest_id, waste_quantity, reason, reported_at,
-                  is_synced, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                  [
-                    waste.id,
-                    remoteHarvest.id,
-                    waste.waste_quantity,
-                    waste.reason,
-                    waste.reported_at || now,
-                    1,
-                    waste.created_at || now,
-                    waste.updated_at || now,
-                  ],
-                );
-              }
-              console.log(
-                `  🗑️ Synced ${remoteHarvest.wastes.length} wastes for harvest ${remoteHarvest.id}`,
-              );
-            }
-
-            // ✅ Update fruit's remaining quantity based on harvest data
-            if (fruit) {
-              // Calculate total processed from weights and wastes
-              const totalWeights = remoteHarvest.fruit_weights?.length || 0;
-              const totalWastes =
-                remoteHarvest.wastes?.reduce(
-                  (sum: number, w: any) => sum + (w.waste_quantity || 0),
-                  0,
-                ) || 0;
-              const totalProcessed = totalWeights + totalWastes;
-
-              if (totalProcessed > 0) {
-                const currentRemaining =
-                  fruit.remaining_quantity || fruit.quantity;
-                const newRemaining = Math.max(
-                  0,
-                  currentRemaining - totalProcessed,
-                );
-
-                await this.db!.runAsync(
-                  `UPDATE fruits SET remaining_quantity = ?, updated_at = ? WHERE id = ?`,
-                  [newRemaining, now, fruit.id],
-                );
-                console.log(
-                  `  🍎 Updated fruit ${fruit.id} remaining quantity: ${currentRemaining} → ${newRemaining}`,
-                );
-              }
-            }
-          } catch (harvestError: any) {
-            const errorMsg = `Harvest ${remoteHarvest.id}: ${harvestError.message}`;
-            results.errors.push(errorMsg);
-            console.error(errorMsg);
           }
         }
 
-        // Commit transaction
+        // Determine if need to insert or update
+        if (!existing || remoteUpdated > localUpdated) {
+          if (!existing) {
+            toInsert.push({
+              ...remoteHarvest,
+              _status: harvestStatus,
+              _now: now,
+            });
+          } else {
+            toUpdate.push({
+              ...remoteHarvest,
+              _status: harvestStatus,
+              _now: now,
+            });
+          }
+
+          // Prepare fruit weights
+          if (remoteHarvest.fruit_weights?.length > 0) {
+            // Mark old weights for deletion
+            const oldWeights = weightsByHarvest.get(remoteHarvest.id);
+            if (oldWeights) {
+              weightsToDelete.push(...Array.from(oldWeights));
+            }
+
+            // Prepare new weights
+            for (const weight of remoteHarvest.fruit_weights) {
+              weightsToInsert.push({
+                id: weight.id,
+                harvest_id: remoteHarvest.id,
+                weight: parseFloat(weight.weight),
+                status: weight.status || "local",
+                created_at: weight.created_at || now,
+                updated_at: weight.updated_at || now,
+              });
+            }
+          }
+
+          // Prepare wastes
+          if (remoteHarvest.wastes?.length > 0) {
+            // Mark old wastes for deletion
+            const oldWastes = wastesByHarvest.get(remoteHarvest.id);
+            if (oldWastes) {
+              wastesToDelete.push(...Array.from(oldWastes));
+            }
+
+            // Prepare new wastes
+            for (const waste of remoteHarvest.wastes) {
+              wastesToInsert.push({
+                id: waste.id,
+                harvest_id: remoteHarvest.id,
+                waste_quantity: waste.waste_quantity,
+                reason: waste.reason,
+                reported_at: waste.reported_at || now,
+                created_at: waste.created_at || now,
+                updated_at: waste.updated_at || now,
+              });
+            }
+          }
+
+          // Calculate fruit remaining quantity
+          const fruit = fruitMap.get(remoteHarvest.fruit_id);
+          if (fruit) {
+            const totalWeights = remoteHarvest.fruit_weights?.length || 0;
+            const totalWastes =
+              remoteHarvest.wastes?.reduce(
+                (sum: number, w: any) => sum + (w.waste_quantity || 0),
+                0,
+              ) || 0;
+            const totalProcessed = totalWeights + totalWastes;
+
+            if (totalProcessed > 0) {
+              const currentRemaining =
+                fruit.remaining_quantity || fruit.quantity;
+              const newRemaining = Math.max(
+                0,
+                currentRemaining - totalProcessed,
+              );
+              fruitUpdates.set(fruit.id, newRemaining);
+            }
+          }
+        }
+      }
+
+      console.log(
+        `📊 Summary: ${toInsert.length} inserts, ${toUpdate.length} updates, ${weightsToInsert.length} weights, ${wastesToInsert.length} wastes`,
+      );
+
+      // STEP 7: Execute ALL operations in ONE transaction
+      await this.db!.execAsync("BEGIN TRANSACTION");
+
+      try {
+        // Delete old weights
+        if (weightsToDelete.length > 0) {
+          for (const weightId of weightsToDelete) {
+            await this.db!.runAsync("DELETE FROM fruit_weights WHERE id = ?", [
+              weightId,
+            ]);
+          }
+          console.log(`🗑️ Deleted ${weightsToDelete.length} old weights`);
+        }
+
+        // Delete old wastes
+        if (wastesToDelete.length > 0) {
+          for (const wasteId of wastesToDelete) {
+            await this.db!.runAsync("DELETE FROM wastes WHERE id = ?", [
+              wasteId,
+            ]);
+          }
+          console.log(`🗑️ Deleted ${wastesToDelete.length} old wastes`);
+        }
+
+        // Bulk insert harvests
+        for (const harvest of toInsert) {
+          await this.db!.runAsync(
+            `INSERT INTO harvests (
+            id, fruit_id, user_id, ripe_quantity, harvest_at, status,
+            is_synced, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              harvest.id,
+              harvest.fruit_id,
+              harvest.user_id || null,
+              harvest.ripe_quantity || 0,
+              harvest.harvest_at || harvest._now,
+              harvest._status,
+              1,
+              harvest.created_at || harvest._now,
+              harvest.updated_at || harvest._now,
+            ],
+          );
+          results.synced++;
+        }
+
+        // Bulk update harvests
+        for (const harvest of toUpdate) {
+          await this.db!.runAsync(
+            `UPDATE harvests SET 
+            fruit_id = ?, user_id = ?, ripe_quantity = ?, harvest_at = ?,
+            status = ?, is_synced = 1, updated_at = ?
+          WHERE id = ?`,
+            [
+              harvest.fruit_id,
+              harvest.user_id || null,
+              harvest.ripe_quantity || 0,
+              harvest.harvest_at || harvest._now,
+              harvest._status,
+              harvest.updated_at || harvest._now,
+              harvest.id,
+            ],
+          );
+          results.synced++;
+        }
+
+        // Insert new weights
+        for (const weight of weightsToInsert) {
+          await this.db!.runAsync(
+            `INSERT INTO fruit_weights (
+            id, harvest_id, weight, status, is_synced, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              weight.id,
+              weight.harvest_id,
+              weight.weight,
+              weight.status,
+              1,
+              weight.created_at,
+              weight.updated_at,
+            ],
+          );
+        }
+
+        // Insert new wastes
+        for (const waste of wastesToInsert) {
+          await this.db!.runAsync(
+            `INSERT INTO wastes (
+            id, harvest_id, waste_quantity, reason, reported_at,
+            is_synced, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              waste.id,
+              waste.harvest_id,
+              waste.waste_quantity,
+              waste.reason,
+              waste.reported_at,
+              1,
+              waste.created_at,
+              waste.updated_at,
+            ],
+          );
+        }
+
+        // Update fruit remaining quantities
+        for (const [fruitId, newRemaining] of fruitUpdates) {
+          await this.db!.runAsync(
+            `UPDATE fruits SET remaining_quantity = ?, updated_at = ? WHERE id = ?`,
+            [newRemaining, now, fruitId],
+          );
+        }
+
         await this.db!.execAsync("COMMIT");
+
         console.log(
-          `✅ Harvest sync completed: ${results.synced} harvests synced, ${results.errors.length} errors`,
+          `✅ Harvest sync completed: ${results.synced} synced, ${weightsToInsert.length} weights, ${wastesToInsert.length} wastes`,
         );
       } catch (error) {
         await this.db!.execAsync("ROLLBACK");
@@ -603,7 +947,6 @@ class HarvestService {
       throw new Error(`Failed to sync harvests: ${error.message}`);
     }
   }
-
   /**
    * Get all harvests with complete details (fruit, tree, user, weights, wastes)
    * Matches the API response structure

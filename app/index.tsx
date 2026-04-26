@@ -124,97 +124,57 @@ export default function Index() {
     try {
       setInitProgress("Syncing data from server...");
 
-      // ===== RUN ALL DOWNLOADS IN PARALLEL =====
-      const syncPromises = [
-        // Tree sync
-        (async () => {
-          try {
-            const { needsSync, treeCount } = await treeService.checkAndSync();
-            if (needsSync) {
-              setInitProgress(`Downloading ${treeCount} trees...`);
+      const results = [];
+      const errors = [];
 
-              let retries = 3;
-              let result = null;
-              while (retries > 0 && !result) {
-                try {
-                  result = await treeService.syncTreesFromServer();
-                  break;
-                } catch (error) {
-                  retries--;
-                  if (retries === 0) throw error;
-                  await new Promise((resolve) => setTimeout(resolve, 1000));
-                }
-              }
+      // Sync ONE BY ONE (no parallel)
 
-              return { type: "trees", ...result };
-            }
-            return { type: "trees", synced: 0, errors: [] };
-          } catch (error) {
-            return { type: "trees", synced: 0, errors: [error.message] };
-          }
-        })(),
+      // 1. Trees
+      setInitProgress("Syncing trees...");
+      const { needsSync: treesNeedSync, treeCount } =
+        await treeService.checkAndSync();
+      if (treesNeedSync) {
+        const treeResult = await treeService.syncTreesFromServer();
+        results.push({ type: "trees", ...treeResult });
+      } else {
+        results.push({ type: "trees", synced: 0, errors: [] });
+      }
 
-        // User sync
-        (async () => {
-          try {
-            const result = await userService.syncUsersFromServer();
-            return { type: "users", ...result };
-          } catch (error) {
-            console.error("User sync error:", error);
-            return { type: "users", synced: 0, errors: [error.message] };
-          }
-        })(),
+      // 2. Users
+      setInitProgress("Syncing users...");
+      const userResult = await userService.syncUsersFromServer();
+      results.push({ type: "users", ...userResult });
 
-        // Flower sync
-        (async () => {
-          try {
-            const { needsSync, flowerCount } =
-              await flowerService.checkAndSync();
-            if (needsSync) {
-              const result = await flowerService.syncFlowersFromServer();
-              return { type: "flowers", ...result };
-            }
-            return { type: "flowers", synced: 0, errors: [] };
-          } catch (error) {
-            return { type: "flowers", synced: 0, errors: [error.message] };
-          }
-        })(),
+      // 3. Flowers
+      setInitProgress("Syncing flowers...");
+      const { needsSync: flowersNeedSync } = await flowerService.checkAndSync();
+      if (flowersNeedSync) {
+        const flowerResult = await flowerService.syncFlowersFromServer();
+        results.push({ type: "flowers", ...flowerResult });
+      } else {
+        results.push({ type: "flowers", synced: 0, errors: [] });
+      }
 
-        // Fruit sync
-        (async () => {
-          try {
-            const { needsSync, fruitCount } = await fruitService.checkAndSync();
-            if (needsSync) {
-              const result = await fruitService.syncFruitsFromServer();
-              return { type: "fruits", ...result };
-            }
-            return { type: "fruits", synced: 0, errors: [] };
-          } catch (error) {
-            return { type: "fruits", synced: 0, errors: [error.message] };
-          }
-        })(),
+      // 4. Fruits
+      setInitProgress("Syncing fruits...");
+      const { needsSync: fruitsNeedSync } = await fruitService.checkAndSync();
+      if (fruitsNeedSync) {
+        const fruitResult = await fruitService.syncFruitsFromServer();
+        results.push({ type: "fruits", ...fruitResult });
+      } else {
+        results.push({ type: "fruits", synced: 0, errors: [] });
+      }
 
-        // Harvest download sync
-        (async () => {
-          try {
-            const result = await HarvestService.syncHarvestsFromServer();
-            return { type: "harvests", ...result };
-          } catch (error) {
-            return { type: "harvests", synced: 0, errors: [error.message] };
-          }
-        })(),
-      ];
-
-      // Wait for all downloads to complete
-      setInitProgress("Downloading all data...");
-      const results = await Promise.all(syncPromises);
+      // 5. Harvests
+      setInitProgress("Syncing harvests...");
+      const harvestResult = await HarvestService.syncHarvestsFromServer();
+      results.push({ type: "harvests", ...harvestResult });
 
       // Calculate totals
       const totalSynced = results.reduce((sum, r) => sum + (r?.synced || 0), 0);
       const allErrors = results.flatMap((r) => r?.errors || []);
       const treeResult = results.find((r) => r?.type === "trees");
 
-      // Update progress
       if (totalSynced > 0) {
         setInitProgress(`Downloaded ${totalSynced} items`);
         if (treeResult) {
@@ -222,50 +182,20 @@ export default function Index() {
         }
       }
 
-      if (allErrors.length > 0) {
-        console.warn(`Sync completed with ${allErrors.length} errors`);
-      }
-
-      // ===== UPLOAD LOCAL CHANGES IN PARALLEL =====
+      // Upload (can still be parallel since they're separate operations)
       setInitProgress("Uploading local changes...");
-
-      const uploadPromises = [
+      await Promise.all([
         treeService
           .syncAll()
-          .catch((err) => ({ synced: 0, errors: [err.message] })),
+          .catch((e) => ({ synced: 0, errors: [e.message] })),
         flowerService
           .syncAll()
-          .catch((err) => ({ synced: 0, errors: [err.message] })),
+          .catch((e) => ({ synced: 0, errors: [e.message] })),
         fruitService
           .syncAll()
-          .catch((err) => ({ synced: 0, errors: [err.message] })),
-        (async () => {
-          try {
-            const unsyncedCount = await HarvestService.getUnsyncedCount();
-            if (unsyncedCount > 0) {
-              return await HarvestService.syncAllUnsyncedHarvests();
-            }
-            return { synced: 0, errors: [] };
-          } catch (error) {
-            return { synced: 0, errors: [error.message] };
-          }
-        })(),
-      ];
+          .catch((e) => ({ synced: 0, errors: [e.message] })),
+      ]);
 
-      const uploadResults = await Promise.all(uploadPromises);
-      const totalUploaded = uploadResults.reduce(
-        (sum, r) => sum + (r?.synced || 0),
-        0,
-      );
-
-      if (totalUploaded > 0) {
-        console.log(`✅ Uploaded ${totalUploaded} local changes`);
-        setInitProgress(
-          `✅ Downloaded ${totalSynced}, uploaded ${totalUploaded}`,
-        );
-      }
-
-      console.log("✅ All sync operations completed");
       setInitProgress("Sync complete!");
     } catch (error: any) {
       console.error("❌ Sync failed:", error);
