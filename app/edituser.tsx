@@ -174,7 +174,7 @@ export default function EditUser() {
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
-        className="flex-1"
+        className="flex-1 mt-5"
         contentContainerStyle={{ paddingBottom: 40 }}
       >
         <View className="px-6 py-8">
@@ -197,13 +197,13 @@ export default function EditUser() {
           </View>
 
           {/* Edit Form */}
-          <View className="space-y-6">
+          <View className="gap-6">
             {/* Name Fields */}
             <View>
               <Text className="text-gray-700 font-semibold mb-3">
                 Full Name
               </Text>
-              <View className="flex-row space-x-3">
+              <View className="flex-row gap-3">
                 <View className="flex-1">
                   <Controller
                     control={control}
@@ -304,7 +304,7 @@ export default function EditUser() {
                 control={control}
                 name="gender"
                 render={({ field: { onChange, value } }) => (
-                  <View className="flex-row space-x-3">
+                  <View className="flex-row gap-3">
                     <TouchableOpacity
                       className={`flex-1 py-4 rounded-xl border-2 ${
                         value === "male"
@@ -349,7 +349,7 @@ export default function EditUser() {
             </View>
 
             {/* Action Buttons */}
-            <View className="flex-row space-x-3 pt-6">
+            <View className="flex-row gap-3 pt-6">
               <TouchableOpacity
                 className="flex-1 bg-gray-100 rounded-xl py-4"
                 onPress={() => router.back()}

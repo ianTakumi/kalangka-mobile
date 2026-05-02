@@ -4,7 +4,7 @@
     "slug": "kalangka",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo/baybaylogo.png",
     "scheme": "kalangka",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -15,6 +15,10 @@
         "light": "./assets/images/ios_icon/ios-light.png",
         "tinted": "./assets/images/ios_icon/ios-tinted.png"
       }
+    },
+    "notification": {
+      "icon": "./assets/images/logo/baybaylogonotiflogo.png",
+      "color": "#E6F4FE"
     },
     "android": {
       "permissions": [
@@ -44,7 +48,12 @@
     "plugins": [
       "expo-router",
       "expo-background-fetch",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo/baybaylogonotiflogo.png"
+        }
+      ],
       "expo-task-manager",
       [
         "expo-splash-screen",

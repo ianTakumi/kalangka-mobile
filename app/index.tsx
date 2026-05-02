@@ -5,12 +5,19 @@ import treeService from "@/services/treeService";
 import userService from "@/services/UserService";
 import NetInfo from "@react-native-community/netinfo";
 import { Redirect } from "expo-router";
-import { Database, Leaf, Loader2, Wifi, WifiOff } from "lucide-react-native";
+import { Database, Loader2, Wifi, WifiOff } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { Animated, AppState, AppStateStatus, Text, View } from "react-native";
+import {
+  Animated,
+  AppState,
+  AppStateStatus,
+  Image,
+  Text,
+  View,
+} from "react-native";
 import { useSelector } from "react-redux";
+import baybaylogo from "../assets/images/logo/baybaylogo.png";
 import { RootState } from "../redux/store";
-
 export default function Index() {
   const [isChecking, setIsChecking] = useState(true);
   const [initProgress, setInitProgress] = useState<string>("Initializing...");
@@ -220,12 +227,15 @@ export default function Index() {
       <View className="flex-1 justify-center items-center bg-gradient-to-b from-emerald-50 to-white px-6">
         {/* Logo/Icon Section */}
         <View className="items-center mb-8">
-          <View className="bg-emerald-100 p-6 rounded-2xl mb-6">
-            <Leaf size={64} color="#059669" />
-          </View>
-          <Text className="text-4xl font-bold text-emerald-900">Kalangka</Text>
+          <Image
+            source={baybaylogo}
+            className="w-24 h-24 mb-6"
+            style={{ width: 96, height: 96 }}
+            resizeMode="contain"
+          />
+          <Text className="text-4xl font-bold text-emerald-900">IMYV</Text>
           <Text className="text-emerald-600 text-lg mt-2">
-            Smart Jackfruit Farming
+            Powered by WrapCrop
           </Text>
         </View>
 

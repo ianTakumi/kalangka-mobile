@@ -2,7 +2,7 @@ import client from "@/utils/axiosInstance";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -18,7 +18,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
@@ -101,6 +104,10 @@ export default function AllFlowers() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [isAtBottom, setIsAtBottom] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     fetchFlowers();
@@ -644,181 +651,243 @@ export default function AllFlowers() {
     </Modal>
   );
 
-  const renderFlowerDetailModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={modalVisible}
-      onRequestClose={() => setModalVisible(false)}
-    >
-      <View className="flex-1 bg-black/50 justify-end">
-        <View className="bg-white rounded-t-3xl max-h-[85%]">
-          {/* Modal Header */}
-          <View className="flex-row justify-between items-center p-5 border-b border-gray-100">
-            <Text className="text-xl font-bold text-gray-800">
-              Flower Details
-            </Text>
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
-            >
-              <Ionicons name="close" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
+  const renderFlowerDetailModal = () => {
+    const handleScroll = (event: any) => {
+      const { layoutMeasurement, contentOffset, contentSize } =
+        event.nativeEvent;
+      const paddingToBottom = 20;
+      const isBottom =
+        layoutMeasurement.height + contentOffset.y >=
+        contentSize.height - paddingToBottom;
+      setIsAtBottom(isBottom);
+    };
 
-          {selectedFlower && (
-            <ScrollView showsVerticalScrollIndicator={false} className="p-5">
-              {/* Tree Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-green-500 rounded-xl items-center justify-center">
-                    <Ionicons name="leaf" size={20} color="white" />
-                  </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    Tree Information
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View
+            className="bg-white rounded-t-3xl relative"
+            style={{ maxHeight: "85%" }}
+          >
+            {/* Scroll Indicator Badge */}
+            {!isAtBottom && (
+              <View className="absolute top-2 left-0 right-0 z-10 items-center">
+                <View className="bg-gray-800/80 px-4 py-1.5 rounded-full flex-row items-center gap-2">
+                  <Ionicons name="chevron-down" size={14} color="white" />
+                  <Text className="text-white text-xs font-medium">
+                    Scroll for more
                   </Text>
+                  <Ionicons name="chevron-down" size={14} color="white" />
                 </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Name
-                    </Text>
-                    <Text className="text-base font-semibold text-gray-800">
-                      {selectedFlower.tree.description}
+              </View>
+            )}
+
+            {/* Modal Header */}
+            <View className="flex-row justify-between items-center p-5 border-b border-gray-100 pt-6">
+              <Text className="text-xl font-bold text-gray-800">
+                Flower Details
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setModalVisible(false);
+                  setIsAtBottom(false);
+                }}
+                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+              >
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedFlower && (
+              <ScrollView
+                ref={scrollViewRef}
+                showsVerticalScrollIndicator={false}
+                className="p-5"
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                {/* Tree Section */}
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-green-500 rounded-xl items-center justify-center">
+                      <Ionicons name="leaf" size={20} color="white" />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      Tree Information
                     </Text>
                   </View>
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Type
-                    </Text>
-                    <Text className="text-base text-gray-700">
-                      {selectedFlower.tree.type}
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Name
+                      </Text>
+                      <Text className="text-base font-semibold text-gray-800">
+                        {selectedFlower.tree.description}
+                      </Text>
+                    </View>
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Type
+                      </Text>
+                      <Text className="text-base text-gray-700">
+                        {selectedFlower.tree.type}
+                      </Text>
+                    </View>
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Status
+                      </Text>
+                      <View
+                        className={`self-start px-2 py-0.5 rounded-full mt-1 ${getStatusColor(selectedFlower.tree.status)}`}
+                      >
+                        <Text className="text-xs font-medium capitalize">
+                          {selectedFlower.tree.status}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* User Section */}
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-purple-500 rounded-xl items-center justify-center">
+                      <Ionicons name="person" size={20} color="white" />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      User Information
                     </Text>
                   </View>
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Status
-                    </Text>
-                    <View
-                      className={`self-start px-2 py-0.5 rounded-full mt-1 ${getStatusColor(selectedFlower.tree.status)}`}
-                    >
-                      <Text className="text-xs font-medium capitalize">
-                        {selectedFlower.tree.status}
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Name
+                      </Text>
+                      <Text className="text-base font-semibold text-gray-800">
+                        {selectedFlower.user.first_name}{" "}
+                        {selectedFlower.user.last_name}
+                      </Text>
+                    </View>
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Email
+                      </Text>
+                      <Text className="text-base text-gray-700">
+                        {selectedFlower.user.email}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Gender
+                      </Text>
+                      <Text className="text-base text-gray-700 capitalize">
+                        {selectedFlower.user.gender}
                       </Text>
                     </View>
                   </View>
                 </View>
-              </View>
 
-              {/* User Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-purple-500 rounded-xl items-center justify-center">
-                    <Ionicons name="person" size={20} color="white" />
+                {/* Flower Image Section */}
+                {selectedFlower.image_url && (
+                  <View className="mb-6">
+                    <View className="flex-row items-center mb-3">
+                      <View className="w-10 h-10 bg-pink-500 rounded-xl items-center justify-center">
+                        <Ionicons name="image" size={20} color="white" />
+                      </View>
+                      <Text className="text-lg font-bold text-gray-800 ml-3">
+                        Flower Image
+                      </Text>
+                    </View>
+                    <View className="bg-gray-50 rounded-xl p-4 items-center">
+                      <Image
+                        source={{ uri: selectedFlower.image_url }}
+                        className="w-full h-48 rounded-xl"
+                        resizeMode="cover"
+                        onError={(e) =>
+                          console.log("Image load error:", e.nativeEvent.error)
+                        }
+                      />
+                    </View>
                   </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    User Information
-                  </Text>
-                </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Name
-                    </Text>
-                    <Text className="text-base font-semibold text-gray-800">
-                      {selectedFlower.user.first_name}{" "}
-                      {selectedFlower.user.last_name}
-                    </Text>
-                  </View>
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Email
-                    </Text>
-                    <Text className="text-base text-gray-700">
-                      {selectedFlower.user.email}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Gender
-                    </Text>
-                    <Text className="text-base text-gray-700 capitalize">
-                      {selectedFlower.user.gender}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+                )}
 
-              {/* Flower Image Section */}
-              {selectedFlower.image_url && (
+                {/* Flower Section */}
                 <View className="mb-6">
                   <View className="flex-row items-center mb-3">
                     <View className="w-10 h-10 bg-pink-500 rounded-xl items-center justify-center">
-                      <Ionicons name="image" size={20} color="white" />
+                      <Ionicons name="flower" size={20} color="white" />
                     </View>
                     <Text className="text-lg font-bold text-gray-800 ml-3">
-                      Flower Image
+                      Flower Details
                     </Text>
                   </View>
-                  <View className="bg-gray-50 rounded-xl p-4 items-center">
-                    <Image
-                      source={{ uri: selectedFlower.image_url }}
-                      className="w-full h-48 rounded-xl"
-                      resizeMode="cover"
-                      onError={(e) =>
-                        console.log("Image load error:", e.nativeEvent.error)
-                      }
-                    />
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Quantity
+                      </Text>
+                      <Text className="text-2xl font-bold text-pink-600">
+                        {selectedFlower.quantity}
+                      </Text>
+                    </View>
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Wrapped At
+                      </Text>
+                      <Text className="text-base text-gray-700">
+                        {formatDateTime(selectedFlower.wrapped_at)}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              )}
+              </ScrollView>
+            )}
 
-              {/* Flower Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-pink-500 rounded-xl items-center justify-center">
-                    <Ionicons name="flower" size={20} color="white" />
-                  </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    Flower Details
-                  </Text>
-                </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Quantity
-                    </Text>
-                    <Text className="text-2xl font-bold text-pink-600">
-                      {selectedFlower.quantity}
-                    </Text>
-                  </View>
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Wrapped At
-                    </Text>
-                    <Text className="text-base text-gray-700">
-                      {formatDateTime(selectedFlower.wrapped_at)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </ScrollView>
-          )}
-
-          <View className="p-5 pt-0">
-            <TouchableOpacity
-              className="bg-pink-500 py-3 rounded-xl"
-              onPress={() => setModalVisible(false)}
+            {/* Bottom Close Button with Insets - same as your harvest assignment screen */}
+            <View
+              style={{
+                paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+              }}
+              className="p-5 pt-0 bg-white"
             >
-              <Text className="text-white font-bold text-center text-base">
-                Close
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                className={`py-3 rounded-xl flex-row items-center justify-center gap-2 ${
+                  isAtBottom ? "bg-pink-500" : "bg-gray-200"
+                }`}
+                onPress={() => {
+                  if (isAtBottom) {
+                    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                    setIsAtBottom(false);
+                  } else {
+                    setModalVisible(false);
+                  }
+                }}
+              >
+                <Ionicons
+                  name={isAtBottom ? "arrow-up" : "close"}
+                  size={18}
+                  color={isAtBottom ? "white" : "#6b7280"}
+                />
+                <Text
+                  className={`font-bold text-center text-base ${
+                    isAtBottom ? "text-white" : "text-gray-500"
+                  }`}
+                >
+                  {isAtBottom ? "Back to Top" : "Close"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
 
   if (loading && !refreshing) {
     return (

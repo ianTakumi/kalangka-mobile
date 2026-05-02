@@ -308,7 +308,7 @@ export default function Users() {
   };
 
   const handleGoBack = () => {
-    router.push("/admin/index");
+    router.push("/admin/(drawers)/(tabs)");
   };
 
   const getRoleBadgeColor = (role: string) => {

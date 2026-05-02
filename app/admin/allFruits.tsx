@@ -3,12 +3,13 @@ import { Ionicons } from "@expo/vector-icons";
 import Entypo from "@expo/vector-icons/Entypo";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -17,7 +18,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 interface Fruit {
   id: string;
@@ -115,6 +119,11 @@ export default function AllFruits() {
     tag3: 0,
     tag4: 0,
   });
+
+  // Add these with your other useState declarations
+  const [isAtBottom, setIsAtBottom] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     fetchFruits();
@@ -729,249 +738,311 @@ export default function AllFruits() {
     </Modal>
   );
 
-  const renderFruitDetailModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={modalVisible}
-      onRequestClose={() => setModalVisible(false)}
-    >
-      <View className="flex-1 bg-black/50 justify-end">
-        <View className="bg-white rounded-t-3xl max-h-[85%]">
-          {/* Modal Header */}
-          <View className="flex-row justify-between items-center p-5 border-b border-gray-100">
-            <Text className="text-xl font-bold text-gray-800">
-              Fruit Details
-            </Text>
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
-            >
-              <Ionicons name="close" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
+  const renderFruitDetailModal = () => {
+    const handleScroll = (event: any) => {
+      const { layoutMeasurement, contentOffset, contentSize } =
+        event.nativeEvent;
+      const paddingToBottom = 20;
+      const isBottom =
+        layoutMeasurement.height + contentOffset.y >=
+        contentSize.height - paddingToBottom;
+      setIsAtBottom(isBottom);
+    };
 
-          {selectedFruit && (
-            <ScrollView showsVerticalScrollIndicator={false} className="p-5">
-              {/* Tag Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-indigo-500 rounded-xl items-center justify-center">
-                    <MaterialCommunityIcons
-                      name="tag"
-                      size={20}
-                      color="white"
-                    />
-                  </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    Tag Information
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View
+            className="bg-white rounded-t-3xl relative"
+            style={{ maxHeight: "85%" }}
+          >
+            {/* Scroll Indicator Badge */}
+            {!isAtBottom && (
+              <View className="absolute top-2 left-0 right-0 z-10 items-center">
+                <View className="bg-gray-800/80 px-4 py-1.5 rounded-full flex-row items-center gap-2">
+                  <Ionicons name="chevron-down" size={14} color="white" />
+                  <Text className="text-white text-xs font-medium">
+                    Scroll for more
                   </Text>
+                  <Ionicons name="chevron-down" size={14} color="white" />
                 </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="flex-row justify-between items-center">
+              </View>
+            )}
+
+            {/* Modal Header */}
+            <View className="flex-row justify-between items-center p-5 border-b border-gray-100 pt-6">
+              <Text className="text-xl font-bold text-gray-800">
+                Fruit Details
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setModalVisible(false);
+                  setIsAtBottom(false);
+                }}
+                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+              >
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedFruit && (
+              <ScrollView
+                ref={scrollViewRef}
+                showsVerticalScrollIndicator={false}
+                className="p-5"
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                {/* Tag Section */}
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-indigo-500 rounded-xl items-center justify-center">
+                      <MaterialCommunityIcons
+                        name="tag"
+                        size={20}
+                        color="white"
+                      />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      Tag Information
+                    </Text>
+                  </View>
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="flex-row justify-between items-center">
+                      <View>
+                        <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                          Tag ID
+                        </Text>
+                        <Text className="text-2xl font-bold text-indigo-600">
+                          {selectedFruit.tag_id}
+                        </Text>
+                      </View>
+                      <View
+                        className={`rounded-full px-4 py-2 ${getTagColor(selectedFruit.tag_id)}`}
+                      >
+                        <Text className="text-sm font-bold">
+                          {getTagLabel(selectedFruit.tag_id)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Tree Section */}
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-green-500 rounded-xl items-center justify-center">
+                      <Entypo name="tree" size={20} color="white" />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      Tree Information
+                    </Text>
+                  </View>
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Name
+                      </Text>
+                      <Text className="text-base font-semibold text-gray-800">
+                        {selectedFruit.tree.description}
+                      </Text>
+                    </View>
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Type
+                      </Text>
+                      <Text className="text-base text-gray-700">
+                        {selectedFruit.tree.type}
+                      </Text>
+                    </View>
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Status
+                      </Text>
+                      <View
+                        className={`self-start px-2 py-0.5 rounded-full mt-1 ${getStatusColor(selectedFruit.tree.status)}`}
+                      >
+                        <Text className="text-xs font-medium capitalize">
+                          {selectedFruit.tree.status}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* User Section */}
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-purple-500 rounded-xl items-center justify-center">
+                      <Ionicons name="person" size={20} color="white" />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      User Information
+                    </Text>
+                  </View>
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Name
+                      </Text>
+                      <Text className="text-base font-semibold text-gray-800">
+                        {selectedFruit.user.first_name}{" "}
+                        {selectedFruit.user.last_name}
+                      </Text>
+                    </View>
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Email
+                      </Text>
+                      <Text className="text-base text-gray-700">
+                        {selectedFruit.user.email}
+                      </Text>
+                    </View>
                     <View>
                       <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                        Tag ID
+                        Gender
                       </Text>
-                      <Text className="text-2xl font-bold text-indigo-600">
-                        {selectedFruit.tag_id}
-                      </Text>
-                    </View>
-                    <View
-                      className={`rounded-full px-4 py-2 ${getTagColor(selectedFruit.tag_id)}`}
-                    >
-                      <Text className="text-sm font-bold">
-                        {getTagLabel(selectedFruit.tag_id)}
+                      <Text className="text-base text-gray-700 capitalize">
+                        {selectedFruit.user.gender}
                       </Text>
                     </View>
                   </View>
                 </View>
-              </View>
 
-              {/* Tree Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-green-500 rounded-xl items-center justify-center">
-                    <Entypo name="tree" size={20} color="white" />
-                  </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    Tree Information
-                  </Text>
-                </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Name
-                    </Text>
-                    <Text className="text-base font-semibold text-gray-800">
-                      {selectedFruit.tree.description}
+                {/* Flower Section */}
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-pink-500 rounded-xl items-center justify-center">
+                      <Ionicons name="flower" size={20} color="white" />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      Flower Information
                     </Text>
                   </View>
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Type
-                    </Text>
-                    <Text className="text-base text-gray-700">
-                      {selectedFruit.tree.type}
-                    </Text>
-                  </View>
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Status
-                    </Text>
-                    <View
-                      className={`self-start px-2 py-0.5 rounded-full mt-1 ${getStatusColor(selectedFruit.tree.status)}`}
-                    >
-                      <Text className="text-xs font-medium capitalize">
-                        {selectedFruit.tree.status}
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Flower Quantity
+                      </Text>
+                      <Text className="text-base font-semibold text-gray-800">
+                        {selectedFruit.flower.quantity}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Wrapped At
+                      </Text>
+                      <Text className="text-sm text-gray-600 mt-1">
+                        {formatDateTime(selectedFruit.flower.wrapped_at)}
                       </Text>
                     </View>
                   </View>
                 </View>
-              </View>
 
-              {/* User Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-purple-500 rounded-xl items-center justify-center">
-                    <Ionicons name="person" size={20} color="white" />
+                {selectedFruit.image_url && (
+                  <View className="mb-6">
+                    <View className="flex-row items-center mb-3">
+                      <View className="w-10 h-10 bg-orange-500 rounded-xl items-center justify-center">
+                        <Ionicons name="image" size={20} color="white" />
+                      </View>
+                      <Text className="text-lg font-bold text-gray-800 ml-3">
+                        Fruit Image
+                      </Text>
+                    </View>
+                    <View className="bg-gray-50 rounded-xl p-4 items-center">
+                      <Image
+                        source={{ uri: selectedFruit.image_url }}
+                        className="w-full h-48 rounded-xl"
+                        resizeMode="cover"
+                        onError={(e) =>
+                          console.log("Image load error:", e.nativeEvent.error)
+                        }
+                      />
+                    </View>
                   </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    User Information
-                  </Text>
-                </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Name
-                    </Text>
-                    <Text className="text-base font-semibold text-gray-800">
-                      {selectedFruit.user.first_name}{" "}
-                      {selectedFruit.user.last_name}
-                    </Text>
-                  </View>
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Email
-                    </Text>
-                    <Text className="text-base text-gray-700">
-                      {selectedFruit.user.email}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Gender
-                    </Text>
-                    <Text className="text-base text-gray-700 capitalize">
-                      {selectedFruit.user.gender}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+                )}
 
-              {/* Flower Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-pink-500 rounded-xl items-center justify-center">
-                    <Ionicons name="flower" size={20} color="white" />
-                  </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    Flower Information
-                  </Text>
-                </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Flower Quantity
-                    </Text>
-                    <Text className="text-base font-semibold text-gray-800">
-                      {selectedFruit.flower.quantity}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Wrapped At
-                    </Text>
-                    <Text className="text-sm text-gray-600 mt-1">
-                      {formatDateTime(selectedFruit.flower.wrapped_at)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {selectedFruit.image_url && (
+                {/* Fruit Section */}
                 <View className="mb-6">
                   <View className="flex-row items-center mb-3">
                     <View className="w-10 h-10 bg-orange-500 rounded-xl items-center justify-center">
-                      <Ionicons name="image" size={20} color="white" />
+                      <MaterialCommunityIcons
+                        name="fruit-pear"
+                        size={20}
+                        color="white"
+                      />
                     </View>
                     <Text className="text-lg font-bold text-gray-800 ml-3">
-                      Fruit Image
+                      Fruit Details
                     </Text>
                   </View>
-                  <View className="bg-gray-50 rounded-xl p-4 items-center">
-                    <Image
-                      source={{ uri: selectedFruit.image_url }}
-                      className="w-full h-48 rounded-xl"
-                      resizeMode="cover"
-                      onError={(e) =>
-                        console.log("Image load error:", e.nativeEvent.error)
-                      }
-                    />
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    <View className="mb-2">
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Quantity
+                      </Text>
+                      <Text className="text-2xl font-bold text-orange-600">
+                        {selectedFruit.quantity}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                        Bagged At
+                      </Text>
+                      <Text className="text-base text-gray-700">
+                        {formatDateTime(selectedFruit.bagged_at)}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              )}
+              </ScrollView>
+            )}
 
-              {/* Fruit Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center mb-3">
-                  <View className="w-10 h-10 bg-orange-500 rounded-xl items-center justify-center">
-                    <MaterialCommunityIcons
-                      name="fruit-pear"
-                      size={20}
-                      color="white"
-                    />
-                  </View>
-                  <Text className="text-lg font-bold text-gray-800 ml-3">
-                    Fruit Details
-                  </Text>
-                </View>
-                <View className="bg-gray-50 rounded-xl p-4">
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Quantity
-                    </Text>
-                    <Text className="text-2xl font-bold text-orange-600">
-                      {selectedFruit.quantity}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                      Bagged At
-                    </Text>
-                    <Text className="text-base text-gray-700">
-                      {formatDateTime(selectedFruit.bagged_at)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </ScrollView>
-          )}
-
-          <View className="p-5 pt-0">
-            <TouchableOpacity
-              className="bg-orange-500 py-3 rounded-xl"
-              onPress={() => setModalVisible(false)}
+            {/* Bottom Close Button with Insets */}
+            <View
+              style={{
+                paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+              }}
+              className="p-5 pt-0 bg-white"
             >
-              <Text className="text-white font-bold text-center text-base">
-                Close
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                className={`py-3 rounded-xl flex-row items-center justify-center gap-2 ${
+                  isAtBottom ? "bg-orange-500" : "bg-gray-200"
+                }`}
+                onPress={() => {
+                  if (isAtBottom) {
+                    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                    setIsAtBottom(false);
+                  } else {
+                    setModalVisible(false);
+                  }
+                }}
+              >
+                <Ionicons
+                  name={isAtBottom ? "arrow-up" : "close"}
+                  size={18}
+                  color={isAtBottom ? "white" : "#6b7280"}
+                />
+                <Text
+                  className={`font-bold text-center text-base ${
+                    isAtBottom ? "text-white" : "text-gray-500"
+                  }`}
+                >
+                  {isAtBottom ? "Back to Top" : "Close"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
 
   if (loading && !refreshing) {
     return (

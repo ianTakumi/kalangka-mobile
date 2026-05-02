@@ -404,7 +404,6 @@ class NotificationService {
     LEFT JOIN trees t ON f.tree_id = t.id
     LEFT JOIN harvests h ON f.id = h.fruit_id AND h.deleted_at IS NULL
     WHERE f.deleted_at IS NULL 
-      AND f.status != 'harvested'
   `);
 
     const fruitsWithHarvest = fruits.filter((f: any) => f.harvest_id);
