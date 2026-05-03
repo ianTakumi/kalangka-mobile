@@ -947,13 +947,9 @@ class HarvestService {
       throw new Error(`Failed to sync harvests: ${error.message}`);
     }
   }
+
   /**
    * Get all harvests with complete details (fruit, tree, user, weights, wastes)
-   * Matches the API response structure
-   */
-  /**
-   * Get all harvests with complete details (fruit, tree, user, weights, wastes)
-   * Simplified version to avoid complex JOINs
    */
   async getAllHarvests(): Promise<Harvest[]> {
     await this.ensureDatabaseReady();
@@ -987,8 +983,35 @@ class HarvestService {
       `,
       );
 
+      // Fetch fruit weights and wastes for each harvest
+      const harvestsWithDetails = await Promise.all(
+        harvests.map(async (harvest) => {
+          // Fetch fruit weights for this harvest
+          const fruitWeights = await this.db!.getAllAsync<any>(
+            `SELECT weight, created_at 
+           FROM fruit_weights 
+           WHERE harvest_id = ?`,
+            [harvest.id],
+          );
+
+          // Fetch wastes for this harvest
+          const wastes = await this.db!.getAllAsync<any>(
+            `SELECT waste_quantity, reason, created_at 
+           FROM wastes 
+           WHERE harvest_id = ?`,
+            [harvest.id],
+          );
+
+          return {
+            ...harvest,
+            fruitWeights,
+            wastes,
+          };
+        }),
+      );
+
       // Transform to match your Harvest interface
-      const transformedHarvests = harvests.map((harvest) => ({
+      const transformedHarvests = harvestsWithDetails.map((harvest) => ({
         id: harvest.id,
         fruit_id: harvest.fruit_id,
         user_id: harvest.user_id,
@@ -1022,8 +1045,15 @@ class HarvestService {
             updated_at: harvest.updated_at,
           },
         },
-        fruit_weights: [], // You'll need to fetch these separately
-        wastes: [], // You'll need to fetch these separately
+        fruit_weights: harvest.fruitWeights.map((fw: any) => ({
+          weight: fw.weight,
+          created_at: fw.created_at,
+        })),
+        wastes: harvest.wastes.map((w: any) => ({
+          waste_quantity: w.waste_quantity,
+          reason: w.reason,
+          created_at: w.created_at,
+        })),
         user: {
           id: harvest.user_id_ref,
           first_name: harvest.first_name,

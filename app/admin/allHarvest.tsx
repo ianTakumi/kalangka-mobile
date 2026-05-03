@@ -36,6 +36,7 @@ interface Harvest {
     id: string;
     quantity: number;
     tree: {
+      id: string;
       description: string;
       type: string;
     };
@@ -71,7 +72,11 @@ export default function AllHarvest() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [users, setUsers] = useState<User[]>([]);
-
+  const [trees, setTrees] = useState<
+    { id: string; description: string; type: string }[]
+  >([]);
+  const [selectedTreeId, setSelectedTreeId] = useState<string>("");
+  const [tempSelectedTreeId, setTempSelectedTreeId] = useState<string>("");
   // Filter modal states
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [tempSelectedStatus, setTempSelectedStatus] = useState<string>("all");
@@ -95,12 +100,21 @@ export default function AllHarvest() {
 
   useEffect(() => {
     applyFilters();
-  }, [harvests, selectedStatus, selectedUserId, fromDate, toDate, searchQuery]);
+  }, [
+    harvests,
+    selectedStatus,
+    selectedUserId,
+    selectedTreeId,
+    fromDate,
+    toDate,
+    searchQuery,
+  ]);
 
   const fetchHarvests = async () => {
     try {
       setLoading(true);
       const harvestRecords = await HarvestService.getAllHarvests();
+      console.log(harvestRecords);
       setHarvests(harvestRecords);
       setFilteredHarvests(harvestRecords);
 
@@ -113,6 +127,24 @@ export default function AllHarvest() {
         ).values(),
       );
       setUsers(uniqueUsers);
+
+      // Extract unique trees
+      const uniqueTrees = Array.from(
+        new Map(
+          harvestRecords
+            .map((harvest: Harvest) => [
+              harvest.fruit?.tree?.id,
+              {
+                id: harvest.fruit?.tree?.id,
+                description: harvest.fruit?.tree?.description,
+                type: harvest.fruit?.tree?.type,
+              },
+            ])
+            .filter(([id, tree]) => id && tree && tree.description),
+        ).values(),
+      ) as { id: string; description: string; type: string }[];
+
+      setTrees(uniqueTrees);
     } catch (error) {
       console.error("Error fetching harvests:", error);
     } finally {
@@ -161,6 +193,13 @@ export default function AllHarvest() {
       );
     }
 
+    // Tree filter
+    if (selectedTreeId) {
+      filtered = filtered.filter(
+        (harvest) => harvest.fruit?.tree?.id === selectedTreeId,
+      );
+    }
+
     // Date filters
     if (fromDate) {
       filtered = filtered.filter(
@@ -179,6 +218,7 @@ export default function AllHarvest() {
   const openFilterModal = () => {
     setTempSelectedStatus(selectedStatus);
     setTempSelectedUserId(selectedUserId);
+    setTempSelectedTreeId(selectedTreeId);
     setTempFromDate(fromDate);
     setTempToDate(toDate);
     setFilterModalVisible(true);
@@ -187,6 +227,7 @@ export default function AllHarvest() {
   const applyFilterChanges = () => {
     setSelectedStatus(tempSelectedStatus);
     setSelectedUserId(tempSelectedUserId);
+    setSelectedTreeId(tempSelectedTreeId);
     setFromDate(tempFromDate);
     setToDate(tempToDate);
     setFilterModalVisible(false);
@@ -195,6 +236,7 @@ export default function AllHarvest() {
   const resetFilters = () => {
     setSelectedStatus("all");
     setSelectedUserId("");
+    setSelectedTreeId("");
     setFromDate("");
     setToDate("");
     setSearchQuery("");
@@ -471,6 +513,61 @@ export default function AllHarvest() {
                         }`}
                       >
                         {user.first_name} {user.last_name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Tree Filter */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-3">
+                <View className="w-10 h-10 bg-orange-500 rounded-xl items-center justify-center">
+                  <MaterialCommunityIcons name="tree" size={20} color="white" />
+                </View>
+                <Text className="text-lg font-bold text-gray-800 ml-3">
+                  Filter by Tree
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="flex-row"
+              >
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    className={`px-4 py-2 rounded-full ${
+                      !tempSelectedTreeId ? "bg-green-600" : "bg-gray-100"
+                    }`}
+                    onPress={() => setTempSelectedTreeId("")}
+                  >
+                    <Text
+                      className={`text-sm ${
+                        !tempSelectedTreeId ? "text-white" : "text-gray-700"
+                      }`}
+                    >
+                      All Trees
+                    </Text>
+                  </TouchableOpacity>
+                  {trees.map((tree) => (
+                    <TouchableOpacity
+                      key={tree.id}
+                      className={`px-4 py-2 rounded-full ${
+                        tempSelectedTreeId === tree.id
+                          ? "bg-green-600"
+                          : "bg-gray-100"
+                      }`}
+                      onPress={() => setTempSelectedTreeId(tree.id)}
+                    >
+                      <Text
+                        className={`text-sm ${
+                          tempSelectedTreeId === tree.id
+                            ? "text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {tree.description} ({tree.type})
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -768,17 +865,31 @@ export default function AllHarvest() {
                         {selectedHarvest.fruit?.quantity || 0} pcs
                       </Text>
                     </View>
+
+                    {/* Ripe Quantity - Show "No ripe fruits" if null/0 */}
                     {selectedHarvest.ripe_quantity !== null &&
-                      selectedHarvest.ripe_quantity > 0 && (
-                        <View className="mb-2">
-                          <Text className="text-xs text-gray-500 uppercase tracking-wide">
-                            Ripe Quantity
-                          </Text>
-                          <Text className="text-base text-gray-700">
-                            {selectedHarvest.ripe_quantity} pcs
-                          </Text>
-                        </View>
-                      )}
+                    selectedHarvest.ripe_quantity > 0 ? (
+                      <View className="mb-2">
+                        <Text className="text-xs text-gray-500 uppercase tracking-wide">
+                          Ripe Quantity
+                        </Text>
+                        <Text className="text-base text-gray-700">
+                          {selectedHarvest.ripe_quantity} pcs
+                        </Text>
+                      </View>
+                    ) : (
+                      <View className="mb-2 flex-row items-center py-2">
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={16}
+                          color="#059669"
+                        />
+                        <Text className="text-sm text-green-600 ml-1">
+                          No ripe fruits for this harvest
+                        </Text>
+                      </View>
+                    )}
+
                     <View className="mb-2">
                       <Text className="text-xs text-gray-500 uppercase tracking-wide">
                         Harvest Date
@@ -799,28 +910,32 @@ export default function AllHarvest() {
                 </View>
 
                 {/* Weights Section */}
-                {selectedHarvest.fruit_weights &&
-                  selectedHarvest.fruit_weights.length > 0 && (
-                    <View className="mb-6">
-                      <View className="flex-row items-center mb-3">
-                        <View className="w-10 h-10 bg-blue-500 rounded-xl items-center justify-center">
-                          <MaterialCommunityIcons
-                            name="weight"
-                            size={20}
-                            color="white"
-                          />
-                        </View>
-                        <Text className="text-lg font-bold text-gray-800 ml-3">
-                          Fruit Weights
-                        </Text>
-                      </View>
-                      <View className="bg-gray-50 rounded-xl p-4">
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-blue-500 rounded-xl items-center justify-center">
+                      <MaterialCommunityIcons
+                        name="weight"
+                        size={20}
+                        color="white"
+                      />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      Fruit Weights
+                    </Text>
+                  </View>
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    {selectedHarvest.fruit_weights &&
+                    selectedHarvest.fruit_weights.length > 0 ? (
+                      <>
                         <View className="mb-2">
                           <Text className="text-xs text-gray-500 uppercase tracking-wide">
                             Total Weight
                           </Text>
                           <Text className="text-base font-semibold text-gray-800">
-                            {selectedHarvest.total_weight.toFixed(2)} kg
+                            {selectedHarvest.fruit_weights
+                              .reduce((sum, w) => sum + (w.weight || 0), 0)
+                              .toFixed(2)}{" "}
+                            kg
                           </Text>
                         </View>
                         <View>
@@ -838,29 +953,46 @@ export default function AllHarvest() {
                             ),
                           )}
                         </View>
-                      </View>
-                    </View>
-                  )}
-
-                {/* Wastes Section */}
-                {selectedHarvest.wastes &&
-                  selectedHarvest.wastes.length > 0 && (
-                    <View className="mb-6">
-                      <View className="flex-row items-center mb-3">
-                        <View className="w-10 h-10 bg-red-500 rounded-xl items-center justify-center">
-                          <Ionicons name="trash" size={20} color="white" />
-                        </View>
-                        <Text className="text-lg font-bold text-gray-800 ml-3">
-                          Waste Details
+                      </>
+                    ) : (
+                      <View className="flex-row items-center justify-center py-4">
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color="#059669"
+                        />
+                        <Text className="text-sm text-green-600 font-medium ml-2">
+                          No fruit weights recorded
                         </Text>
                       </View>
-                      <View className="bg-gray-50 rounded-xl p-4">
+                    )}
+                  </View>
+                </View>
+
+                {/* Wastes Section */}
+                <View className="mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <View className="w-10 h-10 bg-red-500 rounded-xl items-center justify-center">
+                      <Ionicons name="trash" size={20} color="white" />
+                    </View>
+                    <Text className="text-lg font-bold text-gray-800 ml-3">
+                      Waste Details
+                    </Text>
+                  </View>
+                  <View className="bg-gray-50 rounded-xl p-4">
+                    {selectedHarvest.wastes &&
+                    selectedHarvest.wastes.length > 0 ? (
+                      <>
                         <View className="mb-2">
                           <Text className="text-xs text-gray-500 uppercase tracking-wide">
                             Total Waste
                           </Text>
                           <Text className="text-base font-semibold text-red-600">
-                            {selectedHarvest.total_waste} pcs
+                            {selectedHarvest.wastes.reduce(
+                              (sum, w) => sum + (w.waste_quantity || 0),
+                              0,
+                            )}{" "}
+                            pcs
                           </Text>
                         </View>
                         <View>
@@ -873,9 +1005,21 @@ export default function AllHarvest() {
                             </Text>
                           ))}
                         </View>
+                      </>
+                    ) : (
+                      <View className="flex-row items-center justify-center py-4">
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color="#059669"
+                        />
+                        <Text className="text-sm text-green-600 font-medium ml-2">
+                          No waste for this harvest
+                        </Text>
                       </View>
-                    </View>
-                  )}
+                    )}
+                  </View>
+                </View>
               </ScrollView>
             )}
 
@@ -918,7 +1062,6 @@ export default function AllHarvest() {
       </Modal>
     );
   };
-
   if (loading && !refreshing) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
@@ -981,7 +1124,11 @@ export default function AllHarvest() {
         </View>
 
         {/* Active Filters Chips */}
-        {(selectedStatus !== "all" || selectedUserId || fromDate || toDate) && (
+        {(selectedStatus !== "all" ||
+          selectedUserId ||
+          selectedTreeId ||
+          fromDate ||
+          toDate) && (
           <View className="flex-row flex-wrap gap-2 mt-3">
             {selectedStatus !== "all" && (
               <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
@@ -998,6 +1145,7 @@ export default function AllHarvest() {
                 </TouchableOpacity>
               </View>
             )}
+
             {selectedUserId && users.find((u) => u.id === selectedUserId) && (
               <View className="bg-purple-100 px-3 py-1 rounded-full flex-row items-center">
                 <Text className="text-xs text-purple-700">
@@ -1012,6 +1160,24 @@ export default function AllHarvest() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* Tree Filter Chip - ITO ANG IDAGDAG */}
+            {selectedTreeId && trees.find((t) => t.id === selectedTreeId) && (
+              <View className="bg-orange-100 px-3 py-1 rounded-full flex-row items-center">
+                <MaterialCommunityIcons name="tree" size={12} color="#ea580c" />
+                <Text className="text-xs text-orange-700 ml-1">
+                  Tree:{" "}
+                  {trees.find((t) => t.id === selectedTreeId)?.description}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedTreeId("")}
+                  className="ml-2"
+                >
+                  <Ionicons name="close-circle" size={14} color="#ea580c" />
+                </TouchableOpacity>
+              </View>
+            )}
+
             {fromDate && (
               <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
                 <Text className="text-xs text-green-700">
@@ -1025,6 +1191,7 @@ export default function AllHarvest() {
                 </TouchableOpacity>
               </View>
             )}
+
             {toDate && (
               <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
                 <Text className="text-xs text-green-700">
@@ -1038,6 +1205,7 @@ export default function AllHarvest() {
                 </TouchableOpacity>
               </View>
             )}
+
             <TouchableOpacity onPress={resetFilters}>
               <View className="bg-gray-100 px-3 py-1 rounded-full">
                 <Text className="text-xs text-gray-600">Clear All</Text>

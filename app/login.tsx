@@ -16,6 +16,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import Toast from "react-native-toast-message";
 import { useDispatch } from "react-redux";
 import { z } from "zod";
+import Baybaylogo from "../assets/images/logo/baybaylogo.png";
 import { login } from "../redux/slices/authSlice";
 import { AppDispatch } from "../redux/store";
 
@@ -114,12 +115,14 @@ export default function LoginScreen() {
         {/* Header */}
         <View className="items-center mb-10">
           <Image
-            source={require("../assets/images/logo/logo.png")}
+            source={Baybaylogo}
             className="w-24 h-24 mb-2"
             resizeMode="contain"
           />
-          <Text className="text-3xl font-bold text-green-700">WrapCrop</Text>
-          <Text className="text-gray-600 mt-2">Smart Farming Platform</Text>
+          <Text className="text-xl font-bold text-green-700">
+            IMYV Jackfruit Farm
+          </Text>
+          <Text className="text-gray-600 mt-1">Powered by WrapCrop</Text>
         </View>
 
         {/* Login Form */}
@@ -209,13 +212,11 @@ export default function LoginScreen() {
           {/* Login Button */}
           <TouchableOpacity
             className={`w-full rounded-xl py-4 ${
-              loading || !isValid
-                ? "bg-emerald-300" // ← ITO ANG BAGONG BG COLOR (light green kapag disabled)
-                : "bg-emerald-600" // ← ITO NAMAN (dark green kapag active)
-            } shadow-sm`} // ← DINAGDAG: shadow effect
+              loading || !isValid ? "bg-emerald-300" : "bg-emerald-600"
+            } shadow-sm`}
             onPress={handleSubmit(handleLogin)}
             disabled={loading || !isValid}
-            activeOpacity={0.8} // ← DINAGDAG: nagfa-fade kapag pinindot
+            activeOpacity={0.8}
           >
             {loading ? (
               <View className="flex-row items-center justify-center gap-2">

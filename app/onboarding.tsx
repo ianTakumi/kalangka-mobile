@@ -45,7 +45,7 @@ export default function OnboardingScreen() {
   const slides = [
     {
       title: "Welcome to WrapCrop",
-      description: "Your Smart Farming Companion for Jackfruit Plantations",
+      description: "Your Digital Farming Companion for Jackfruit Farm",
       icon: <Trees size={64} color="#059669" />,
       color: "bg-emerald-50",
       iconColor: "#059669",
@@ -155,10 +155,10 @@ export default function OnboardingScreen() {
       <View className="pt-6 px-6 items-center">
         <View className="flex-row items-center gap-2">
           <Leaf size={24} color="#059669" />
-          <Text className="text-2xl font-bold text-emerald-700">WrapCrop</Text>
+          <Text className="text-2xl font-bold text-emerald-700">IMYV</Text>
         </View>
         <Text className="text-sm text-gray-500 mt-1">
-          Smart Farming Platform
+          Farm Management Solution for Jackfruit Farm
         </Text>
       </View>
 
