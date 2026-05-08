@@ -32,6 +32,7 @@ import {
 } from "react-native";
 import Toast from "react-native-toast-message";
 
+import * as MediaLibrary from "expo-media-library";
 // Create directory for tree images
 const TREE_IMAGES_DIR = FileSystem.documentDirectory + "tree_images/";
 
@@ -58,6 +59,7 @@ export default function TreesScreen() {
   const router = useRouter();
   const [hasSyncedFromServer, setHasSyncedFromServer] = useState(false);
   const [serverTreeCount, setServerTreeCount] = useState(0);
+  const [isDownloadingImages, setIsDownloadingImages] = useState(false);
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -114,6 +116,110 @@ export default function TreesScreen() {
   useEffect(() => {
     applySearchAndSort();
   }, [trees, searchQuery, sortOrder, sortField]);
+
+  const handleDownloadAllImages = async () => {
+    console.log("========================================");
+    console.log("🟢 START: Download All Images to Gallery");
+    console.log("========================================");
+
+    setIsDownloadingImages(true);
+
+    try {
+      // STEP 1: Request permission
+      console.log("📋 STEP 1: Requesting media library permission...");
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      console.log(`📋 Permission status: ${status}`);
+
+      if (status !== "granted") {
+        console.log("❌ Permission denied");
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to media library",
+        );
+        setIsDownloadingImages(false);
+        return;
+      }
+      console.log("✅ Permission granted");
+
+      // STEP 2: Get all trees
+      console.log("📋 STEP 2: Fetching all trees...");
+      const allTrees = await TreeService.getTrees();
+      console.log(`📊 Total trees loaded: ${allTrees.length}`);
+
+      // STEP 3: Filter trees with local images
+      const treesWithLocalImages = allTrees.filter(
+        (tree: any) => tree.image_path && tree.image_path.startsWith("file://"),
+      );
+      console.log(
+        `📊 Trees with local (file://) images: ${treesWithLocalImages.length}`,
+      );
+
+      if (treesWithLocalImages.length === 0) {
+        console.log("❌ No local images found");
+        Alert.alert(
+          "No Images",
+          `Found ${allTrees.length} trees but 0 with local images.`,
+        );
+        setIsDownloadingImages(false);
+        return;
+      }
+
+      // STEP 4: Save images directly to gallery (NO ALBUM)
+      console.log(
+        `\n📋 STEP 4: Saving ${treesWithLocalImages.length} images directly to gallery...`,
+      );
+      let success = 0;
+      let failed = 0;
+
+      for (let i = 0; i < treesWithLocalImages.length; i++) {
+        const tree = treesWithLocalImages[i] as any;
+        console.log(`\n--- Image ${i + 1}/${treesWithLocalImages.length} ---`);
+        console.log(`  Tree: ${tree.description}`);
+
+        try {
+          // Check file exists
+          const fileInfo = await FileSystem.getInfoAsync(tree.image_path);
+          console.log(`  File exists: ${fileInfo.exists}`);
+
+          if (!fileInfo.exists) {
+            console.log(`  ❌ FAILED: File not found`);
+            failed++;
+            continue;
+          }
+
+          // Save directly to gallery
+          console.log(`  Saving to gallery...`);
+          const asset = await MediaLibrary.createAssetAsync(tree.image_path);
+          console.log(`  ✅ SUCCESS: Saved (asset ID: ${asset.id})`);
+
+          success++;
+        } catch (error: any) {
+          console.log(`  ❌ ERROR: ${error.message}`);
+          failed++;
+        }
+      }
+
+      console.log("\n========================================");
+      console.log("🟢 COMPLETE");
+      console.log(`  Success: ${success}`);
+      console.log(`  Failed: ${failed}`);
+      console.log("========================================");
+
+      Alert.alert(
+        "Download Complete",
+        `Successfully saved: ${success} images\nFailed: ${failed} images\n\nImages saved to your phone gallery.`,
+      );
+    } catch (error: any) {
+      console.log("\n========================================");
+      console.log("🔴 FATAL ERROR");
+      console.log(`  Message: ${error.message}`);
+      console.log("========================================");
+
+      Alert.alert("Error", `Failed: ${error.message}`);
+    } finally {
+      setIsDownloadingImages(false);
+    }
+  };
 
   const applySearchAndSort = () => {
     let result = [...trees];
@@ -940,6 +1046,19 @@ export default function TreesScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* <TouchableOpacity
+        onPress={handleDownloadAllImages}
+        disabled={isDownloadingImages}
+        className="bg-blue-600 px-4 py-2 rounded-xl flex-row items-center justify-center"
+      >
+        {isDownloadingImages ? (
+          <ActivityIndicator size="small" color="white" />
+        ) : (
+          <Text className="text-white font-semibold">
+            📥 Save All to Gallery
+          </Text>
+        )}
+      </TouchableOpacity> */}
       {/* Tree List */}
       <FlatList
         data={filteredTrees}

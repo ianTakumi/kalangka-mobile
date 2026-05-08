@@ -16,7 +16,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import Toast from "react-native-toast-message";
 import { useDispatch } from "react-redux";
 import { z } from "zod";
-import Baybaylogo from "../assets/images/logo/baybaylogo.png";
+import Baybaylogo from "../assets/images/logo/imyvVer2-.png";
 import { login } from "../redux/slices/authSlice";
 import { AppDispatch } from "../redux/store";
 
@@ -169,7 +169,7 @@ export default function LoginScreen() {
           </View>
 
           {/* Password Input */}
-          <View className="mb-6">
+          <View className="">
             <Text className="text-gray-700 mb-2 font-medium">Password</Text>
             <View
               className={`flex-row items-center border rounded-xl px-4 ${
@@ -207,6 +207,27 @@ export default function LoginScreen() {
                 {errors.password.message}
               </Text>
             )}
+          </View>
+
+          {/* Forgot Password Link */}
+          {/* Forgot Password Link */}
+          <View className="mb-6 flex-row justify-end">
+            <TouchableOpacity
+              onPress={() => {
+                console.log("Forgot Password pressed");
+                router.push("/ForgotPassword");
+              }}
+              activeOpacity={0.7}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 5,
+                minHeight: 44, // Minimum touch target size
+              }}
+            >
+              <Text className="text-emerald-600 font-medium text-sm">
+                Forgot Password?
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Login Button */}

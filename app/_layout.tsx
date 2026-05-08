@@ -78,6 +78,7 @@ function AppContent() {
       <Stack.Screen name="createuser" options={{ headerShown: false }} />
       <Stack.Screen name="edituser" options={{ headerShown: false }} />
       <Stack.Screen name="harvest" options={{ headerShown: false }} />
+      <Stack.Screen name="ForgotPassword" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSelector } from "react-redux";
-import baybaylogo from "../assets/images/logo/baybaylogo.png";
+import baybaylogo from "../assets/images/logo/imyvVer2-.png";
 import { RootState } from "../redux/store";
 export default function Index() {
   const [isChecking, setIsChecking] = useState(true);

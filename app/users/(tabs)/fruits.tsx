@@ -159,6 +159,43 @@ export default function FruitsScreen() {
     return () => unsubscribe();
   }, []);
 
+  const validateFruitQuantity = (flowerId: string, fruitQuantity: number) => {
+    if (!flowerId || withoutFlower) return true; // Skip validation if no flower or manual entry
+
+    const flower = flowers.find((f) => f.id === flowerId);
+    if (!flower) return false;
+
+    // Get existing fruits for this flower
+    const existingFruits = fruits.filter((f) => f.flower_id === flowerId);
+    const totalExistingQuantity = existingFruits.reduce((sum, fruit) => {
+      // Don't count the current editing fruit if updating
+      if (editingFruit && fruit.id === editingFruit.id) return sum;
+      return sum + (fruit.quantity || 0);
+    }, 0);
+
+    const remainingCapacity = flower.quantity - totalExistingQuantity;
+
+    if (fruitQuantity > remainingCapacity) {
+      Toast.show({
+        type: "error",
+        text1: "Validation Error",
+        text2: `Cannot exceed flower quantity. Remaining capacity: ${remainingCapacity} of ${flower.quantity} flowers`,
+      });
+      return false;
+    }
+
+    if (fruitQuantity > flower.quantity) {
+      Toast.show({
+        type: "error",
+        text1: "Validation Error",
+        text2: `Fruit quantity (${fruitQuantity}) cannot exceed flower quantity (${flower.quantity})`,
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
@@ -285,6 +322,13 @@ export default function FruitsScreen() {
       return;
     }
 
+    // Validate fruit quantity against flower quantity
+    if (!withoutFlower && formData.flower_id) {
+      if (!validateFruitQuantity(formData.flower_id, quantity)) {
+        return; // Stop if validation fails
+      }
+    }
+
     try {
       setIsSubmitting(true);
       setCreating(true);
@@ -365,6 +409,13 @@ export default function FruitsScreen() {
         text2: "Enter valid quantity",
       });
       return;
+    }
+
+    // Validate fruit quantity against flower quantity (if updating flower-related fruit)
+    if (!withoutFlower && formData.flower_id) {
+      if (!validateFruitQuantity(formData.flower_id, quantity)) {
+        return; // Stop if validation fails
+      }
     }
 
     try {
@@ -504,7 +555,13 @@ export default function FruitsScreen() {
             </View>
 
             <FlatList
-              data={flowers}
+              data={flowers.filter((flower) => {
+                // Check if this flower already has any fruit linked to it
+                const hasExistingFruit = fruits.some(
+                  (f) => f.flower_id === flower.id,
+                );
+                return !hasExistingFruit; // Hide if may existing fruit na
+              })}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 20 }}
@@ -747,7 +804,7 @@ export default function FruitsScreen() {
             <ArrowLeft size={24} color="#374151" />
           </TouchableOpacity>
           <Text className="flex-1 text-xl font-bold text-gray-800">
-            {displayTreeName} Fruits
+            {displayTreeName} Fruits test
           </Text>
           <View className="flex-row items-center">
             {isOnline ? (
@@ -1068,6 +1125,38 @@ export default function FruitsScreen() {
                   autoFocus={true}
                 />
               </View>
+              {/* Quantity validation warning */}
+              {!withoutFlower &&
+                selectedFlower &&
+                (() => {
+                  const existingFruits = fruits.filter(
+                    (f) =>
+                      f.flower_id === selectedFlower.id &&
+                      (!editingFruit || f.id !== editingFruit.id),
+                  );
+                  const usedQuantity = existingFruits.reduce(
+                    (sum, f) => sum + (f.quantity || 0),
+                    0,
+                  );
+                  const remaining = selectedFlower.quantity - usedQuantity;
+                  const inputQty = parseInt(formData.quantity) || 0;
+
+                  if (inputQty > remaining) {
+                    return (
+                      <View className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                        <Text className="text-red-600 text-sm font-medium">
+                          ⚠️ Quantity too large!
+                        </Text>
+                        <Text className="text-red-500 text-xs mt-1">
+                          Maximum allowed: {remaining} (Flower has{" "}
+                          {selectedFlower.quantity} total, {usedQuantity}{" "}
+                          already used)
+                        </Text>
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
 
               {/* Bagged Date */}
               <View className="mb-6">
@@ -1132,11 +1221,30 @@ export default function FruitsScreen() {
                     Cancel
                   </Text>
                 </TouchableOpacity>
+                {/* Submit Button */}
                 <TouchableOpacity
                   className={`flex-1 py-4 rounded-xl flex-row items-center justify-center ${
                     isSubmitting || creating || updating
                       ? "bg-indigo-300"
-                      : "bg-indigo-500"
+                      : !withoutFlower &&
+                          selectedFlower &&
+                          (() => {
+                            const existingFruits = fruits.filter(
+                              (f) =>
+                                f.flower_id === selectedFlower.id &&
+                                (!editingFruit || f.id !== editingFruit.id),
+                            );
+                            const usedQuantity = existingFruits.reduce(
+                              (sum, f) => sum + (f.quantity || 0),
+                              0,
+                            );
+                            const remaining =
+                              selectedFlower.quantity - usedQuantity;
+                            const inputQty = parseInt(formData.quantity) || 0;
+                            return inputQty > remaining;
+                          })()
+                        ? "bg-red-400"
+                        : "bg-indigo-500"
                   }`}
                   onPress={editingFruit ? handleUpdate : handleCreate}
                   disabled={
@@ -1144,7 +1252,24 @@ export default function FruitsScreen() {
                     creating ||
                     updating ||
                     (!withoutFlower && !selectedFlower && !editingFruit) ||
-                    !formData.image_url // Add this line - disable if no image
+                    // ADD THIS: Disable if quantity exceeds remaining capacity
+                    (!withoutFlower &&
+                      selectedFlower &&
+                      (() => {
+                        const existingFruits = fruits.filter(
+                          (f) =>
+                            f.flower_id === selectedFlower.id &&
+                            (!editingFruit || f.id !== editingFruit.id),
+                        );
+                        const usedQuantity = existingFruits.reduce(
+                          (sum, f) => sum + (f.quantity || 0),
+                          0,
+                        );
+                        const remaining =
+                          selectedFlower.quantity - usedQuantity;
+                        const inputQty = parseInt(formData.quantity) || 0;
+                        return inputQty > remaining;
+                      })())
                   }
                 >
                   {isSubmitting || creating || updating ? (

@@ -6,6 +6,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { decode } from "base64-arraybuffer";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Location from "expo-location";
+import * as MediaLibrary from "expo-media-library";
 import * as SQLite from "expo-sqlite";
 
 class TreeService {
@@ -511,6 +512,99 @@ class TreeService {
     }
   }
 
+  async downloadAllImagesToGallery(): Promise<{
+    success: number;
+    failed: number;
+  }> {
+    await this.ensureDatabaseReady();
+    await this.initImagesDirectory();
+
+    let success = 0;
+    let failed = 0;
+
+    try {
+      // STEP 1: Request media library permission
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+
+      if (status !== "granted") {
+        console.error("❌ Media library permission denied");
+        return { success: 0, failed: 0 };
+      }
+
+      // STEP 2: Get all trees that have local images
+      const trees = await this.db!.getAllAsync<{
+        id: string;
+        description: string;
+        image_path: string;
+      }>(
+        "SELECT id, description, image_path FROM trees WHERE image_path IS NOT NULL AND image_path != ''",
+      );
+
+      console.log(`📸 Found ${trees.length} trees with images`);
+
+      if (trees.length === 0) {
+        console.log("No images to download");
+        return { success: 0, failed: 0 };
+      }
+
+      // STEP 3: Create album name
+      const albumName = "Kalangka Trees";
+      let album = await MediaLibrary.getAlbumWithTitleAsync(albumName);
+
+      if (!album) {
+        album = await MediaLibrary.createAlbumAsync(albumName);
+        console.log(`📁 Created album: ${albumName}`);
+      }
+
+      // STEP 4: Save each image
+      for (let i = 0; i < trees.length; i++) {
+        const tree = trees[i];
+
+        try {
+          // Check if file exists
+          const fileExists = await this.checkFileExists(tree.image_path);
+
+          if (!fileExists) {
+            console.warn(
+              `⚠️ Image not found for tree ${tree.description}: ${tree.image_path}`,
+            );
+            failed++;
+            continue;
+          }
+
+          // Save to gallery
+          const asset = await MediaLibrary.createAssetAsync(tree.image_path);
+
+          // Add to album
+          if (album) {
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          }
+
+          success++;
+
+          // Log progress every 10 images
+          if (success % 10 === 0 || i === trees.length - 1) {
+            console.log(
+              `✅ Saved ${success}/${trees.length} images to gallery`,
+            );
+          }
+        } catch (error) {
+          console.error(
+            `❌ Failed to save image for tree ${tree.description}:`,
+            error,
+          );
+          failed++;
+        }
+      }
+
+      console.log(`✅ Done! Saved: ${success}, Failed: ${failed}`);
+      return { success, failed };
+    } catch (error) {
+      console.error("❌ Error downloading images to gallery:", error);
+      return { success, failed };
+    }
+  }
+
   // Create a new tree
   async createTree(
     treeData: Omit<Tree, "id" | "created_at" | "updated_at">,
@@ -869,7 +963,7 @@ class TreeService {
 
       // 5. Upload directly to Supabase Storage - BUCKET NAME: 'kalangka'
       const { data, error } = await supabase.storage
-        .from("kalangka") // ✅ ITO NA ANG BAGONG BUCKET NAME
+        .from("kalangka")
         .upload(filePath, arrayBuffer, {
           contentType: "image/jpeg",
           upsert: false, // Don't overwrite existing files
