@@ -147,6 +147,79 @@ class FlowerService {
     }
   }
 
+  async getFlowersWithoutFruits(treeId?: string): Promise<Flower[]> {
+    await this.ensureDatabaseReady();
+
+    try {
+      // Get all flowers with their fruit counts using LEFT JOIN
+      let query = `
+      SELECT 
+        f.*,
+        u.id as user_id_alias,
+        u.first_name as user_first_name,
+        u.last_name as user_last_name,
+        u.email as user_email,
+        u.gender as user_gender,
+        u.role as user_role,
+        u.created_at as user_created_at,
+        u.updated_at as user_updated_at,
+        COUNT(fr.id) as fruits_count
+      FROM flowers f
+      LEFT JOIN users u ON f.user_id = u.id
+      LEFT JOIN fruits fr ON fr.flower_id = f.id AND fr.deleted_at IS NULL
+      WHERE f.deleted_at IS NULL
+    `;
+
+      const params: any[] = [];
+
+      if (treeId) {
+        query += " AND f.tree_id = ?";
+        params.push(treeId);
+      }
+
+      query += " GROUP BY f.id";
+      query += " HAVING COUNT(fr.id) = 0"; // Only flowers with no fruits
+      query += " ORDER BY f.wrapped_at DESC";
+
+      const result = await this.db!.getAllAsync(query, params);
+      console.log(
+        `Found ${result.length} flowers without fruits${treeId ? ` for tree ${treeId}` : ""}`,
+      );
+
+      return result.map((row: any) => {
+        const flower = this.mapFlowerFromDB(row);
+
+        // Attach fruits count
+        (flower as any).fruits_count = row.fruits_count || 0;
+
+        // Attach user data if available
+        if (row.user_id_alias) {
+          (flower as any).user = {
+            id: row.user_id_alias,
+            first_name: row.user_first_name || "",
+            last_name: row.user_last_name || "",
+            email: row.user_email || "",
+            gender: row.user_gender || "",
+            role: row.user_role || "",
+            created_at: row.user_created_at
+              ? new Date(row.user_created_at)
+              : null,
+            updated_at: row.user_updated_at
+              ? new Date(row.user_updated_at)
+              : null,
+          };
+        }
+
+        return flower;
+      });
+    } catch (error) {
+      console.error("Error fetching flowers without fruits:", error);
+      throw new Error(
+        "Failed to fetch flowers without fruits. Please try again.",
+      );
+    }
+  }
+
   async getFlowersByTreeId(
     treeId: string,
     includeDeleted: boolean = false,

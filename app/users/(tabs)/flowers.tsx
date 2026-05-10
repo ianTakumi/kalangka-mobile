@@ -213,10 +213,8 @@ export default function FlowersScreen() {
   const loadFlowers = async (treeIdParam?: string) => {
     try {
       const effectiveTreeId = treeIdParam || treeId || storedTreeData?.id;
-      const data = await FlowerService.getFlowersByTreeId(
-        effectiveTreeId,
-        false,
-      );
+      const data = await FlowerService.getFlowersWithoutFruits(effectiveTreeId);
+
       console.log("Loaded flowers:", data);
       setFlowers(data);
     } catch (error) {
