@@ -16,9 +16,9 @@ import {
   CloudOff,
   Flower2,
   MapPin,
-  Package,
   QrCode,
   RefreshCw,
+  Sprout,
   Trees,
   User,
 } from "lucide-react-native";
@@ -88,7 +88,7 @@ export default function FarmerHomeScreen() {
       id: 4,
       title: "View Harvests",
       description: "All harvests list",
-      icon: <Package size={28} color="#16A34A" />,
+      icon: <Sprout size={28} color="#16A34A" />,
       bgColor: "bg-lime-50",
       iconColor: "text-lime-600",
       route: "/admin/allHarvest",
@@ -240,7 +240,7 @@ export default function FarmerHomeScreen() {
       id: "totalHarvests",
       title: "Harvested Fruits",
       value: userStats.totalHarvests,
-      icon: <Package size={24} color="#3B82F6" />,
+      icon: <Sprout size={24} color="#3B82F6" />,
       iconBgColor: "bg-blue-100",
       route: "/admin/allHarvest",
       subtitle: "This year",
@@ -407,7 +407,7 @@ export default function FarmerHomeScreen() {
           ) : fruitsWithoutHarvest.length === 0 ? (
             <View className="bg-white rounded-2xl p-8 items-center border border-orange-100 shadow-sm">
               <View className="w-16 h-16 bg-orange-50 rounded-full items-center justify-center mb-3">
-                <Package size={32} color="#F97316" />
+                <Sprout size={32} color="#F97316" />
               </View>
               <Text className="text-lg font-medium text-gray-900 mb-1">
                 All Caught Up! 🎉
@@ -421,7 +421,7 @@ export default function FarmerHomeScreen() {
               <View className="flex-row items-center justify-between mb-4 px-2">
                 <View className="flex-row items-center">
                   <View className="w-12 h-12 bg-orange-100 rounded-full items-center justify-center mr-3">
-                    <Package size={24} color="#F97316" />
+                    <Sprout size={24} color="#F97316" />
                   </View>
                   <View>
                     <Text className="text-2xl font-bold text-gray-900">
@@ -501,7 +501,7 @@ export default function FarmerHomeScreen() {
                             </Text>
                           </View>
                           <View className="flex-row items-center">
-                            <Package size={12} color="#6B7280" />
+                            <Sprout size={12} color="#6B7280" />
                             <Text className="text-xs text-gray-500 ml-1">
                               Qty: {fruit.quantity || 1}
                             </Text>

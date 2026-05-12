@@ -143,7 +143,15 @@ export default function AllFlowers() {
             ]),
           ).values(),
         );
-        setTrees(uniqueTrees);
+        // Add sorting here - sort alphabetically by description
+        setTrees(
+          uniqueTrees.sort((a, b) =>
+            a.description.localeCompare(b.description, undefined, {
+              numeric: true,
+              sensitivity: "base",
+            }),
+          ),
+        );
       }
     } catch (error) {
       console.error("Error fetching flowers:", error);

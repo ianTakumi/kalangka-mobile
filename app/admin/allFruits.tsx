@@ -170,8 +170,14 @@ export default function AllFruits() {
             localFruits.data.map((fruit: Fruit) => [fruit.tree.id, fruit.tree]),
           ).values(),
         );
-        setTrees(uniqueTrees);
-
+        setTrees(
+          uniqueTrees.sort((a, b) =>
+            a.description.localeCompare(b.description, undefined, {
+              numeric: true,
+              sensitivity: "base",
+            }),
+          ),
+        );
         console.log(
           `✅ Loaded ${localFruits.data.length} fruits from local database`,
         );
