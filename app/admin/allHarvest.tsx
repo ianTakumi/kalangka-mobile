@@ -93,7 +93,8 @@ export default function AllHarvest() {
   const [isAtBottom, setIsAtBottom] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
-
+  const [selectedTreeType, setSelectedTreeType] = useState<string>("");
+  const [tempSelectedTreeType, setTempSelectedTreeType] = useState<string>("");
   useEffect(() => {
     fetchHarvests();
   }, []);
@@ -105,6 +106,7 @@ export default function AllHarvest() {
     selectedStatus,
     selectedUserId,
     selectedTreeId,
+    selectedTreeType,
     fromDate,
     toDate,
     searchQuery,
@@ -200,6 +202,11 @@ export default function AllHarvest() {
       );
     }
 
+    if (selectedTreeType) {
+      filtered = filtered.filter(
+        (harvest) => harvest.fruit?.tree?.type === selectedTreeType,
+      );
+    }
     // Date filters
     if (fromDate) {
       filtered = filtered.filter(
@@ -219,6 +226,7 @@ export default function AllHarvest() {
     setTempSelectedStatus(selectedStatus);
     setTempSelectedUserId(selectedUserId);
     setTempSelectedTreeId(selectedTreeId);
+    setTempSelectedTreeType(selectedTreeType);
     setTempFromDate(fromDate);
     setTempToDate(toDate);
     setFilterModalVisible(true);
@@ -230,6 +238,7 @@ export default function AllHarvest() {
     setSelectedTreeId(tempSelectedTreeId);
     setFromDate(tempFromDate);
     setToDate(tempToDate);
+    setSelectedTreeType(tempSelectedTreeType);
     setFilterModalVisible(false);
   };
 
@@ -237,11 +246,14 @@ export default function AllHarvest() {
     setSelectedStatus("all");
     setSelectedUserId("");
     setSelectedTreeId("");
+    setSelectedTreeType(""); // ADD THIS
     setFromDate("");
     setToDate("");
     setSearchQuery("");
     setTempSelectedStatus("all");
     setTempSelectedUserId("");
+    setTempSelectedTreeId("");
+    setTempSelectedTreeType(""); // ADD THIS
     setTempFromDate("");
     setTempToDate("");
     setFilterModalVisible(false);
@@ -575,6 +587,61 @@ export default function AllHarvest() {
               </ScrollView>
             </View>
 
+            {/* Tree Type Filter - ADD THIS */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-3">
+                <View className="w-10 h-10 bg-emerald-500 rounded-xl items-center justify-center">
+                  <Ionicons name="leaf" size={20} color="white" />
+                </View>
+                <Text className="text-lg font-bold text-gray-800 ml-3">
+                  Filter by Tree Type
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="flex-row"
+              >
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    className={`px-4 py-2 rounded-full ${
+                      !tempSelectedTreeType ? "bg-green-600" : "bg-gray-100"
+                    }`}
+                    onPress={() => setTempSelectedTreeType("")}
+                  >
+                    <Text
+                      className={`text-sm ${
+                        !tempSelectedTreeType ? "text-white" : "text-gray-700"
+                      }`}
+                    >
+                      All Types
+                    </Text>
+                  </TouchableOpacity>
+                  {["Langka", "Papaya", "Durian"].map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      className={`px-4 py-2 rounded-full ${
+                        tempSelectedTreeType === type
+                          ? "bg-green-600"
+                          : "bg-gray-100"
+                      }`}
+                      onPress={() => setTempSelectedTreeType(type)}
+                    >
+                      <Text
+                        className={`text-sm ${
+                          tempSelectedTreeType === type
+                            ? "text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
             {/* Date Range Filter */}
             <View className="mb-6">
               <View className="flex-row items-center mb-3">
@@ -617,6 +684,8 @@ export default function AllHarvest() {
               {/* Active Filters Summary */}
               {(tempSelectedStatus !== "all" ||
                 tempSelectedUserId ||
+                tempSelectedTreeId ||
+                tempSelectedTreeType ||
                 tempFromDate ||
                 tempToDate) && (
                 <View className="mt-4 p-3 bg-gray-50 rounded-xl">
@@ -645,6 +714,25 @@ export default function AllHarvest() {
                           </Text>
                         </View>
                       )}
+                    {tempSelectedTreeId &&
+                      trees.find((t) => t.id === tempSelectedTreeId) && (
+                        <View className="bg-orange-100 px-2 py-1 rounded-full">
+                          <Text className="text-xs text-orange-700">
+                            Tree:{" "}
+                            {
+                              trees.find((t) => t.id === tempSelectedTreeId)
+                                ?.description
+                            }
+                          </Text>
+                        </View>
+                      )}
+                    {tempSelectedTreeType && (
+                      <View className="bg-emerald-100 px-2 py-1 rounded-full">
+                        <Text className="text-xs text-emerald-700">
+                          Type: {tempSelectedTreeType}
+                        </Text>
+                      </View>
+                    )}
                     {tempFromDate && (
                       <View className="bg-green-100 px-2 py-1 rounded-full">
                         <Text className="text-xs text-green-700">
@@ -665,8 +753,13 @@ export default function AllHarvest() {
             </View>
           </ScrollView>
 
-          {/* Action Buttons */}
-          <View className="p-5 pt-0 gap-3">
+          {/* Action Buttons - FIXED WITH ANDROID SAFE AREA */}
+          <View
+            style={{
+              paddingBottom: insets.bottom + 16,
+            }}
+            className="px-5 pt-0 gap-3 bg-white"
+          >
             <TouchableOpacity
               className="bg-green-600 py-3 rounded-xl"
               onPress={applyFilterChanges}
@@ -1127,6 +1220,7 @@ export default function AllHarvest() {
         {(selectedStatus !== "all" ||
           selectedUserId ||
           selectedTreeId ||
+          selectedTreeType ||
           fromDate ||
           toDate) && (
           <View className="flex-row flex-wrap gap-2 mt-3">
@@ -1178,6 +1272,20 @@ export default function AllHarvest() {
               </View>
             )}
 
+            {selectedTreeType && (
+              <View className="bg-emerald-100 px-3 py-1 rounded-full flex-row items-center">
+                <Ionicons name="leaf" size={12} color="#059669" />
+                <Text className="text-xs text-emerald-700 ml-1">
+                  Type: {selectedTreeType}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedTreeType("")}
+                  className="ml-2"
+                >
+                  <Ionicons name="close-circle" size={14} color="#059669" />
+                </TouchableOpacity>
+              </View>
+            )}
             {fromDate && (
               <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
                 <Text className="text-xs text-green-700">

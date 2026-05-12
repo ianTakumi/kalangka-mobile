@@ -109,6 +109,8 @@ export default function AllFruits() {
   const [selectedFruit, setSelectedFruit] = useState<Fruit | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+  const [selectedTreeType, setSelectedTreeType] = useState<string>("");
+  const [tempTreeType, setTempTreeType] = useState<string>("");
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -136,6 +138,7 @@ export default function AllFruits() {
     fruits,
     selectedUserId,
     selectedTreeId,
+    selectedTreeType, // ADD THIS
     selectedTagId,
     fromDate,
     toDate,
@@ -241,6 +244,12 @@ export default function AllFruits() {
       filtered = filtered.filter((fruit) => fruit.user.id === selectedUserId);
     }
 
+    if (selectedTreeType) {
+      filtered = filtered.filter(
+        (fruit) => fruit.tree.type === selectedTreeType,
+      );
+    }
+
     if (selectedTreeId) {
       filtered = filtered.filter((fruit) => fruit.tree.id === selectedTreeId);
     }
@@ -266,6 +275,7 @@ export default function AllFruits() {
   const openFilterModal = () => {
     setTempUserId(selectedUserId);
     setTempTreeId(selectedTreeId);
+    setTempTreeType(selectedTreeType);
     setTempTagId(selectedTagId);
     setTempFromDate(fromDate);
     setTempToDate(toDate);
@@ -275,6 +285,7 @@ export default function AllFruits() {
   const applyFilterChanges = () => {
     setSelectedUserId(tempUserId);
     setSelectedTreeId(tempTreeId);
+    setSelectedTreeType(tempTreeType);
     setSelectedTagId(tempTagId);
     setFromDate(tempFromDate);
     setToDate(tempToDate);
@@ -284,12 +295,14 @@ export default function AllFruits() {
   const resetFilters = () => {
     setSelectedUserId("");
     setSelectedTreeId("");
+    setSelectedTreeType("");
     setSelectedTagId(null);
     setFromDate("");
     setToDate("");
     setSearchQuery("");
     setTempUserId("");
     setTempTreeId("");
+    setTempTreeType("");
     setTempTagId(null);
     setTempFromDate("");
     setTempToDate("");
@@ -497,7 +510,7 @@ export default function AllFruits() {
 
           <ScrollView showsVerticalScrollIndicator={false} className="p-5">
             {/* Tag Filter */}
-            <View className="mb-6">
+            {/* <View className="mb-6">
               <View className="flex-row items-center mb-3">
                 <View className="w-10 h-10 bg-indigo-500 rounded-xl items-center justify-center">
                   <MaterialCommunityIcons name="tag" size={20} color="white" />
@@ -531,7 +544,7 @@ export default function AllFruits() {
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+            </View> */}
 
             {/* User Filter */}
             <View className="mb-6">
@@ -622,6 +635,49 @@ export default function AllFruits() {
               </ScrollView>
             </View>
 
+            {/* Tree Type Filter */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-3">
+                <View className="w-10 h-10 bg-emerald-500 rounded-xl items-center justify-center">
+                  <Ionicons name="leaf" size={20} color="white" />
+                </View>
+                <Text className="text-lg font-bold text-gray-800 ml-3">
+                  Filter by Tree Type
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="flex-row"
+              >
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    className={`px-4 py-2 rounded-full ${!tempTreeType ? "bg-orange-500" : "bg-gray-100"}`}
+                    onPress={() => setTempTreeType("")}
+                  >
+                    <Text
+                      className={`text-sm ${!tempTreeType ? "text-white" : "text-gray-700"}`}
+                    >
+                      All Types
+                    </Text>
+                  </TouchableOpacity>
+                  {["Langka", "Papaya", "Durian"].map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      className={`px-4 py-2 rounded-full ${tempTreeType === type ? "bg-orange-500" : "bg-gray-100"}`}
+                      onPress={() => setTempTreeType(type)}
+                    >
+                      <Text
+                        className={`text-sm ${tempTreeType === type ? "text-white" : "text-gray-700"}`}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
             {/* Date Range Filter */}
             <View className="mb-6">
               <View className="flex-row items-center mb-3">
@@ -699,6 +755,13 @@ export default function AllFruits() {
                         </Text>
                       </View>
                     )}
+                    {tempTreeType && (
+                      <View className="bg-orange-100 px-2 py-1 rounded-full">
+                        <Text className="text-xs text-orange-700">
+                          Type: {tempTreeType}
+                        </Text>
+                      </View>
+                    )}
                     {tempFromDate && (
                       <View className="bg-orange-100 px-2 py-1 rounded-full">
                         <Text className="text-xs text-orange-700">
@@ -720,7 +783,12 @@ export default function AllFruits() {
           </ScrollView>
 
           {/* Action Buttons */}
-          <View className="p-5 pt-0 gap-3">
+          <View
+            style={{
+              paddingBottom: insets.bottom + 16,
+            }}
+            className="px-5 pt-0 gap-3 bg-white"
+          >
             <TouchableOpacity
               className="bg-orange-500 py-3 rounded-xl"
               onPress={applyFilterChanges}
@@ -1112,6 +1180,7 @@ export default function AllFruits() {
         {/* Active Filters Chips */}
         {(selectedUserId ||
           selectedTreeId ||
+          selectedTreeType ||
           selectedTagId ||
           fromDate ||
           toDate) && (
@@ -1158,6 +1227,21 @@ export default function AllFruits() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {selectedTreeType && (
+              <View className="bg-orange-100 px-3 py-1 rounded-full flex-row items-center">
+                <Text className="text-xs text-orange-700">
+                  Type: {selectedTreeType}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedTreeType("")}
+                  className="ml-2"
+                >
+                  <Ionicons name="close-circle" size={14} color="#f97316" />
+                </TouchableOpacity>
+              </View>
+            )}
+
             {fromDate && (
               <View className="bg-orange-100 px-3 py-1 rounded-full flex-row items-center">
                 <Text className="text-xs text-orange-700">
@@ -1194,7 +1278,7 @@ export default function AllFruits() {
       </View>
 
       {/* Tag Summary Stats */}
-      <View className="bg-white px-5 py-3 border-b border-gray-100">
+      {/* <View className="bg-white px-5 py-3 border-b border-gray-100">
         <Text className="text-xs font-semibold text-gray-500 mb-2">
           TAG SUMMARY
         </Text>
@@ -1248,7 +1332,7 @@ export default function AllFruits() {
             <Text className="text-xs text-gray-400">total</Text>
           </View>
         </View>
-      </View>
+      </View> */}
 
       {/* Stats Bar */}
       <View className="flex-row justify-between items-center px-5 py-3 bg-white border-b border-gray-100">

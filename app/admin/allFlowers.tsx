@@ -109,13 +109,26 @@ export default function AllFlowers() {
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
 
+  const [selectedTreeType, setSelectedTreeType] = useState<string>("");
+  const [tempTreeType, setTempTreeType] = useState<string>("");
+
+  const treeTypes = ["Langka", "Papaya", "Durian"];
+
   useEffect(() => {
     fetchFlowers();
   }, []);
 
   useEffect(() => {
     applyFilters();
-  }, [flowers, selectedUserId, selectedTreeId, fromDate, toDate, searchQuery]);
+  }, [
+    flowers,
+    selectedUserId,
+    selectedTreeId,
+    selectedTreeType,
+    fromDate,
+    toDate,
+    searchQuery,
+  ]);
 
   const fetchFlowers = async () => {
     try {
@@ -188,6 +201,12 @@ export default function AllFlowers() {
       filtered = filtered.filter((flower) => flower.user.id === selectedUserId);
     }
 
+    if (selectedTreeType) {
+      filtered = filtered.filter(
+        (flower) => flower.tree.type === selectedTreeType,
+      );
+    }
+
     if (selectedTreeId) {
       filtered = filtered.filter((flower) => flower.tree.id === selectedTreeId);
     }
@@ -211,6 +230,7 @@ export default function AllFlowers() {
   const openFilterModal = () => {
     setTempUserId(selectedUserId);
     setTempTreeId(selectedTreeId);
+    setTempTreeType(selectedTreeType); // ADD THIS
     setTempFromDate(fromDate);
     setTempToDate(toDate);
     setFilterModalVisible(true);
@@ -219,6 +239,7 @@ export default function AllFlowers() {
   const applyFilterChanges = () => {
     setSelectedUserId(tempUserId);
     setSelectedTreeId(tempTreeId);
+    setSelectedTreeType(tempTreeType); // ADD THIS
     setFromDate(tempFromDate);
     setToDate(tempToDate);
     setFilterModalVisible(false);
@@ -227,11 +248,13 @@ export default function AllFlowers() {
   const resetFilters = () => {
     setSelectedUserId("");
     setSelectedTreeId("");
+    setSelectedTreeType(""); // ADD THIS
     setFromDate(null);
     setToDate(null);
     setSearchQuery("");
     setTempUserId("");
     setTempTreeId("");
+    setTempTreeType(""); // ADD THIS
     setTempFromDate(null);
     setTempToDate(null);
     setFilterModalVisible(false);
@@ -498,6 +521,48 @@ export default function AllFlowers() {
               </ScrollView>
             </View>
 
+            {/* Tree Type Filter */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-3">
+                <View className="w-10 h-10 bg-emerald-500 rounded-xl items-center justify-center">
+                  <Ionicons name="leaf" size={20} color="white" />
+                </View>
+                <Text className="text-lg font-bold text-gray-800 ml-3">
+                  Filter by Tree Type
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="flex-row"
+              >
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    className={`px-4 py-2 rounded-full ${!tempTreeType ? "bg-pink-500" : "bg-gray-100"}`}
+                    onPress={() => setTempTreeType("")}
+                  >
+                    <Text
+                      className={`text-sm ${!tempTreeType ? "text-white" : "text-gray-700"}`}
+                    >
+                      All Types
+                    </Text>
+                  </TouchableOpacity>
+                  {["Langka", "Papaya", "Durian"].map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      className={`px-4 py-2 rounded-full ${tempTreeType === type ? "bg-pink-500" : "bg-gray-100"}`}
+                      onPress={() => setTempTreeType(type)}
+                    >
+                      <Text
+                        className={`text-sm ${tempTreeType === type ? "text-white" : "text-gray-700"}`}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
             {/* Date Range Filter */}
             <View className="mb-6">
               <View className="flex-row items-center mb-3">
@@ -594,6 +659,13 @@ export default function AllFlowers() {
                         </Text>
                       </View>
                     )}
+                    {tempTreeType && (
+                      <View className="bg-pink-100 px-2 py-1 rounded-full">
+                        <Text className="text-xs text-pink-700">
+                          Type: {tempTreeType}
+                        </Text>
+                      </View>
+                    )}
                     {tempFromDate && (
                       <View className="bg-orange-100 px-2 py-1 rounded-full">
                         <Text className="text-xs text-orange-700">
@@ -614,8 +686,13 @@ export default function AllFlowers() {
             </View>
           </ScrollView>
 
-          {/* Action Buttons */}
-          <View className="p-5 pt-0 gap-3">
+          {/* Action Buttons with Android Safe Area */}
+          <View
+            style={{
+              paddingBottom: insets.bottom + 16,
+            }}
+            className="px-5 pt-0 gap-3 bg-white"
+          >
             <TouchableOpacity
               className="bg-pink-500 py-3 rounded-xl"
               onPress={applyFilterChanges}
@@ -959,7 +1036,11 @@ export default function AllFlowers() {
         </View>
 
         {/* Active Filters Chips */}
-        {(selectedUserId || selectedTreeId || fromDate || toDate) && (
+        {(selectedUserId ||
+          selectedTreeId ||
+          selectedTreeType ||
+          fromDate ||
+          toDate) && (
           <View className="flex-row flex-wrap gap-2 mt-3">
             {selectedUserId && users.find((u) => u.id === selectedUserId) && (
               <View className="bg-pink-100 px-3 py-1 rounded-full flex-row items-center">
@@ -984,6 +1065,19 @@ export default function AllFlowers() {
                 </Text>
                 <TouchableOpacity
                   onPress={() => setSelectedTreeId("")}
+                  className="ml-2"
+                >
+                  <Ionicons name="close-circle" size={14} color="#ec489a" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {selectedTreeType && (
+              <View className="bg-pink-100 px-3 py-1 rounded-full flex-row items-center">
+                <Text className="text-xs text-pink-700">
+                  Type: {selectedTreeType}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedTreeType("")}
                   className="ml-2"
                 >
                   <Ionicons name="close-circle" size={14} color="#ec489a" />
