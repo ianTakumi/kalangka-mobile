@@ -182,10 +182,18 @@ export default function AllHarvest() {
     }
 
     // Status filter
-    if (selectedStatus !== "all") {
-      filtered = filtered.filter(
-        (harvest) => harvest.status === selectedStatus,
-      );
+    if (selectedStatus && selectedStatus !== "all") {
+      if (selectedStatus === "waste") {
+        // Filter harvests that have at least one waste record
+        filtered = filtered.filter(
+          (harvest) => harvest.wastes && harvest.wastes.length > 0,
+        );
+      } else {
+        // Normal status filter (pending, partial, harvested)
+        filtered = filtered.filter(
+          (harvest) => harvest.status === selectedStatus,
+        );
+      }
     }
 
     // User filter
@@ -267,6 +275,8 @@ export default function AllHarvest() {
         return "bg-yellow-100 text-yellow-700";
       case "harvested":
         return "bg-green-100 text-green-700";
+      case "waste":
+        return "bg-red-100 text-red-700"; // New styling for waste
       default:
         return "bg-gray-100 text-gray-700";
     }
@@ -280,6 +290,8 @@ export default function AllHarvest() {
         return "bg-yellow-500";
       case "harvested":
         return "bg-green-600";
+      case "waste":
+        return "bg-red-500"; // New background color for waste
       default:
         return "bg-gray-400";
     }
@@ -453,27 +465,29 @@ export default function AllHarvest() {
                 </Text>
               </View>
               <View className="flex-row flex-wrap gap-2">
-                {["all", "pending", "partial", "harvested"].map((status) => (
-                  <TouchableOpacity
-                    key={status}
-                    className={`px-4 py-2 rounded-full ${
-                      tempSelectedStatus === status
-                        ? "bg-green-600"
-                        : "bg-gray-100"
-                    }`}
-                    onPress={() => setTempSelectedStatus(status)}
-                  >
-                    <Text
-                      className={`text-sm ${
+                {["all", "pending", "partial", "harvested", "waste"].map(
+                  (status) => (
+                    <TouchableOpacity
+                      key={status}
+                      className={`px-4 py-2 rounded-full ${
                         tempSelectedStatus === status
-                          ? "text-white"
-                          : "text-gray-700"
+                          ? "bg-green-600"
+                          : "bg-gray-100"
                       }`}
+                      onPress={() => setTempSelectedStatus(status)}
                     >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        className={`text-sm ${
+                          tempSelectedStatus === status
+                            ? "text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ),
+                )}
               </View>
             </View>
 
@@ -1224,12 +1238,15 @@ export default function AllHarvest() {
           fromDate ||
           toDate) && (
           <View className="flex-row flex-wrap gap-2 mt-3">
+            {/* Active filter chips section */}
             {selectedStatus !== "all" && (
               <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
                 <Text className="text-xs text-green-700">
                   Status:{" "}
-                  {selectedStatus.charAt(0).toUpperCase() +
-                    selectedStatus.slice(1)}
+                  {selectedStatus === "waste"
+                    ? "With Waste"
+                    : selectedStatus.charAt(0).toUpperCase() +
+                      selectedStatus.slice(1)}
                 </Text>
                 <TouchableOpacity
                   onPress={() => setSelectedStatus("all")}
