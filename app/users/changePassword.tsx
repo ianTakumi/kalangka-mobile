@@ -16,6 +16,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { useSelector } from "react-redux";
 
+// Accessibility constants
+const TOUCH_TARGET = 56;
+const ICON_SIZE_XL = 32;
+const ICON_SIZE_LG = 28;
+const ICON_SIZE_MD = 24;
+const FONT_SIZE_TITLE = 28;
+const FONT_SIZE_HEADING = 22;
+const FONT_SIZE_BODY = 18;
+const FONT_SIZE_CAPTION = 16;
+const FONT_SIZE_SMALL = 15;
+
 export default function ChangePassword() {
   const [loading, setLoading] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
@@ -299,7 +310,12 @@ export default function ChangePassword() {
       <SafeAreaView className="flex-1 bg-gray-50">
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#16a34a" />
-          <Text className="text-gray-500 mt-4">Checking connection...</Text>
+          <Text
+            className="text-gray-500 mt-4"
+            style={{ fontSize: FONT_SIZE_BODY }}
+          >
+            Checking connection...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -307,17 +323,27 @@ export default function ChangePassword() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity onPress={handleCancel} disabled={loading}>
-          <Ionicons name="arrow-back" size={24} color="#374151" />
+      {/* Header - Larger */}
+      <View className="flex-row items-center justify-between px-6 py-5 bg-white border-b border-gray-200">
+        <TouchableOpacity
+          onPress={handleCancel}
+          disabled={loading}
+          className="w-12 h-12 items-center justify-center rounded-full active:bg-gray-100"
+          style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
+        >
+          <Ionicons name="arrow-back" size={ICON_SIZE_MD} color="#374151" />
         </TouchableOpacity>
-        <Text className="text-lg font-semibold text-gray-800">
+        <Text
+          className="font-semibold text-gray-800"
+          style={{ fontSize: FONT_SIZE_HEADING }}
+        >
           Change Password
         </Text>
         <TouchableOpacity
           onPress={handleChangePassword}
           disabled={loading || !isOnline}
+          className="px-5 py-3 rounded-xl active:bg-gray-100"
+          style={{ minHeight: TOUCH_TARGET, justifyContent: "center" }}
         >
           {loading ? (
             <ActivityIndicator size="small" color="#16a34a" />
@@ -326,6 +352,7 @@ export default function ChangePassword() {
               className={`font-semibold ${
                 !isOnline ? "text-gray-400" : "text-green-600"
               }`}
+              style={{ fontSize: FONT_SIZE_BODY }}
             >
               Save
             </Text>
@@ -333,12 +360,15 @@ export default function ChangePassword() {
         </TouchableOpacity>
       </View>
 
-      {/* Offline Banner */}
+      {/* Offline Banner - Larger */}
       {!isOnline && (
-        <View className="bg-red-50 px-6 py-3 border-b border-red-200">
+        <View className="bg-red-50 px-6 py-4 border-b border-red-200">
           <View className="flex-row items-center">
-            <Ionicons name="wifi-outline" size={20} color="#dc2626" />
-            <Text className="text-red-600 ml-2 flex-1">
+            <Ionicons name="wifi-outline" size={ICON_SIZE_MD} color="#dc2626" />
+            <Text
+              className="text-red-600 ml-3 flex-1 font-semibold"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               You are offline. Connect to the internet to change your password.
             </Text>
           </View>
@@ -353,52 +383,49 @@ export default function ChangePassword() {
         extraScrollHeight={20}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Security Tips */}
+        {/* Security Tips - Larger */}
         <View
-          className={`mx-6 mt-6 p-4 rounded-xl ${
+          className={`mx-6 mt-8 p-6 rounded-2xl ${
             !isOnline ? "bg-gray-100" : "bg-green-50"
           }`}
         >
-          <View className="flex-row items-start">
+          <View className="flex-row items-start mb-4">
             <Ionicons
               name="shield-checkmark"
-              size={20}
+              size={ICON_SIZE_MD}
               color={!isOnline ? "#6b7280" : "#16a34a"}
             />
             <Text
-              className={`font-medium ml-2 flex-1 ${
+              className={`font-bold ml-3 flex-1 ${
                 !isOnline ? "text-gray-600" : "text-green-800"
               }`}
+              style={{ fontSize: FONT_SIZE_CAPTION }}
             >
               Password Security Tips
             </Text>
           </View>
-          <View className="mt-2 space-y-1">
+          <View className="space-y-3">
             <Text
-              className={`text-sm ${
-                !isOnline ? "text-gray-500" : "text-green-700"
-              }`}
+              className={!isOnline ? "text-gray-500" : "text-green-700"}
+              style={{ fontSize: FONT_SIZE_SMALL, lineHeight: 22 }}
             >
               • Use at least 8 characters
             </Text>
             <Text
-              className={`text-sm ${
-                !isOnline ? "text-gray-500" : "text-green-700"
-              }`}
+              className={!isOnline ? "text-gray-500" : "text-green-700"}
+              style={{ fontSize: FONT_SIZE_SMALL, lineHeight: 22 }}
             >
               • Include uppercase and lowercase letters
             </Text>
             <Text
-              className={`text-sm ${
-                !isOnline ? "text-gray-500" : "text-green-700"
-              }`}
+              className={!isOnline ? "text-gray-500" : "text-green-700"}
+              style={{ fontSize: FONT_SIZE_SMALL, lineHeight: 22 }}
             >
               • Include numbers and special characters
             </Text>
             <Text
-              className={`text-sm ${
-                !isOnline ? "text-gray-500" : "text-green-700"
-              }`}
+              className={!isOnline ? "text-gray-500" : "text-green-700"}
+              style={{ fontSize: FONT_SIZE_SMALL, lineHeight: 22 }}
             >
               • Avoid common words and personal information
             </Text>
@@ -406,25 +433,30 @@ export default function ChangePassword() {
         </View>
 
         {/* Form Section */}
-        <View className="px-6 mt-6 mb-8">
+        <View className="px-6 mt-8 mb-8">
           {/* Current Password */}
           <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">
+            <Text
+              className="text-gray-700 font-semibold mb-3"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               Current Password
             </Text>
             <View
-              className={`rounded-xl border px-4 py-3 flex-row items-center ${
+              className={`rounded-2xl border-2 px-5 flex-row items-center ${
                 !isOnline
                   ? "bg-gray-50 border-gray-300"
                   : errors.currentPassword
                     ? "bg-white border-red-300"
                     : "bg-white border-gray-200"
               }`}
+              style={{ minHeight: TOUCH_TARGET + 4 }}
             >
               <TextInput
-                className={`flex-1 text-base ${
+                className={`flex-1 ${
                   !isOnline ? "text-gray-400" : "text-gray-800"
                 }`}
+                style={{ fontSize: FONT_SIZE_BODY }}
                 value={formData.currentPassword}
                 onChangeText={(text) =>
                   handleInputChange("currentPassword", text)
@@ -438,17 +470,22 @@ export default function ChangePassword() {
               <TouchableOpacity
                 onPress={() => setShowCurrentPassword(!showCurrentPassword)}
                 disabled={loading || !isOnline}
+                className="w-12 h-12 items-center justify-center ml-2"
+                style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
               >
                 <Ionicons
                   name={showCurrentPassword ? "eye-off" : "eye"}
-                  size={20}
+                  size={ICON_SIZE_MD}
                   color={!isOnline ? "#9ca3af" : "#6b7280"}
                 />
               </TouchableOpacity>
             </View>
             {errors.currentPassword &&
             !isOnline ? null : errors.currentPassword ? (
-              <Text className="text-red-500 text-sm mt-1">
+              <Text
+                className="text-red-500 mt-2 font-medium"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 {errors.currentPassword}
               </Text>
             ) : null}
@@ -456,20 +493,27 @@ export default function ChangePassword() {
 
           {/* New Password */}
           <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">New Password</Text>
+            <Text
+              className="text-gray-700 font-semibold mb-3"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
+              New Password
+            </Text>
             <View
-              className={`rounded-xl border px-4 py-3 flex-row items-center ${
+              className={`rounded-2xl border-2 px-5 flex-row items-center ${
                 !isOnline
                   ? "bg-gray-50 border-gray-300"
                   : errors.newPassword
                     ? "bg-white border-red-300"
                     : "bg-white border-gray-200"
               }`}
+              style={{ minHeight: TOUCH_TARGET + 4 }}
             >
               <TextInput
-                className={`flex-1 text-base ${
+                className={`flex-1 ${
                   !isOnline ? "text-gray-400" : "text-gray-800"
                 }`}
+                style={{ fontSize: FONT_SIZE_BODY }}
                 value={formData.newPassword}
                 onChangeText={(text) => handleInputChange("newPassword", text)}
                 placeholder="Enter new password"
@@ -481,33 +525,41 @@ export default function ChangePassword() {
               <TouchableOpacity
                 onPress={() => setShowNewPassword(!showNewPassword)}
                 disabled={loading || !isOnline}
+                className="w-12 h-12 items-center justify-center ml-2"
+                style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
               >
                 <Ionicons
                   name={showNewPassword ? "eye-off" : "eye"}
-                  size={20}
+                  size={ICON_SIZE_MD}
                   color={!isOnline ? "#9ca3af" : "#6b7280"}
                 />
               </TouchableOpacity>
             </View>
 
-            {/* Password Strength Indicator */}
+            {/* Password Strength Indicator - Larger */}
             {formData.newPassword && isOnline ? (
-              <View className="mt-2">
-                <View className="flex-row items-center mb-1">
-                  <Text className="text-gray-600 text-sm mr-2">Strength:</Text>
+              <View className="mt-3">
+                <View className="flex-row items-center mb-2">
                   <Text
-                    className={`text-sm font-medium ${
+                    className="text-gray-600 mr-2"
+                    style={{ fontSize: FONT_SIZE_SMALL }}
+                  >
+                    Strength:
+                  </Text>
+                  <Text
+                    className={`font-semibold ${
                       strength.color === "red"
                         ? "text-red-500"
                         : strength.color === "yellow"
                           ? "text-yellow-500"
                           : "text-green-600"
                     }`}
+                    style={{ fontSize: FONT_SIZE_SMALL }}
                   >
                     {strength.text}
                   </Text>
                 </View>
-                <View className="flex-row h-1 space-x-1">
+                <View className="flex-row h-2 space-x-2">
                   {[1, 2, 3, 4, 5].map((index) => (
                     <View
                       key={index}
@@ -527,7 +579,10 @@ export default function ChangePassword() {
             ) : null}
 
             {errors.newPassword && !isOnline ? null : errors.newPassword ? (
-              <Text className="text-red-500 text-sm mt-1">
+              <Text
+                className="text-red-500 mt-2 font-medium"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 {errors.newPassword}
               </Text>
             ) : null}
@@ -535,22 +590,27 @@ export default function ChangePassword() {
 
           {/* Confirm Password */}
           <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">
+            <Text
+              className="text-gray-700 font-semibold mb-3"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               Confirm New Password
             </Text>
             <View
-              className={`rounded-xl border px-4 py-3 flex-row items-center ${
+              className={`rounded-2xl border-2 px-5 flex-row items-center ${
                 !isOnline
                   ? "bg-gray-50 border-gray-300"
                   : errors.confirmPassword
                     ? "bg-white border-red-300"
                     : "bg-white border-gray-200"
               }`}
+              style={{ minHeight: TOUCH_TARGET + 4 }}
             >
               <TextInput
-                className={`flex-1 text-base ${
+                className={`flex-1 ${
                   !isOnline ? "text-gray-400" : "text-gray-800"
                 }`}
+                style={{ fontSize: FONT_SIZE_BODY }}
                 value={formData.confirmPassword}
                 onChangeText={(text) =>
                   handleInputChange("confirmPassword", text)
@@ -564,29 +624,41 @@ export default function ChangePassword() {
               <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 disabled={loading || !isOnline}
+                className="w-12 h-12 items-center justify-center ml-2"
+                style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
               >
                 <Ionicons
                   name={showConfirmPassword ? "eye-off" : "eye"}
-                  size={20}
+                  size={ICON_SIZE_MD}
                   color={!isOnline ? "#9ca3af" : "#6b7280"}
                 />
               </TouchableOpacity>
             </View>
             {errors.confirmPassword &&
             !isOnline ? null : errors.confirmPassword ? (
-              <Text className="text-red-500 text-sm mt-1">
+              <Text
+                className="text-red-500 mt-2 font-medium"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 {errors.confirmPassword}
               </Text>
             ) : null}
 
-            {/* Password Match Indicator */}
+            {/* Password Match Indicator - Larger */}
             {formData.newPassword &&
             formData.confirmPassword &&
             !errors.confirmPassword &&
             isOnline ? (
-              <View className="flex-row items-center mt-2">
-                <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
-                <Text className="text-green-600 text-sm ml-1">
+              <View className="flex-row items-center mt-3">
+                <Ionicons
+                  name="checkmark-circle"
+                  size={ICON_SIZE_MD}
+                  color="#16a34a"
+                />
+                <Text
+                  className="text-green-600 ml-2 font-medium"
+                  style={{ fontSize: FONT_SIZE_SMALL }}
+                >
                   Passwords match
                 </Text>
               </View>
@@ -595,30 +667,40 @@ export default function ChangePassword() {
         </View>
       </KeyboardAwareScrollView>
 
-      {/* Bottom Action Button */}
+      {/* Bottom Action Button - Larger */}
       <View className="p-6 bg-white border-t border-gray-200">
         <TouchableOpacity
-          className={`py-4 rounded-xl items-center ${
+          className={`py-5 rounded-2xl items-center active:opacity-90 ${
             loading || !isOnline ? "bg-gray-400" : "bg-green-600"
           }`}
           onPress={handleChangePassword}
           disabled={loading || !isOnline}
+          style={{ minHeight: TOUCH_TARGET }}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color="white" size="large" />
           ) : (
-            <Text className="text-white font-semibold text-lg">
+            <Text
+              className="text-white font-bold"
+              style={{ fontSize: FONT_SIZE_BODY }}
+            >
               {!isOnline ? "Offline - Cannot Change" : "Change Password"}
             </Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          className="py-4 rounded-xl items-center mt-3"
+          className="py-5 rounded-2xl items-center mt-4 active:bg-gray-100"
           onPress={handleCancel}
           disabled={loading}
+          style={{ minHeight: TOUCH_TARGET }}
         >
-          <Text className="text-gray-600 font-medium">Cancel</Text>
+          <Text
+            className="text-gray-600 font-semibold"
+            style={{ fontSize: FONT_SIZE_BODY }}
+          >
+            Cancel
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -22,6 +22,17 @@ import {
 import Toast from "react-native-toast-message";
 import { useDispatch, useSelector } from "react-redux";
 
+// Accessibility constants
+const TOUCH_TARGET = 56;
+const ICON_SIZE_XL = 32;
+const ICON_SIZE_LG = 28;
+const ICON_SIZE_MD = 24;
+const FONT_SIZE_TITLE = 28;
+const FONT_SIZE_HEADING = 22;
+const FONT_SIZE_BODY = 18;
+const FONT_SIZE_CAPTION = 16;
+const FONT_SIZE_SMALL = 15;
+
 export default function EditProfile() {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
@@ -238,7 +249,12 @@ export default function EditProfile() {
       <SafeAreaView className="flex-1 bg-gray-50">
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#16a34a" />
-          <Text className="text-gray-500 mt-4">Checking connection...</Text>
+          <Text
+            className="text-gray-500 mt-4"
+            style={{ fontSize: FONT_SIZE_BODY }}
+          >
+            Checking connection...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -248,7 +264,9 @@ export default function EditProfile() {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
         <View className="flex-1 justify-center items-center">
-          <Text className="text-gray-500 text-lg">No user data found</Text>
+          <Text className="text-gray-500" style={{ fontSize: FONT_SIZE_BODY }}>
+            No user data found
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -256,28 +274,39 @@ export default function EditProfile() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Offline Banner */}
+      {/* Offline Banner - Larger */}
       {!isOnline && (
-        <View className="bg-yellow-500 py-2 px-4">
+        <View className="bg-yellow-500 py-3 px-4">
           <View className="flex-row items-center justify-center">
-            <Ionicons name="cloud-offline-outline" size={18} color="white" />
-            <Text className="text-white font-medium ml-2">
+            <Ionicons
+              name="cloud-offline-outline"
+              size={ICON_SIZE_MD}
+              color="white"
+            />
+            <Text
+              className="text-white font-semibold ml-3"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               You're offline. Some features are disabled.
             </Text>
           </View>
         </View>
       )}
 
-      {/* Header with Back Button */}
+      {/* Header with Back Button - Larger */}
       <SafeAreaView edges={["top"]} className="bg-white">
-        <View className="pt-4 pb-2 px-4 flex-row items-center border-b border-gray-100">
+        <View className="pt-6 pb-3 px-4 flex-row items-center border-b border-gray-100">
           <TouchableOpacity
             onPress={handleCancel}
-            className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+            className="w-12 h-12 rounded-full items-center justify-center bg-gray-100 active:bg-gray-200"
+            style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
           >
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="chevron-back" size={ICON_SIZE_MD} color="#374151" />
           </TouchableOpacity>
-          <Text className="flex-1 text-center text-xl font-semibold text-gray-800 mr-10">
+          <Text
+            className="flex-1 text-center font-semibold text-gray-800 mr-12"
+            style={{ fontSize: FONT_SIZE_TITLE }}
+          >
             Edit Profile
           </Text>
         </View>
@@ -285,19 +314,26 @@ export default function EditProfile() {
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Form Section */}
-        <View className="px-6 mt-6">
+        <View className="px-6 mt-8">
           {/* First Name */}
           <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">First Name</Text>
+            <Text
+              className="text-gray-700 font-semibold mb-3"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
+              First Name
+            </Text>
             <View
-              className={`bg-white rounded-xl border ${
+              className={`bg-white rounded-2xl border-2 ${
                 !isOnline ? "border-gray-300 bg-gray-50" : "border-gray-200"
-              } px-4 py-3`}
+              } px-5`}
+              style={{ minHeight: TOUCH_TARGET }}
             >
               <TextInput
-                className={`text-base ${
+                className={`flex-1 ${
                   !isOnline ? "text-gray-400" : "text-gray-800"
                 }`}
+                style={{ fontSize: FONT_SIZE_BODY }}
                 value={formData.firstName}
                 onChangeText={(text) => handleInputChange("firstName", text)}
                 placeholder="Enter your first name"
@@ -309,16 +345,23 @@ export default function EditProfile() {
 
           {/* Last Name */}
           <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">Last Name</Text>
+            <Text
+              className="text-gray-700 font-semibold mb-3"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
+              Last Name
+            </Text>
             <View
-              className={`bg-white rounded-xl border ${
+              className={`bg-white rounded-2xl border-2 ${
                 !isOnline ? "border-gray-300 bg-gray-50" : "border-gray-200"
-              } px-4 py-3`}
+              } px-5`}
+              style={{ minHeight: TOUCH_TARGET }}
             >
               <TextInput
-                className={`text-base ${
+                className={`flex-1 ${
                   !isOnline ? "text-gray-400" : "text-gray-800"
                 }`}
+                style={{ fontSize: FONT_SIZE_BODY }}
                 value={formData.lastName}
                 onChangeText={(text) => handleInputChange("lastName", text)}
                 placeholder="Enter your last name"
@@ -330,18 +373,23 @@ export default function EditProfile() {
 
           {/* Email */}
           <View className="mb-6">
-            <Text className="text-gray-700 font-medium mb-2">
+            <Text
+              className="text-gray-700 font-semibold mb-3"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               Email Address
             </Text>
             <View
-              className={`bg-white rounded-xl border ${
+              className={`bg-white rounded-2xl border-2 ${
                 !isOnline ? "border-gray-300 bg-gray-50" : "border-gray-200"
-              } px-4 py-3`}
+              } px-5`}
+              style={{ minHeight: TOUCH_TARGET }}
             >
               <TextInput
-                className={`text-base ${
+                className={`flex-1 ${
                   !isOnline ? "text-gray-400" : "text-gray-800"
                 }`}
+                style={{ fontSize: FONT_SIZE_BODY }}
                 value={formData.email}
                 onChangeText={(text) => handleInputChange("email", text)}
                 placeholder="Enter your email"
@@ -353,14 +401,19 @@ export default function EditProfile() {
             </View>
           </View>
 
-          {/* Gender Selection */}
+          {/* Gender Selection - Larger Buttons */}
           <View className="mb-8">
-            <Text className="text-gray-700 font-medium mb-3">Gender</Text>
-            <View className="flex-row gap-3">
+            <Text
+              className="text-gray-700 font-semibold mb-4"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
+              Gender
+            </Text>
+            <View className="flex-row gap-4">
               {["Male", "Female"].map((gender) => (
                 <TouchableOpacity
                   key={gender}
-                  className={`flex-1 py-3 rounded-xl items-center border ${
+                  className={`flex-1 py-5 rounded-2xl items-center border-2 relative ${
                     formData.gender.toLowerCase() === gender.toLowerCase()
                       ? "bg-green-50 border-green-500"
                       : !isOnline
@@ -369,23 +422,25 @@ export default function EditProfile() {
                   }`}
                   onPress={() => selectGender(gender)}
                   disabled={loading || !isOnline}
+                  style={{ minHeight: TOUCH_TARGET + 10 }}
                 >
                   <Text
-                    className={`font-medium ${
+                    className={`font-semibold ${
                       formData.gender.toLowerCase() === gender.toLowerCase()
                         ? "text-green-700"
                         : !isOnline
                           ? "text-gray-400"
                           : "text-gray-700"
                     }`}
+                    style={{ fontSize: FONT_SIZE_BODY }}
                   >
                     {gender}
                   </Text>
                   {formData.gender.toLowerCase() === gender.toLowerCase() && (
-                    <View className="absolute top-1 right-1">
+                    <View className="absolute top-2 right-2">
                       <Ionicons
                         name="checkmark-circle"
-                        size={20}
+                        size={ICON_SIZE_MD}
                         color={!isOnline ? "#9ca3af" : "#16a34a"}
                       />
                     </View>
@@ -397,10 +452,10 @@ export default function EditProfile() {
         </View>
 
         {/* Add bottom padding for scroll content */}
-        <View style={{ height: 120 }} />
+        <View style={{ height: 150 }} />
       </ScrollView>
 
-      {/* Bottom Action Buttons - Now with proper Android padding */}
+      {/* Bottom Action Buttons - Larger */}
       <View
         style={{
           position: "absolute",
@@ -409,30 +464,40 @@ export default function EditProfile() {
           right: 0,
           paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
         }}
-        className="bg-white border-t border-gray-200 px-6 pt-4"
+        className="bg-white border-t border-gray-200 px-6 pt-5 pb-3"
       >
         <TouchableOpacity
-          className={`py-4 rounded-xl items-center ${
+          className={`py-5 rounded-2xl items-center active:opacity-90 ${
             loading || !isOnline ? "bg-gray-400" : "bg-green-600"
           }`}
           onPress={handleSaveChanges}
           disabled={loading || !isOnline}
+          style={{ minHeight: TOUCH_TARGET }}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color="white" size="large" />
           ) : (
-            <Text className="text-white font-semibold text-lg">
+            <Text
+              className="text-white font-bold"
+              style={{ fontSize: FONT_SIZE_BODY }}
+            >
               {!isOnline ? "Offline - Cannot Save" : "Save Changes"}
             </Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          className="py-4 rounded-xl items-center mt-3"
+          className="py-5 rounded-2xl items-center mt-3 active:bg-gray-100"
           onPress={handleCancel}
           disabled={loading}
+          style={{ minHeight: TOUCH_TARGET }}
         >
-          <Text className="text-gray-600 font-medium">Cancel</Text>
+          <Text
+            className="text-gray-600 font-semibold"
+            style={{ fontSize: FONT_SIZE_BODY }}
+          >
+            Cancel
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

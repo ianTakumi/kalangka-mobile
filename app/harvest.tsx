@@ -40,6 +40,18 @@ export default function HarvestScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
 
+  // Accessibility constants
+  const TOUCH_TARGET = 56;
+  const ICON_SIZE_XL = 36;
+  const ICON_SIZE_LG = 28;
+  const ICON_SIZE_MD = 24;
+  const ICON_SIZE_SM = 18;
+  const FONT_SIZE_TITLE = 28;
+  const FONT_SIZE_HEADING = 22;
+  const FONT_SIZE_BODY = 18;
+  const FONT_SIZE_CAPTION = 16;
+  const FONT_SIZE_SMALL = 15;
+
   // Form states
   const [ripeFruits, setRipeFruits] = useState<string[]>([]);
   const [wasteItems, setWasteItems] = useState<
@@ -647,36 +659,54 @@ export default function HarvestScreen() {
   return (
     <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-white pt-12 pb-4 px-4 shadow-sm border-b border-gray-200">
+      {/* Header */}
+      <View className="bg-white pt-12 pb-5 px-5 shadow-sm border-b border-gray-200">
         <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center">
+          <View className="flex-row items-center flex-1 mr-4">
             <TouchableOpacity
               onPress={() => router.back()}
-              className="mr-3 p-2"
+              className="mr-4 w-12 h-12 rounded-full items-center justify-center bg-gray-100 active:bg-gray-200"
+              style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
             >
-              <ArrowLeft size={24} color="#4b5563" />
+              <ArrowLeft size={ICON_SIZE_MD} color="#4b5563" />
             </TouchableOpacity>
-            <View>
-              <Text className="text-2xl font-bold text-gray-800">
+            <View className="flex-1">
+              <Text
+                className="font-bold text-gray-800"
+                style={{ fontSize: FONT_SIZE_HEADING }}
+              >
                 {harvestRecord ? "Update Harvest" : "New Harvest"}
               </Text>
-              <Text className="text-gray-500 text-sm">
+              <Text
+                className="text-gray-500"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 {harvestRecord ? "Edit harvest record" : "Record fruit harvest"}
               </Text>
             </View>
           </View>
 
           {/* Online/Offline Status */}
-          <View className="flex-row items-center bg-gray-100 px-3 py-1 rounded-full">
+          <View className="flex-row items-center bg-gray-100 px-4 py-2 rounded-full">
             {isOnline ? (
               <>
-                <Wifi size={16} color="#059669" />
-                <Text className="text-green-600 text-xs ml-1">Online</Text>
+                <Wifi size={ICON_SIZE_SM} color="#059669" />
+                <Text
+                  className="text-green-600 font-medium ml-2"
+                  style={{ fontSize: FONT_SIZE_SMALL }}
+                >
+                  Online
+                </Text>
               </>
             ) : (
               <>
-                <WifiOff size={16} color="#6b7280" />
-                <Text className="text-gray-500 text-xs ml-1">Offline</Text>
+                <WifiOff size={ICON_SIZE_SM} color="#6b7280" />
+                <Text
+                  className="text-gray-500 font-medium ml-2"
+                  style={{ fontSize: FONT_SIZE_SMALL }}
+                >
+                  Offline
+                </Text>
               </>
             )}
           </View>
@@ -684,14 +714,20 @@ export default function HarvestScreen() {
 
         {/* Assignment Info - if exists */}
         {harvestRecord?.harvest?.user_id && (
-          <View className="mt-3 bg-blue-50 p-3 rounded-xl">
+          <View className="mt-4 bg-blue-50 p-4 rounded-2xl border border-blue-200">
             <View className="flex-row items-center">
-              <User size={16} color="#3b82f6" />
-              <Text className="text-blue-700 text-sm ml-2 font-medium">
+              <User size={ICON_SIZE_SM} color="#3b82f6" />
+              <Text
+                className="text-blue-700 font-semibold ml-3"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 Assigned Harvest
               </Text>
             </View>
-            <Text className="text-gray-600 text-xs mt-1">
+            <Text
+              className="text-gray-600 mt-2"
+              style={{ fontSize: FONT_SIZE_SMALL }}
+            >
               You are harvesting this fruit
             </Text>
           </View>
@@ -699,14 +735,20 @@ export default function HarvestScreen() {
 
         {/* Harvest Complete Banner */}
         {isHarvestCompleted && (
-          <View className="mt-3 bg-green-50 p-3 rounded-xl border border-green-200">
+          <View className="mt-4 bg-green-50 p-4 rounded-2xl border-2 border-green-200">
             <View className="flex-row items-center">
-              <Package size={16} color="#059669" />
-              <Text className="text-green-700 text-sm ml-2 font-medium">
+              <Package size={ICON_SIZE_SM} color="#059669" />
+              <Text
+                className="text-green-700 font-semibold ml-3"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 ✓ Harvest Complete
               </Text>
             </View>
-            <Text className="text-green-600 text-xs mt-1">
+            <Text
+              className="text-green-600 mt-2"
+              style={{ fontSize: FONT_SIZE_SMALL }}
+            >
               All fruits have been harvested. No further changes can be made.
             </Text>
           </View>
@@ -874,52 +916,67 @@ export default function HarvestScreen() {
         </View> */}
 
         {/* Progress Card */}
-        <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-          <Text className="text-gray-500 text-sm mb-3">HARVEST PROGRESS</Text>
+        <View className="bg-white rounded-2xl p-6 mb-5 shadow-sm border-2 border-gray-100">
+          <Text
+            className="text-gray-500 mb-4 font-semibold"
+            style={{ fontSize: 15 }}
+          >
+            HARVEST PROGRESS
+          </Text>
 
           {/* Backlog Banner */}
           {hasBacklog &&
             fruit.remaining_quantity > 0 &&
             !isHarvestCompleted && (
-              <View className="bg-yellow-50 p-3 rounded-lg mb-3 border border-yellow-200">
+              <View className="bg-yellow-50 p-4 rounded-2xl mb-4 border-2 border-yellow-200">
                 <View className="flex-row items-center">
-                  <AlertCircle size={18} color="#D97706" />
-                  <Text className="text-yellow-700 font-medium ml-2">
+                  <AlertCircle size={24} color="#D97706" />
+                  <Text
+                    className="text-yellow-700 font-semibold ml-3"
+                    style={{ fontSize: 16 }}
+                  >
                     📋 Backlog Harvest
                   </Text>
                 </View>
-                <Text className="text-yellow-600 text-sm mt-1">
+                <Text className="text-yellow-600 mt-2" style={{ fontSize: 15 }}>
                   This fruit has {fruit.remaining_quantity} pending item(s) from
                   previous harvest
                 </Text>
                 {existingFruitWeights.length > 0 && (
-                  <Text className="text-yellow-600 text-xs mt-1">
+                  <Text
+                    className="text-yellow-600 mt-1"
+                    style={{ fontSize: 15 }}
+                  >
                     Previously harvested: {existingFruitWeights.length} fruits
                   </Text>
                 )}
               </View>
             )}
 
-          <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-600">
+          <View className="flex-row justify-between mb-3">
+            <Text className="text-gray-600" style={{ fontSize: 16 }}>
               {isHarvestCompleted
                 ? "Total Fruits:"
                 : hasBacklog
                   ? "Remaining from backlog:"
                   : "Total Fruits:"}
             </Text>
-            <Text className="font-semibold">
+            <Text className="font-bold" style={{ fontSize: 16 }}>
               {isHarvestCompleted ? fruit.quantity : availableQuantity}
             </Text>
           </View>
 
-          {/* Show total harvested including previous */}
           {hasBacklog &&
             existingFruitWeights.length > 0 &&
             !isHarvestCompleted && (
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-gray-600">Previously harvested:</Text>
-                <Text className="font-medium text-blue-600">
+              <View className="flex-row justify-between mb-3">
+                <Text className="text-gray-600" style={{ fontSize: 16 }}>
+                  Previously harvested:
+                </Text>
+                <Text
+                  className="font-semibold text-blue-600"
+                  style={{ fontSize: 16 }}
+                >
                   {existingFruitWeights.length}
                 </Text>
               </View>
@@ -927,23 +984,42 @@ export default function HarvestScreen() {
 
           {!isHarvestCompleted && (
             <>
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-gray-600">Ripe Fruits :</Text>
-                <Text className="font-medium text-green-600">{totalRipe}</Text>
+              <View className="flex-row justify-between mb-3">
+                <Text className="text-gray-600" style={{ fontSize: 16 }}>
+                  Ripe Fruits :
+                </Text>
+                <Text
+                  className="font-semibold text-green-600"
+                  style={{ fontSize: 16 }}
+                >
+                  {totalRipe}
+                </Text>
               </View>
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-gray-600">Wasted Fruits :</Text>
-                <Text className="font-medium text-red-600">{totalWaste}</Text>
+              <View className="flex-row justify-between mb-3">
+                <Text className="text-gray-600" style={{ fontSize: 16 }}>
+                  Wasted Fruits :
+                </Text>
+                <Text
+                  className="font-semibold text-red-600"
+                  style={{ fontSize: 16 }}
+                >
+                  {totalWaste}
+                </Text>
               </View>
             </>
           )}
 
-          {/* Overall total */}
-          <View className="flex-row justify-between pt-2 border-t border-gray-200 mt-2">
-            <Text className="text-gray-800 font-medium">
+          <View className="flex-row justify-between pt-3 border-t-2 border-gray-200 mt-3">
+            <Text
+              className="text-gray-800 font-semibold"
+              style={{ fontSize: 16 }}
+            >
               Overall harvested:
             </Text>
-            <Text className="font-bold text-purple-600">
+            <Text
+              className="font-bold text-purple-600"
+              style={{ fontSize: 16 }}
+            >
               {isHarvestCompleted
                 ? fruit.quantity
                 : (hasBacklog ? existingFruitWeights.length : 0) + totalNow}
@@ -952,19 +1028,22 @@ export default function HarvestScreen() {
 
           {!isHarvestCompleted && (
             <>
-              <View className="flex-row justify-between pt-2 border-t border-gray-200">
-                <Text className="text-gray-800 font-medium">
+              <View className="flex-row justify-between pt-3 border-t-2 border-gray-200">
+                <Text
+                  className="text-gray-800 font-semibold"
+                  style={{ fontSize: 16 }}
+                >
                   Remaining after this:
                 </Text>
                 <Text
                   className={`font-bold ${remaining > 0 ? "text-blue-600" : "text-gray-400"}`}
+                  style={{ fontSize: 16 }}
                 >
                   {remaining}
                 </Text>
               </View>
 
-              {/* Progress Bar */}
-              <View className="h-2 bg-gray-200 rounded-full mt-3 overflow-hidden">
+              <View className="h-3 bg-gray-200 rounded-full mt-4 overflow-hidden">
                 <View
                   className="h-full bg-green-500"
                   style={{
@@ -977,38 +1056,49 @@ export default function HarvestScreen() {
         </View>
 
         {/* Ripe Fruits Section */}
-        <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-          <View className="flex-row justify-between items-center mb-4">
+        <View className="bg-white rounded-2xl p-6 mb-5 shadow-sm border-2 border-gray-100">
+          <View className="flex-row justify-between items-center mb-5">
             <View className="flex-row items-center">
-              <View className="bg-green-100 p-2 rounded-full mr-2">
-                <Scale size={18} color="#059669" />
+              <View className="bg-green-100 p-3 rounded-2xl mr-3">
+                <Scale size={24} color="#059669" />
               </View>
-              <Text className="text-gray-800 font-semibold">Ripe Fruits</Text>
+              <Text
+                className="text-gray-800 font-bold"
+                style={{ fontSize: 18 }}
+              >
+                Ripe Fruits
+              </Text>
             </View>
             {!isHarvestCompleted && (
               <TouchableOpacity
                 onPress={handleAddRipeFruit}
                 disabled={remaining <= 0}
-                className={`flex-row items-center px-3 py-1.5 rounded-full ${
+                className={`flex-row items-center px-5 py-3 rounded-2xl ${
                   remaining > 0 ? "bg-green-600" : "bg-gray-300"
                 }`}
+                style={{ minHeight: 56 }}
               >
-                <Plus size={16} color="white" />
-                <Text className="text-white text-xs ml-1">Add</Text>
+                <Plus size={18} color="white" />
+                <Text
+                  className="text-white font-semibold ml-2"
+                  style={{ fontSize: 16 }}
+                >
+                  Add
+                </Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* Combine existing and new ripe fruits */}
           {existingFruitWeights.length === 0 && ripeFruits.length === 0 ? (
-            <View className="border-2 border-dashed border-gray-200 rounded-xl p-6 items-center">
-              <Scale size={32} color="#9ca3af" />
-              <Text className="text-gray-500 mt-2">
+            <View className="border-2 border-dashed border-gray-200 rounded-2xl p-8 items-center">
+              <Scale size={40} color="#9ca3af" />
+              <Text className="text-gray-500 mt-3" style={{ fontSize: 16 }}>
                 {isHarvestCompleted
                   ? "No ripe fruits recorded"
                   : "No ripe fruits recorded"}
               </Text>
-              <Text className="text-gray-400 text-xs mt-1">
+              <Text className="text-gray-400 mt-2" style={{ fontSize: 15 }}>
                 {isHarvestCompleted
                   ? "Harvest is complete"
                   : "Tap Add to record ripe fruits"}
@@ -1020,17 +1110,23 @@ export default function HarvestScreen() {
               {existingFruitWeights.map((weight, index) => (
                 <View
                   key={`existing-ripe-${index}`}
-                  className="flex-row items-center mb-3 bg-gray-50 p-2 rounded-xl"
+                  className="flex-row items-center mb-4 bg-gray-50 p-4 rounded-2xl"
                 >
-                  <View className="bg-gray-200 w-8 h-8 rounded-full items-center justify-center mr-2">
-                    <Text className="text-gray-600 font-medium text-xs">
+                  <View className="bg-gray-200 w-10 h-10 rounded-full items-center justify-center mr-3">
+                    <Text
+                      className="text-gray-600 font-semibold"
+                      style={{ fontSize: 15 }}
+                    >
                       {index + 1}
                     </Text>
                   </View>
-                  <Text className="flex-1 text-gray-700">
+                  <Text
+                    className="flex-1 text-gray-700 font-medium"
+                    style={{ fontSize: 16 }}
+                  >
                     {weight.weight} kg
                   </Text>
-                  <Text className="text-xs text-gray-500 ml-2">
+                  <Text className="text-gray-500 ml-2" style={{ fontSize: 14 }}>
                     (harvested{" "}
                     {new Date(weight.created_at).toLocaleDateString()})
                   </Text>
@@ -1042,15 +1138,19 @@ export default function HarvestScreen() {
                 ripeFruits.map((weight, index) => (
                   <View
                     key={`new-ripe-${index}`}
-                    className="flex-row items-center mb-3"
+                    className="flex-row items-center mb-4"
                   >
-                    <View className="bg-green-100 w-8 h-8 rounded-full items-center justify-center mr-2">
-                      <Text className="text-green-700 font-medium text-xs">
+                    <View className="bg-green-100 w-10 h-10 rounded-full items-center justify-center mr-3">
+                      <Text
+                        className="text-green-700 font-semibold"
+                        style={{ fontSize: 15 }}
+                      >
                         {existingFruitWeights.length + index + 1}
                       </Text>
                     </View>
                     <TextInput
-                      className="flex-1 border border-green-300 rounded-xl px-4 py-3 bg-white"
+                      className="flex-1 border-2 border-green-300 rounded-2xl px-5 py-4 bg-white"
+                      style={{ fontSize: 18, minHeight: 56 }}
                       placeholder="Weight (kg)"
                       value={weight}
                       onChangeText={(value) =>
@@ -1058,15 +1158,22 @@ export default function HarvestScreen() {
                       }
                       keyboardType="numeric"
                       editable={!isHarvestCompleted}
+                      placeholderTextColor="#9ca3af"
                     />
-                    <Text className="mx-2 text-gray-600">kg</Text>
+                    <Text
+                      className="mx-3 text-gray-600 font-medium"
+                      style={{ fontSize: 16 }}
+                    >
+                      kg
+                    </Text>
                     <TouchableOpacity
                       onPress={() => handleRemoveRipeFruit(index)}
-                      className="p-2"
+                      className="p-3"
+                      style={{ minWidth: 56, minHeight: 56 }}
                       disabled={isHarvestCompleted}
                     >
                       <Trash2
-                        size={18}
+                        size={22}
                         color={isHarvestCompleted ? "#9ca3af" : "#ef4444"}
                       />
                     </TouchableOpacity>
@@ -1077,34 +1184,48 @@ export default function HarvestScreen() {
         </View>
 
         {/* Waste Section */}
-        <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-          <View className="flex-row justify-between items-center mb-4">
+        {/* Waste Section */}
+        <View className="bg-white rounded-2xl p-6 mb-5 shadow-sm border-2 border-gray-100">
+          <View className="flex-row justify-between items-center mb-5">
             <View className="flex-row items-center">
-              <View className="bg-red-100 p-2 rounded-full mr-2">
-                <AlertCircle size={18} color="#ef4444" />
+              <View className="bg-red-100 p-3 rounded-2xl mr-3">
+                <AlertCircle size={24} color="#ef4444" />
               </View>
-              <Text className="text-gray-800 font-semibold">Wasted Fruits</Text>
+              <Text
+                className="text-gray-800 font-bold"
+                style={{ fontSize: 18 }}
+              >
+                Wasted Fruits
+              </Text>
             </View>
             {!isHarvestCompleted && (
               <TouchableOpacity
                 onPress={handleAddWaste}
                 disabled={remaining <= 0}
-                className={`flex-row items-center px-3 py-1.5 rounded-full ${
+                className={`flex-row items-center px-5 py-3 rounded-2xl ${
                   remaining > 0 ? "bg-red-500" : "bg-gray-300"
                 }`}
+                style={{ minHeight: 56 }}
               >
-                <Plus size={16} color="white" />
-                <Text className="text-white text-xs ml-1">Add</Text>
+                <Plus size={18} color="white" />
+                <Text
+                  className="text-white font-semibold ml-2"
+                  style={{ fontSize: 16 }}
+                >
+                  Add
+                </Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* Combine existing and new wastes */}
           {existingWastes.length === 0 && wasteItems.length === 0 ? (
-            <View className="border-2 border-dashed border-red-200 rounded-xl p-6 items-center">
-              <AlertCircle size={32} color="#9ca3af" />
-              <Text className="text-gray-500 mt-2">No waste recorded</Text>
-              <Text className="text-gray-400 text-xs mt-1">
+            <View className="border-2 border-dashed border-red-200 rounded-2xl p-8 items-center">
+              <AlertCircle size={40} color="#9ca3af" />
+              <Text className="text-gray-500 mt-3" style={{ fontSize: 16 }}>
+                No waste recorded
+              </Text>
+              <Text className="text-gray-400 mt-2" style={{ fontSize: 15 }}>
                 {isHarvestCompleted
                   ? "Harvest is complete"
                   : "Tap Add to record wasted fruits"}
@@ -1116,27 +1237,37 @@ export default function HarvestScreen() {
               {existingWastes.map((waste, index) => (
                 <View
                   key={`existing-waste-${index}`}
-                  className="mb-3 p-3 bg-gray-50 rounded-xl"
+                  className="mb-4 p-4 bg-gray-50 rounded-2xl"
                 >
                   <View className="flex-row justify-between items-center">
                     <View className="flex-row items-center flex-1">
-                      <View className="bg-gray-200 w-6 h-6 rounded-full items-center justify-center mr-2">
-                        <Text className="text-gray-600 font-medium text-xs">
+                      <View className="bg-gray-200 w-8 h-8 rounded-full items-center justify-center mr-3">
+                        <Text
+                          className="text-gray-600 font-semibold"
+                          style={{ fontSize: 14 }}
+                        >
                           {index + 1}
                         </Text>
                       </View>
                       <View className="flex-1">
-                        <Text className="text-gray-800 font-medium">
+                        <Text
+                          className="text-gray-800 font-semibold"
+                          style={{ fontSize: 16 }}
+                        >
                           {waste.waste_quantity} fruit
                           {waste.waste_quantity !== "1" ? "s" : ""}
                         </Text>
                         <Text
-                          className="text-gray-600 text-xs"
+                          className="text-gray-600 mt-1"
+                          style={{ fontSize: 15 }}
                           numberOfLines={1}
                         >
                           {waste.reason}
                         </Text>
-                        <Text className="text-gray-400 text-xs mt-1">
+                        <Text
+                          className="text-gray-400 mt-1"
+                          style={{ fontSize: 14 }}
+                        >
                           Recorded:{" "}
                           {new Date(waste.created_at).toLocaleDateString()}
                         </Text>
@@ -1151,47 +1282,58 @@ export default function HarvestScreen() {
                 wasteItems.map((item, index) => (
                   <View
                     key={`new-waste-${index}`}
-                    className="mb-3 p-3 bg-red-50 rounded-xl"
+                    className="mb-4 p-4 bg-red-50 rounded-2xl"
                   >
                     <View className="flex-row justify-between items-center">
                       <View className="flex-row items-center flex-1">
-                        <View className="bg-red-200 w-6 h-6 rounded-full items-center justify-center mr-2">
-                          <Text className="text-red-700 font-medium text-xs">
+                        <View className="bg-red-200 w-8 h-8 rounded-full items-center justify-center mr-3">
+                          <Text
+                            className="text-red-700 font-semibold"
+                            style={{ fontSize: 14 }}
+                          >
                             {existingWastes.length + index + 1}
                           </Text>
                         </View>
                         <View className="flex-1">
-                          <Text className="text-gray-800 font-medium">
+                          <Text
+                            className="text-gray-800 font-semibold"
+                            style={{ fontSize: 16 }}
+                          >
                             {item.quantity} fruit
                             {item.quantity !== "1" ? "s" : ""}
                           </Text>
                           <Text
-                            className="text-gray-600 text-xs"
+                            className="text-gray-600 mt-1"
+                            style={{ fontSize: 15 }}
                             numberOfLines={1}
                           >
                             {item.reason}
                           </Text>
                         </View>
                       </View>
-                      <View className="flex-row">
+                      <View className="flex-row gap-2">
                         <TouchableOpacity
                           onPress={() => handleEditWaste(index)}
-                          className="px-2"
+                          className="px-4 py-2"
+                          style={{ minHeight: 44 }}
                           disabled={isHarvestCompleted}
                         >
                           <Text
-                            className={`text-xs ${isHarvestCompleted ? "text-gray-400" : "text-blue-500"}`}
+                            className={`font-semibold ${isHarvestCompleted ? "text-gray-400" : "text-blue-500"}`}
+                            style={{ fontSize: 16 }}
                           >
                             Edit
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() => handleRemoveWaste(index)}
-                          className="px-2"
+                          className="px-4 py-2"
+                          style={{ minHeight: 44 }}
                           disabled={isHarvestCompleted}
                         >
                           <Text
-                            className={`text-xs ${isHarvestCompleted ? "text-gray-400" : "text-red-500"}`}
+                            className={`font-semibold ${isHarvestCompleted ? "text-gray-400" : "text-red-500"}`}
+                            style={{ fontSize: 16 }}
                           >
                             Remove
                           </Text>
@@ -1209,30 +1351,43 @@ export default function HarvestScreen() {
           <TouchableOpacity
             onPress={handleSubmitHarvest}
             disabled={submitting || totalNow === 0}
-            className={`py-4 rounded-xl mt-2 ${
+            className={`py-5 rounded-2xl mt-3 ${
               totalNow > 0 ? "bg-green-600" : "bg-gray-400"
             }`}
+            style={{ minHeight: TOUCH_TARGET }}
           >
             {submitting ? (
               <View className="flex-row items-center justify-center">
-                <ActivityIndicator size="small" color="white" />
-                <Text className="text-white font-semibold ml-2">
+                <ActivityIndicator size="large" color="white" />
+                <Text
+                  className="text-white font-bold ml-3"
+                  style={{ fontSize: FONT_SIZE_BODY }}
+                >
                   {harvestRecord ? "Updating..." : "Saving..."}
                 </Text>
               </View>
             ) : (
-              <Text className="text-center font-semibold text-white text-lg">
+              <Text
+                className="text-center font-bold text-white"
+                style={{ fontSize: FONT_SIZE_BODY }}
+              >
                 ✓ {harvestRecord ? "Update Harvest" : "Record Harvest"}
               </Text>
             )}
           </TouchableOpacity>
         ) : (
           // Show a message or alternative when harvested
-          <View className="py-4 rounded-xl mt-2 bg-green-100 border border-green-300">
-            <Text className="text-center font-semibold text-green-700 text-lg">
+          <View className="py-5 rounded-2xl mt-3 bg-green-100 border-2 border-green-300">
+            <Text
+              className="text-center font-bold text-green-700"
+              style={{ fontSize: FONT_SIZE_BODY }}
+            >
               ✓ Harvest Complete
             </Text>
-            <Text className="text-center text-green-600 text-sm mt-1">
+            <Text
+              className="text-center text-green-600 mt-2"
+              style={{ fontSize: FONT_SIZE_SMALL }}
+            >
               All fruits have been harvested
             </Text>
           </View>
@@ -1240,8 +1395,11 @@ export default function HarvestScreen() {
 
         {/* Info Note */}
         {!isHarvestCompleted && (
-          <View className="mt-4 px-2 mb-6">
-            <Text className="text-xs text-gray-500 text-center">
+          <View className="mt-5 px-3 mb-8">
+            <Text
+              className="text-gray-500 text-center"
+              style={{ fontSize: FONT_SIZE_SMALL }}
+            >
               Total ripe + waste should not exceed {availableQuantity} fruits
               this session. Overall progress:{" "}
               {(
@@ -1266,48 +1424,67 @@ export default function HarvestScreen() {
         onRequestClose={() => setShowWasteModal(false)}
       >
         <View className="flex-1 justify-center items-center bg-black/50">
-          <View className="bg-white rounded-xl p-6 w-11/12 max-w-md">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-gray-800">
+          <View className="bg-white rounded-2xl p-6 w-11/12 max-w-md">
+            <View className="flex-row justify-between items-center mb-5">
+              <Text
+                className="font-bold text-gray-800"
+                style={{ fontSize: FONT_SIZE_HEADING }}
+              >
                 {editingWasteIndex !== null ? "Edit Waste" : "Add Waste"}
               </Text>
-              <TouchableOpacity onPress={() => setShowWasteModal(false)}>
-                <X size={24} color="#6b7280" />
+              <TouchableOpacity
+                onPress={() => setShowWasteModal(false)}
+                className="w-12 h-12 items-center justify-center rounded-full active:bg-gray-100"
+                style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
+              >
+                <X size={ICON_SIZE_MD} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
-            <Text className="text-gray-700 font-medium mb-2">
+            <Text
+              className="text-gray-700 font-semibold mb-2"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               Quantity <Text className="text-red-500">*</Text>
             </Text>
             <TextInput
-              className="border border-gray-300 rounded-xl px-4 py-3 mb-4"
+              className="border-2 border-gray-300 rounded-2xl px-5 py-4 mb-5"
+              style={{ fontSize: FONT_SIZE_BODY, minHeight: TOUCH_TARGET }}
               placeholder="Number of wasted fruits"
               value={wasteQuantity}
               onChangeText={setWasteQuantity}
               keyboardType="numeric"
               editable={!isHarvestCompleted}
+              placeholderTextColor="#9ca3af"
             />
 
-            <Text className="text-gray-700 font-medium mb-2">
+            <Text
+              className="text-gray-700 font-semibold mb-2"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               Reason <Text className="text-red-500">*</Text>
             </Text>
             <TouchableOpacity
               onPress={() => setShowReasonDropdown(!showReasonDropdown)}
-              className="border border-gray-300 rounded-xl px-4 py-3 mb-4 bg-white flex-row justify-between items-center"
+              className="border-2 border-gray-300 rounded-2xl px-5 py-4 mb-5 bg-white flex-row justify-between items-center"
+              style={{ minHeight: TOUCH_TARGET }}
               disabled={isHarvestCompleted}
             >
-              <Text className={wasteReason ? "text-gray-800" : "text-gray-400"}>
+              <Text
+                style={{ fontSize: FONT_SIZE_BODY }}
+                className={wasteReason ? "text-gray-800" : "text-gray-400"}
+              >
                 {wasteReason
                   ? wasteReasonOptions.find((opt) => opt.value === wasteReason)
                       ?.label || wasteReason
                   : "Select reason"}
               </Text>
-              <ChevronDown size={20} color="#6b7280" />
+              <ChevronDown size={ICON_SIZE_MD} color="#6b7280" />
             </TouchableOpacity>
 
             {/* Dropdown Options */}
             {showReasonDropdown && !isHarvestCompleted && (
-              <View className="border border-gray-200 rounded-xl mb-4 max-h-48 bg-white shadow-lg">
+              <View className="border-2 border-gray-200 rounded-2xl mb-5 max-h-48 bg-white shadow-lg">
                 <ScrollView nestedScrollEnabled={true}>
                   {wasteReasonOptions.map((option) => (
                     <TouchableOpacity
@@ -1319,9 +1496,15 @@ export default function HarvestScreen() {
                           setCustomReason("");
                         }
                       }}
-                      className="px-4 py-3 border-b border-gray-100"
+                      className="px-5 py-4 border-b border-gray-100 active:bg-gray-50"
+                      style={{ minHeight: TOUCH_TARGET }}
                     >
-                      <Text className="text-gray-800">{option.label}</Text>
+                      <Text
+                        className="text-gray-800"
+                        style={{ fontSize: FONT_SIZE_BODY }}
+                      >
+                        {option.label}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -1330,27 +1513,36 @@ export default function HarvestScreen() {
 
             {/* Custom Reason Input - Show only when "Other" is selected */}
             {wasteReason === "other" && !isHarvestCompleted && (
-              <View className="mb-4">
-                <Text className="text-gray-700 font-medium mb-2">
+              <View className="mb-5">
+                <Text
+                  className="text-gray-700 font-semibold mb-2"
+                  style={{ fontSize: FONT_SIZE_CAPTION }}
+                >
                   Please specify <Text className="text-red-500">*</Text>
                 </Text>
                 <TextInput
-                  className="border border-gray-300 rounded-xl px-4 py-3 bg-white"
+                  className="border-2 border-gray-300 rounded-2xl px-5 py-4 bg-white"
+                  style={{ fontSize: FONT_SIZE_BODY, minHeight: TOUCH_TARGET }}
                   placeholder="Enter specific reason..."
                   value={customReason}
                   onChangeText={setCustomReason}
                   multiline
                   numberOfLines={2}
                   textAlignVertical="top"
+                  placeholderTextColor="#9ca3af"
                 />
               </View>
             )}
             {!isHarvestCompleted && (
               <TouchableOpacity
-                className="bg-red-500 py-3 rounded-xl"
+                className="bg-red-500 py-5 rounded-2xl active:bg-red-600"
+                style={{ minHeight: TOUCH_TARGET }}
                 onPress={handleSaveWaste}
               >
-                <Text className="text-center font-semibold text-white">
+                <Text
+                  className="text-center font-bold text-white"
+                  style={{ fontSize: FONT_SIZE_BODY }}
+                >
                   {editingWasteIndex !== null ? "Update" : "Add"} Waste
                 </Text>
               </TouchableOpacity>
@@ -1367,9 +1559,12 @@ export default function HarvestScreen() {
         onRequestClose={() => setShowBacklogModal(false)}
       >
         <View className="flex-1 justify-center items-center bg-black/50">
-          <View className="bg-white rounded-xl p-6 w-11/12 max-w-md">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-gray-800">
+          <View className="bg-white rounded-2xl p-6 w-11/12 max-w-md">
+            <View className="flex-row justify-between items-center mb-5">
+              <Text
+                className="font-bold text-gray-800"
+                style={{ fontSize: FONT_SIZE_HEADING }}
+              >
                 Backlog Harvest
               </Text>
               <TouchableOpacity
@@ -1377,58 +1572,48 @@ export default function HarvestScreen() {
                   setShowBacklogModal(false);
                   router.back();
                 }}
+                className="w-12 h-12 items-center justify-center rounded-full active:bg-gray-100"
+                style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
               >
-                <X size={24} color="#6b7280" />
+                <X size={ICON_SIZE_MD} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
-            <Text className="text-gray-600 mb-4">
+            <Text
+              className="text-gray-600 mb-5"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               You have {remainingAfterHarvest} fruit
               {remainingAfterHarvest !== 1 ? "s" : ""} left to harvest. When
               should we remind you to check them again?
             </Text>
 
-            <Text className="text-gray-700 font-medium mb-2">
+            <Text
+              className="text-gray-700 font-semibold mb-2"
+              style={{ fontSize: FONT_SIZE_CAPTION }}
+            >
               Days until next check <Text className="text-red-500">*</Text>
             </Text>
             <TextInput
-              className="border border-gray-300 rounded-xl px-4 py-3 mb-4"
+              className="border-2 border-gray-300 rounded-2xl px-5 py-4 mb-6"
+              style={{ fontSize: FONT_SIZE_BODY, minHeight: TOUCH_TARGET }}
               placeholder="e.g., 7"
               value={backlogDays}
               onChangeText={setBacklogDays}
               keyboardType="numeric"
+              placeholderTextColor="#9ca3af"
             />
 
-            {/* <Text className="text-gray-700 font-medium mb-2">
-              Reason (Optional)
-            </Text>
-            <TextInput
-              className="border border-gray-300 rounded-xl px-4 py-3 mb-6"
-              placeholder="e.g., Still developing, weather condition"
-              value={backlogReason}
-              onChangeText={setBacklogReason}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            /> */}
-
             <View className="flex-row space-x-3">
-              {/* <TouchableOpacity
-                className="flex-1 bg-gray-300 py-3 rounded-xl mr-2"
-                onPress={() => {
-                  setShowBacklogModal(false);
-                  router.back();
-                }}
-              >
-                <Text className="text-center font-semibold text-gray-700">
-                  Skip
-                </Text>
-              </TouchableOpacity> */}
               <TouchableOpacity
-                className="flex-1 bg-orange-500 py-3 rounded-xl ml-2"
+                className="flex-1 bg-orange-500 py-5 rounded-2xl ml-2 active:bg-orange-600"
+                style={{ minHeight: TOUCH_TARGET }}
                 onPress={handleBacklogSubmit}
               >
-                <Text className="text-center font-semibold text-white">
+                <Text
+                  className="text-center font-bold text-white"
+                  style={{ fontSize: FONT_SIZE_BODY }}
+                >
                   Set Reminder
                 </Text>
               </TouchableOpacity>

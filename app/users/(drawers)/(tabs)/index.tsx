@@ -44,6 +44,18 @@ import { useSelector } from "react-redux";
 
 const { width } = Dimensions.get("window");
 
+// Accessibility constants
+const TOUCH_TARGET = 56; // Minimum 56px for accessibility
+const ICON_SIZE_LG = 32;
+const ICON_SIZE_MD = 24;
+const ICON_SIZE_SM = 18;
+const FONT_SIZE_TITLE = 32;
+const FONT_SIZE_HEADING = 24;
+const FONT_SIZE_SUBHEADING = 20;
+const FONT_SIZE_BODY = 18;
+const FONT_SIZE_CAPTION = 16;
+const FONT_SIZE_SMALL = 14;
+
 export default function FarmerHomeScreen() {
   const router = useRouter();
   const [isOnline, setIsOnline] = useState(false);
@@ -274,7 +286,7 @@ export default function FarmerHomeScreen() {
 
     return (
       <TouchableOpacity
-        className="bg-white rounded-xl p-4 mb-3 border border-gray-200 flex-row items-center"
+        className="bg-white rounded-2xl p-6 mb-4 border-2 border-gray-200 flex-row items-center active:bg-gray-50"
         onPress={() => {
           if (item.fruit) {
             router.push({
@@ -289,46 +301,47 @@ export default function FarmerHomeScreen() {
           }
         }}
         activeOpacity={0.7}
+        style={{ minHeight: TOUCH_TARGET * 2 }}
       >
-        {/* Status Icon */}
+        {/* Status Icon - Larger */}
         <View
-          className={`mr-3 w-12 h-12 ${statusStyle.container} rounded-full items-center justify-center`}
+          className={`mr-4 w-16 h-16 ${statusStyle.container} rounded-2xl items-center justify-center`}
         >
-          <StatusIcon size={24} color={statusStyle.iconColor} />
+          <StatusIcon size={ICON_SIZE_LG} color={statusStyle.iconColor} />
         </View>
 
-        <View className="flex-1">
+        <View className="flex-1 gap-3">
           {/* Tree Name and Status Badge */}
-          <View className="flex-row items-center justify-between mb-1">
+          <View className="flex-row items-center justify-between">
             <Text
-              className="text-lg font-bold text-gray-900 flex-1 mr-2"
-              numberOfLines={1}
+              className="text-xl font-bold text-gray-900 flex-1 mr-3"
+              numberOfLines={2}
             >
               {item.fruit?.tree?.description ||
                 item.fruit?.treeName ||
                 `Fruit #${item.fruit_id?.substring(0, 8)}`}
             </Text>
-            <View className={`rounded-full px-3 py-1 ${statusStyle.container}`}>
-              <Text className={`text-xs font-medium ${statusStyle.text}`}>
+            <View className={`rounded-full px-4 py-2 ${statusStyle.container}`}>
+              <Text className={`text-sm font-semibold ${statusStyle.text}`}>
                 {statusStyle.label}
               </Text>
             </View>
           </View>
 
           {/* Flower ID and Tree Type */}
-          <View className="flex-row gap-2 mb-2">
+          <View className="flex-row gap-3 flex-wrap">
             {item.fruit?.flower_id && (
-              <View className="bg-blue-50 px-2 py-1 rounded-md flex-row items-center">
-                <Flower2 size={12} color="#3B82F6" />
-                <Text className="text-xs text-blue-700 font-medium ml-1">
+              <View className="bg-blue-50 px-4 py-2 rounded-xl flex-row items-center">
+                <Flower2 size={ICON_SIZE_SM} color="#3B82F6" />
+                <Text className="text-sm text-blue-700 font-semibold ml-2">
                   {item.fruit.flower_id.substring(0, 6)}
                 </Text>
               </View>
             )}
             {item.fruit?.tree?.type && (
-              <View className="bg-green-50 px-2 py-1 rounded-md flex-row items-center">
-                <Trees size={12} color="#059669" />
-                <Text className="text-xs text-green-700 font-medium ml-1">
+              <View className="bg-green-50 px-4 py-2 rounded-xl flex-row items-center">
+                <Trees size={ICON_SIZE_SM} color="#059669" />
+                <Text className="text-sm text-green-700 font-semibold ml-2">
                   {item.fruit.tree.type}
                 </Text>
               </View>
@@ -336,11 +349,11 @@ export default function FarmerHomeScreen() {
           </View>
 
           {/* Bagged Date and Quantity */}
-          <View className="flex-row gap-3 mb-2">
+          <View className="flex-row gap-4 flex-wrap">
             {item.fruit?.bagged_at && (
               <View className="flex-row items-center">
-                <Calendar size={12} color="#6B7280" />
-                <Text className="text-xs text-gray-500 ml-1">
+                <Calendar size={ICON_SIZE_SM} color="#6B7280" />
+                <Text className="text-sm text-gray-600 ml-2">
                   Bagged:{" "}
                   {new Date(item.fruit.bagged_at).toLocaleDateString("en-PH", {
                     month: "short",
@@ -351,8 +364,8 @@ export default function FarmerHomeScreen() {
             )}
             {item.fruit?.quantity && (
               <View className="flex-row items-center">
-                <Package size={12} color="#6B7280" />
-                <Text className="text-xs text-gray-500 ml-1">
+                <Package size={ICON_SIZE_SM} color="#6B7280" />
+                <Text className="text-sm text-gray-600 ml-2">
                   Qty: {item.fruit.quantity}
                 </Text>
               </View>
@@ -361,9 +374,9 @@ export default function FarmerHomeScreen() {
 
           {/* Days since bagged */}
           {item.fruit?.bagged_at && (
-            <View className="flex-row items-center mt-1">
-              <Clock size={12} color="#9CA3AF" />
-              <Text className="text-xs text-gray-400 ml-1">
+            <View className="flex-row items-center">
+              <Clock size={ICON_SIZE_SM} color="#9CA3AF" />
+              <Text className="text-sm text-gray-500 ml-2">
                 {Math.floor(
                   (new Date().getTime() -
                     new Date(item.fruit.bagged_at).getTime()) /
@@ -376,9 +389,9 @@ export default function FarmerHomeScreen() {
 
           {/* Show remaining quantity if partial */}
           {item.status === "partial" && item.fruit?.remaining_quantity > 0 && (
-            <View className="mt-2 flex-row items-center">
-              <Package size={12} color="#F97316" />
-              <Text className="text-xs text-orange-600 ml-1">
+            <View className="flex-row items-center">
+              <Package size={ICON_SIZE_SM} color="#F97316" />
+              <Text className="text-sm text-orange-600 font-semibold ml-2">
                 {item.fruit.remaining_quantity} remaining
               </Text>
             </View>
@@ -386,16 +399,16 @@ export default function FarmerHomeScreen() {
 
           {/* Show harvest date if harvested */}
           {item.harvest_at && item.status === "harvested" && (
-            <View className="mt-1 flex-row items-center">
-              <CheckCircle2 size={12} color="#10B981" />
-              <Text className="text-xs text-green-600 ml-1">
+            <View className="flex-row items-center">
+              <CheckCircle2 size={ICON_SIZE_SM} color="#10B981" />
+              <Text className="text-sm text-green-600 ml-2">
                 Harvested: {new Date(item.harvest_at).toLocaleDateString()}
               </Text>
             </View>
           )}
         </View>
 
-        <ChevronRight size={20} color="#9CA3AF" />
+        <ChevronRight size={ICON_SIZE_MD} color="#9CA3AF" />
       </TouchableOpacity>
     );
   };
@@ -405,39 +418,48 @@ export default function FarmerHomeScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
 
       {/* Header */}
-      <View className="bg-white px-6 pt-6 pb-4 border-b border-gray-200">
-        <View className="flex-row justify-between items-center mb-4">
+      <View className="bg-white px-6 pt-8 pb-6 border-b border-gray-200">
+        <View className="flex-row justify-between items-center mb-6">
           <View>
-            <Text className="text-3xl font-bold text-gray-900">
+            <Text
+              className="font-bold text-gray-900"
+              style={{ fontSize: FONT_SIZE_TITLE }}
+            >
               {getTimeBasedGreeting()},
             </Text>
-            <Text className="text-lg text-gray-600">Welcome to Kalangka</Text>
+            <Text
+              className="text-gray-600"
+              style={{ fontSize: FONT_SIZE_SUBHEADING }}
+            >
+              Welcome to WrapCrop
+            </Text>
           </View>
           <TouchableOpacity
-            className="w-12 h-12 rounded-full bg-gray-100 items-center justify-center"
+            className="w-16 h-16 rounded-2xl bg-gray-100 items-center justify-center active:bg-gray-200"
             onPress={() => router.push("/users/profile")}
+            style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
           >
-            <User size={24} color="#4B5563" />
+            <User size={ICON_SIZE_MD} color="#4B5563" />
           </TouchableOpacity>
         </View>
 
-        {/* Network Status & Sync */}
+        {/* Network Status & Sync - Larger touch targets */}
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center gap-2">
             <View
-              className={`flex-row items-center px-3 py-1.5 rounded-full ${isOnline ? "bg-emerald-50" : "bg-gray-100"}`}
+              className={`flex-row items-center px-5 py-3 rounded-full ${isOnline ? "bg-emerald-50" : "bg-gray-100"}`}
             >
               {isOnline ? (
                 <>
-                  <Cloud size={16} color="#059669" />
-                  <Text className="ml-2 text-emerald-700 font-medium">
+                  <Cloud size={ICON_SIZE_MD} color="#059669" />
+                  <Text className="ml-3 text-emerald-700 font-semibold text-base">
                     Online
                   </Text>
                 </>
               ) : (
                 <>
-                  <CloudOff size={16} color="#6B7280" />
-                  <Text className="ml-2 text-gray-600 font-medium">
+                  <CloudOff size={ICON_SIZE_MD} color="#6B7280" />
+                  <Text className="ml-3 text-gray-600 font-semibold text-base">
                     Offline
                   </Text>
                 </>
@@ -446,10 +468,13 @@ export default function FarmerHomeScreen() {
           </View>
           <TouchableOpacity
             onPress={onRefresh}
-            className="flex-row items-center gap-2"
+            className="flex-row items-center gap-3 px-4 py-3 rounded-xl active:bg-gray-100"
+            style={{ minHeight: TOUCH_TARGET }}
           >
-            <RefreshCw size={18} color="#059669" />
-            <Text className="text-sm text-emerald-600">Refresh</Text>
+            <RefreshCw size={ICON_SIZE_MD} color="#059669" />
+            <Text className="text-lg text-emerald-600 font-semibold">
+              Refresh
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -467,39 +492,48 @@ export default function FarmerHomeScreen() {
         }
       >
         {user && (
-          <View className="px-6 my-6">
-            <View className="flex-row justify-between items-center mb-4">
-              <View className="flex-row items-center">
-                <Sprout size={24} color="#F97316" />
-                <Text className="text-2xl font-bold text-gray-900 ml-2">
+          <View className="px-6 my-8">
+            {/* Header Section - Fixed Layout */}
+            <View className="flex-row justify-between items-start mb-6">
+              <View className="flex-row items-center flex-1 mr-4">
+                <Sprout size={ICON_SIZE_LG} color="#F97316" />
+                <Text
+                  className="font-bold text-gray-900 ml-3 flex-shrink"
+                  style={{ fontSize: FONT_SIZE_HEADING }}
+                  numberOfLines={2}
+                >
                   My Assigned Harvests
                 </Text>
               </View>
               {assignedHarvests.length > 0 && (
                 <TouchableOpacity
                   onPress={() => router.push("/users/assigned")}
+                  className="bg-emerald-50 px-4 py-3 rounded-xl active:bg-emerald-100"
+                  style={{ minHeight: TOUCH_TARGET, justifyContent: "center" }}
                 >
-                  <Text className="text-emerald-600 font-medium">View All</Text>
+                  <Text className="text-emerald-600 font-semibold text-lg">
+                    View All
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
 
             {loadingAssignments ? (
-              <View className="bg-white rounded-xl p-8 items-center">
+              <View className="bg-white rounded-2xl p-10 items-center">
                 <ActivityIndicator size="large" color="#F97316" />
-                <Text className="text-gray-600 mt-3">
+                <Text className="text-gray-600 mt-4 text-lg">
                   Loading assignments...
                 </Text>
               </View>
             ) : assignedHarvests.length === 0 ? (
-              <View className="bg-white rounded-xl p-8 items-center border border-gray-200">
-                <View className="w-16 h-16 bg-orange-50 rounded-full items-center justify-center mb-3">
-                  <CheckCircle2 size={32} color="#F97316" />
+              <View className="bg-white rounded-2xl p-10 items-center border-2 border-gray-200">
+                <View className="w-20 h-20 bg-orange-50 rounded-2xl items-center justify-center mb-4">
+                  <CheckCircle2 size={40} color="#F97316" />
                 </View>
-                <Text className="text-lg font-medium text-gray-900 mb-1">
+                <Text className="text-xl font-semibold text-gray-900 mb-2">
                   No Assigned Harvests
                 </Text>
-                <Text className="text-gray-500 text-center">
+                <Text className="text-gray-500 text-center text-lg">
                   You don&apos;t have any pending harvest assignments.
                 </Text>
               </View>
@@ -513,10 +547,11 @@ export default function FarmerHomeScreen() {
                 />
                 {assignedHarvests.length > 3 && (
                   <TouchableOpacity
-                    className="mt-2 bg-orange-50 rounded-xl p-3 items-center"
+                    className="mt-3 bg-orange-50 rounded-2xl p-5 items-center active:bg-orange-100"
                     onPress={() => router.push("/users/assigned")}
+                    style={{ minHeight: TOUCH_TARGET }}
                   >
-                    <Text className="text-orange-700 font-medium">
+                    <Text className="text-orange-700 font-semibold text-lg">
                       View {assignedHarvests.length - 3} More Assignments
                     </Text>
                   </TouchableOpacity>
@@ -526,55 +561,74 @@ export default function FarmerHomeScreen() {
           </View>
         )}
 
-        {/* QR Scan Section - Main Feature */}
-        <View className="px-6 pt-2 pb-4">
-          <Text className="text-2xl font-bold text-gray-900 mb-2">
+        {/* QR Scan Section - Main Feature - Much Larger */}
+        <View className="px-6 pt-4 pb-8">
+          <Text
+            className="font-bold text-gray-900 mb-3"
+            style={{ fontSize: FONT_SIZE_HEADING }}
+          >
             Quick Tree Access
           </Text>
-          <Text className="text-gray-600 mb-6">
+          <Text
+            className="text-gray-600 mb-8"
+            style={{ fontSize: FONT_SIZE_BODY }}
+          >
             Scan any tree&apos;s QR code to instantly access its details
           </Text>
 
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
             <TouchableOpacity
-              className="bg-emerald-600 rounded-3xl p-6"
+              className="bg-emerald-600 rounded-3xl p-8 active:bg-emerald-700"
               onPress={() => router.push("/users/qrcam")}
               activeOpacity={0.9}
+              style={{ minHeight: TOUCH_TARGET * 4 }}
             >
               <Animated.View
                 style={{ transform: [{ scale: scanButtonScale }] }}
-                className="items-center mb-4"
+                className="items-center mb-6"
               >
-                <View className="w-20 h-20 bg-white/20 rounded-full items-center justify-center mb-4">
-                  <QrCode size={40} color="white" />
+                <View className="w-28 h-28 bg-white/20 rounded-3xl items-center justify-center mb-6">
+                  <QrCode size={56} color="white" />
                 </View>
 
-                <View className="flex-row items-center mb-2 gap-2">
-                  <Camera size={20} color="white" />
-                  <Text className="text-white text-2xl font-bold">
+                <View className="flex-row items-center mb-3 gap-3">
+                  <Camera size={ICON_SIZE_MD} color="white" />
+                  <Text
+                    className="text-white font-bold"
+                    style={{ fontSize: FONT_SIZE_HEADING }}
+                  >
                     Scan Tree QR Code
                   </Text>
                 </View>
 
-                <Text className="text-emerald-100 text-center mb-6">
+                <Text
+                  className="text-emerald-100 text-center"
+                  style={{ fontSize: FONT_SIZE_BODY }}
+                >
                   Tap to open camera and scan any tree&apos;s QR code
                 </Text>
               </Animated.View>
 
-              <View className="bg-white/20 rounded-xl p-4">
+              <View className="bg-white/20 rounded-2xl p-6">
                 <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-white rounded-full items-center justify-center mr-3">
-                    <Zap size={20} color="#059669" />
+                  <View className="w-14 h-14 bg-white rounded-2xl items-center justify-center mr-4">
+                    <Zap size={ICON_SIZE_MD} color="#059669" />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-white font-bold">
+                    <Text
+                      className="text-white font-bold"
+                      style={{ fontSize: FONT_SIZE_SUBHEADING }}
+                    >
                       Instant Tree Access
                     </Text>
-                    <Text className="text-emerald-100 text-sm">
+                    <Text
+                      className="text-emerald-100"
+                      style={{ fontSize: FONT_SIZE_CAPTION }}
+                    >
                       Register • Monitor • Report activities
                     </Text>
                   </View>
-                  <ArrowRight size={20} color="white" />
+                  <ArrowRight size={ICON_SIZE_MD} color="white" />
                 </View>
               </View>
             </TouchableOpacity>

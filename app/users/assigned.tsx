@@ -22,6 +22,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
+// Accessibility constants
+const TOUCH_TARGET = 56;
+const ICON_SIZE_XL = 36;
+const ICON_SIZE_LG = 28;
+const ICON_SIZE_MD = 24;
+const ICON_SIZE_SM = 18;
+const FONT_SIZE_TITLE = 28;
+const FONT_SIZE_HEADING = 22;
+const FONT_SIZE_BODY = 18;
+const FONT_SIZE_CAPTION = 16;
+const FONT_SIZE_SMALL = 15;
+
 export default function AssignedHarvestsScreen() {
   const router = useRouter();
   const [assignedHarvests, setAssignedHarvests] = useState([]);
@@ -112,7 +124,7 @@ export default function AssignedHarvestsScreen() {
 
     return (
       <TouchableOpacity
-        className="bg-white rounded-xl p-4 mb-3 border border-gray-200"
+        className="bg-white rounded-2xl p-6 mb-4 border-2 border-gray-200 active:bg-gray-50"
         onPress={() => {
           if (item.fruit) {
             router.push({
@@ -127,22 +139,29 @@ export default function AssignedHarvestsScreen() {
           }
         }}
         activeOpacity={0.7}
+        style={{ minHeight: TOUCH_TARGET * 2 }}
       >
         <View className="flex-row items-center">
-          <View className="w-14 h-14 bg-orange-100 rounded-full items-center justify-center mr-3">
-            <Package size={28} color="#F97316" />
+          {/* Larger Icon Container */}
+          <View className="w-16 h-16 bg-orange-100 rounded-2xl items-center justify-center mr-4">
+            <Package size={ICON_SIZE_XL} color="#F97316" />
           </View>
 
           <View className="flex-1">
-            <View className="flex-row items-center justify-between">
-              <Text className="font-bold text-gray-900 text-lg">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text
+                className="font-bold text-gray-900 flex-1 mr-3"
+                style={{ fontSize: FONT_SIZE_BODY }}
+                numberOfLines={2}
+              >
                 {item.fruit?.tree?.description ||
                   item.fruit?.treeName ||
                   `Tree at ${item.fruit?.tree?.latitude?.toFixed(4)}, ${item.fruit?.tree?.longitude?.toFixed(4)}`}
               </Text>
 
+              {/* Larger Status Badge */}
               <View
-                className={`px-3 py-1 rounded-full ${
+                className={`px-4 py-2 rounded-full ${
                   item.status === "pending"
                     ? "bg-blue-100"
                     : item.status === "partial"
@@ -151,13 +170,14 @@ export default function AssignedHarvestsScreen() {
                 }`}
               >
                 <Text
-                  className={`text-xs font-medium ${
+                  className={`font-semibold ${
                     item.status === "pending"
                       ? "text-blue-700"
                       : item.status === "partial"
                         ? "text-yellow-700"
                         : "text-gray-700"
                   }`}
+                  style={{ fontSize: FONT_SIZE_SMALL }}
                 >
                   {item.status === "pending"
                     ? "Pending Harvest"
@@ -168,34 +188,48 @@ export default function AssignedHarvestsScreen() {
               </View>
             </View>
 
-            <View className="flex-row items-center mt-2">
-              <Clock size={14} color="#6B7280" />
-              <Text className="text-xs text-gray-600 ml-1">
+            {/* Assigned Date - Larger */}
+            <View className="flex-row items-center mt-3">
+              <Clock size={ICON_SIZE_SM} color="#6B7280" />
+              <Text
+                className="text-gray-600 ml-2"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 Assigned: {new Date(item.created_at).toLocaleDateString()}
               </Text>
             </View>
 
+            {/* Bagged Date - Larger */}
             {item.fruit?.bagged_at && (
-              <View className="flex-row items-center mt-1">
-                <Calendar size={14} color="#6B7280" />
-                <Text className="text-xs text-gray-600 ml-1">
+              <View className="flex-row items-center mt-2">
+                <Calendar size={ICON_SIZE_SM} color="#6B7280" />
+                <Text
+                  className="text-gray-600 ml-2"
+                  style={{ fontSize: FONT_SIZE_SMALL }}
+                >
                   Bagged: {new Date(item.fruit.bagged_at).toLocaleDateString()}
                 </Text>
               </View>
             )}
 
-            {/* Progress indicator for partial harvests */}
+            {/* Progress indicator for partial harvests - Larger */}
             {item.status === "partial" && totalFruits > 0 && (
-              <View className="mt-2">
-                <View className="flex-row justify-between mb-1">
-                  <Text className="text-xs text-gray-600">
+              <View className="mt-3">
+                <View className="flex-row justify-between mb-2">
+                  <Text
+                    className="text-gray-600 font-medium"
+                    style={{ fontSize: FONT_SIZE_SMALL }}
+                  >
                     Progress: {totalProcessed}/{totalFruits} fruits
                   </Text>
-                  <Text className="text-xs text-gray-600">
+                  <Text
+                    className="text-gray-600 font-medium"
+                    style={{ fontSize: FONT_SIZE_SMALL }}
+                  >
                     {Math.round((totalProcessed / totalFruits) * 100)}%
                   </Text>
                 </View>
-                <View className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <View className="h-2 bg-gray-200 rounded-full overflow-hidden">
                   <View
                     className="h-full bg-orange-500 rounded-full"
                     style={{
@@ -206,14 +240,18 @@ export default function AssignedHarvestsScreen() {
               </View>
             )}
 
+            {/* Total fruits for pending - Larger */}
             {item.status === "pending" && totalFruits > 0 && (
-              <Text className="text-sm text-gray-700 mt-2">
+              <Text
+                className="text-gray-700 mt-3 font-medium"
+                style={{ fontSize: FONT_SIZE_CAPTION }}
+              >
                 Total: {totalFruits} fruit(s)
               </Text>
             )}
           </View>
 
-          <ChevronRight size={20} color="#9CA3AF" />
+          <ChevronRight size={ICON_SIZE_MD} color="#9CA3AF" />
         </View>
       </TouchableOpacity>
     );
@@ -230,31 +268,42 @@ export default function AssignedHarvestsScreen() {
 
     return (
       <View className="bg-white border-b border-gray-200">
-        <View className="px-4 py-4">
-          <View className="flex-row items-center mb-2">
-            <TouchableOpacity onPress={() => router.back()} className="mr-3">
-              <ArrowLeft size={24} color="#374151" />
+        {/* Header with Back Button - Larger */}
+        <View className="px-4 py-5">
+          <View className="flex-row items-center mb-3">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="mr-4 w-12 h-12 rounded-full items-center justify-center bg-gray-100 active:bg-gray-200"
+              style={{ minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET }}
+            >
+              <ArrowLeft size={ICON_SIZE_MD} color="#374151" />
             </TouchableOpacity>
-            <Text className="text-2xl font-bold text-gray-900">
+            <Text
+              className="font-bold text-gray-900 flex-1"
+              style={{ fontSize: FONT_SIZE_TITLE }}
+              numberOfLines={2}
+            >
               My Assigned Harvests
             </Text>
           </View>
         </View>
 
-        {/* Filter Tabs - removed Completed tab */}
-        <View className="flex-row px-4 pb-2">
+        {/* Filter Tabs - Larger */}
+        <View className="flex-row px-4 pb-3 gap-6">
           <TouchableOpacity
             onPress={() => setActiveFilter("all")}
-            className={`mr-4 pb-2 ${
-              activeFilter === "all" ? "border-b-2 border-orange-500" : ""
+            className={`pb-3 ${
+              activeFilter === "all" ? "border-b-4 border-orange-500" : ""
             }`}
+            style={{ minHeight: TOUCH_TARGET, justifyContent: "center" }}
           >
             <Text
               className={`${
                 activeFilter === "all"
-                  ? "text-orange-600 font-semibold"
-                  : "text-gray-500"
+                  ? "text-orange-600 font-bold"
+                  : "text-gray-500 font-medium"
               }`}
+              style={{ fontSize: FONT_SIZE_CAPTION }}
             >
               All ({assignedHarvests.length})
             </Text>
@@ -262,21 +311,23 @@ export default function AssignedHarvestsScreen() {
 
           <TouchableOpacity
             onPress={() => setActiveFilter("pending")}
-            className={`mr-4 pb-2 ${
-              activeFilter === "pending" ? "border-b-2 border-orange-500" : ""
+            className={`pb-3 ${
+              activeFilter === "pending" ? "border-b-4 border-orange-500" : ""
             }`}
+            style={{ minHeight: TOUCH_TARGET, justifyContent: "center" }}
           >
             <View className="flex-row items-center">
               <Clock3
-                size={16}
+                size={ICON_SIZE_SM}
                 color={activeFilter === "pending" ? "#F97316" : "#6B7280"}
               />
               <Text
-                className={`ml-1 ${
+                className={`ml-2 ${
                   activeFilter === "pending"
-                    ? "text-orange-600 font-semibold"
-                    : "text-gray-500"
+                    ? "text-orange-600 font-bold"
+                    : "text-gray-500 font-medium"
                 }`}
+                style={{ fontSize: FONT_SIZE_CAPTION }}
               >
                 Pending ({pendingCount})
               </Text>
@@ -285,21 +336,23 @@ export default function AssignedHarvestsScreen() {
 
           <TouchableOpacity
             onPress={() => setActiveFilter("partial")}
-            className={`pb-2 ${
-              activeFilter === "partial" ? "border-b-2 border-orange-500" : ""
+            className={`pb-3 ${
+              activeFilter === "partial" ? "border-b-4 border-orange-500" : ""
             }`}
+            style={{ minHeight: TOUCH_TARGET, justifyContent: "center" }}
           >
             <View className="flex-row items-center">
               <Clock
-                size={16}
+                size={ICON_SIZE_SM}
                 color={activeFilter === "partial" ? "#F97316" : "#6B7280"}
               />
               <Text
-                className={`ml-1 ${
+                className={`ml-2 ${
                   activeFilter === "partial"
-                    ? "text-orange-600 font-semibold"
-                    : "text-gray-500"
+                    ? "text-orange-600 font-bold"
+                    : "text-gray-500 font-medium"
                 }`}
+                style={{ fontSize: FONT_SIZE_CAPTION }}
               >
                 Partial ({partialCount})
               </Text>
@@ -322,19 +375,33 @@ export default function AssignedHarvestsScreen() {
 
     return (
       <View className="flex-1 items-center justify-center px-6 py-16">
-        <View className="w-24 h-24 bg-orange-50 rounded-full items-center justify-center mb-4">
-          <Package size={48} color="#F97316" />
+        <View className="w-28 h-28 bg-orange-50 rounded-2xl items-center justify-center mb-6">
+          <Package size={56} color="#F97316" />
         </View>
-        <Text className="text-2xl font-bold text-gray-900 text-center mb-2">
+        <Text
+          className="font-bold text-gray-900 text-center mb-3"
+          style={{ fontSize: FONT_SIZE_HEADING }}
+        >
           No {activeFilter !== "all" ? activeFilter : ""} Items
         </Text>
-        <Text className="text-gray-600 text-center mb-6">{message}</Text>
+        <Text
+          className="text-gray-600 text-center mb-8"
+          style={{ fontSize: FONT_SIZE_BODY }}
+        >
+          {message}
+        </Text>
         {activeFilter !== "all" && (
           <TouchableOpacity
             onPress={() => setActiveFilter("all")}
-            className="bg-orange-600 px-6 py-3 rounded-xl"
+            className="bg-orange-600 px-8 py-5 rounded-2xl active:bg-orange-700"
+            style={{ minHeight: TOUCH_TARGET }}
           >
-            <Text className="text-white font-medium">View All</Text>
+            <Text
+              className="text-white font-bold"
+              style={{ fontSize: FONT_SIZE_BODY }}
+            >
+              View All
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -347,7 +414,10 @@ export default function AssignedHarvestsScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#F97316" />
-          <Text className="text-gray-600 mt-3">
+          <Text
+            className="text-gray-600 mt-4"
+            style={{ fontSize: FONT_SIZE_BODY }}
+          >
             Loading assigned harvests...
           </Text>
         </View>
@@ -381,8 +451,11 @@ export default function AssignedHarvestsScreen() {
             />
           }
           ListFooterComponent={
-            <View className="py-4 items-center">
-              <Text className="text-gray-500 text-sm">
+            <View className="py-6 items-center">
+              <Text
+                className="text-gray-500 font-medium"
+                style={{ fontSize: FONT_SIZE_SMALL }}
+              >
                 Showing {filteredHarvests.length} of {assignedHarvests.length}{" "}
                 total
               </Text>

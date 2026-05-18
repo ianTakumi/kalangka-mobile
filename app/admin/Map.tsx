@@ -8,6 +8,7 @@ import { ArrowLeft, TreePine, X } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Platform,
   StatusBar,
   Text,
@@ -55,6 +56,276 @@ const findDensityCenter = (trees) => {
   }
 
   return null;
+};
+
+// 🔥 COMPASS COMPONENT - Fixed arrow pointing North
+const DeviceCompass = ({ mapRef }) => {
+  const [heading, setHeading] = useState(0);
+  const [isActive, setIsActive] = useState(false);
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let headingSubscription;
+
+    const startCompass = async () => {
+      try {
+        headingSubscription = await Location.watchHeadingAsync((data) => {
+          const { trueHeading, magHeading } = data;
+          const currentHeading = trueHeading >= 0 ? trueHeading : magHeading;
+
+          if (currentHeading >= 0) {
+            setHeading(currentHeading);
+            setIsActive(true);
+
+            Animated.timing(spinValue, {
+              toValue: currentHeading,
+              duration: 150,
+              useNativeDriver: true,
+            }).start();
+          }
+        });
+      } catch (error) {
+        console.error("Compass error:", error);
+        setIsActive(false);
+      }
+    };
+
+    startCompass();
+
+    return () => {
+      if (headingSubscription) {
+        headingSubscription.remove();
+      }
+    };
+  }, []);
+
+  const resetNorth = () => {
+    if (mapRef.current) {
+      mapRef.current.setCameraPosition({
+        bearing: 0,
+      });
+    }
+  };
+
+  // Rotate OPPOSITE to heading so the arrow always points North
+  const spin = spinValue.interpolate({
+    inputRange: [0, 360],
+    outputRange: ["0deg", "360deg"], // Changed from "-360deg" to "360deg"
+  });
+
+  // Get current direction letter
+  const getDirection = (deg) => {
+    if (deg >= 337.5 || deg < 22.5) return "N";
+    if (deg >= 22.5 && deg < 67.5) return "NE";
+    if (deg >= 67.5 && deg < 112.5) return "E";
+    if (deg >= 112.5 && deg < 157.5) return "SE";
+    if (deg >= 157.5 && deg < 202.5) return "S";
+    if (deg >= 202.5 && deg < 247.5) return "SW";
+    if (deg >= 247.5 && deg < 292.5) return "W";
+    if (deg >= 292.5 && deg < 337.5) return "NW";
+    return "N";
+  };
+
+  if (!isActive) return null;
+
+  return (
+    <TouchableOpacity
+      style={{
+        position: "absolute",
+        top: (StatusBar.currentHeight || 20) + 16,
+        right: 80,
+        backgroundColor: "rgba(255, 255, 255, 0.95)",
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        zIndex: 1000,
+        elevation: 4,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1.5,
+        borderColor: "rgba(59, 130, 246, 0.2)",
+      }}
+      onPress={resetNorth}
+      activeOpacity={0.7}
+    >
+      {/* Compass Rose - Rotates to always point North */}
+      <Animated.View
+        style={{
+          transform: [{ rotate: spin }],
+          width: 48,
+          height: 48,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {/* North Arrow - Always points North (Red triangle up) */}
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              width: 0,
+              height: 0,
+              borderLeftWidth: 8,
+              borderRightWidth: 8,
+              borderBottomWidth: 14,
+              borderLeftColor: "transparent",
+              borderRightColor: "transparent",
+              borderBottomColor: "#EF4444",
+            }}
+          />
+        </View>
+
+        {/* South Arrow - Always points South (Gray triangle down) */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              width: 0,
+              height: 0,
+              borderLeftWidth: 8,
+              borderRightWidth: 8,
+              borderTopWidth: 14,
+              borderLeftColor: "transparent",
+              borderRightColor: "transparent",
+              borderTopColor: "#D1D5DB",
+            }}
+          />
+        </View>
+
+        {/* N Label - North */}
+        <Text
+          style={{
+            position: "absolute",
+            top: -2,
+            fontSize: 12,
+            fontWeight: "900",
+            color: "#EF4444",
+          }}
+        >
+          N
+        </Text>
+
+        {/* S Label - South */}
+        <Text
+          style={{
+            position: "absolute",
+            bottom: -2,
+            fontSize: 10,
+            fontWeight: "700",
+            color: "#9CA3AF",
+          }}
+        >
+          S
+        </Text>
+
+        {/* E Label - East */}
+        <Text
+          style={{
+            position: "absolute",
+            right: -2,
+            fontSize: 10,
+            fontWeight: "700",
+            color: "#9CA3AF",
+          }}
+        >
+          E
+        </Text>
+
+        {/* W Label - West */}
+        <Text
+          style={{
+            position: "absolute",
+            left: -2,
+            fontSize: 10,
+            fontWeight: "700",
+            color: "#9CA3AF",
+          }}
+        >
+          W
+        </Text>
+
+        {/* Center Dot */}
+        <View
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: "#374151",
+            borderWidth: 1.5,
+            borderColor: "white",
+          }}
+        />
+      </Animated.View>
+
+      {/* Direction Badge - Bottom */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: -22,
+          backgroundColor: "#3B82F6",
+          paddingHorizontal: 8,
+          paddingVertical: 3,
+          borderRadius: 10,
+          minWidth: 32,
+          alignItems: "center",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.2,
+          shadowRadius: 2,
+          elevation: 3,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 10,
+            fontWeight: "800",
+            color: "white",
+            letterSpacing: 0.5,
+          }}
+        >
+          {getDirection(heading)}
+        </Text>
+      </View>
+
+      {/* Degree Display - Top */}
+      <View
+        style={{
+          position: "absolute",
+          top: -18,
+          backgroundColor: "rgba(255, 255, 255, 0.95)",
+          paddingHorizontal: 6,
+          paddingVertical: 2,
+          borderRadius: 8,
+          borderWidth: 0.5,
+          borderColor: "#E5E7EB",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 9,
+            fontWeight: "700",
+            color: "#374151",
+          }}
+        >
+          {Math.round(heading)}°
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 };
 
 export default function App() {
@@ -208,7 +479,6 @@ export default function App() {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
         },
-        // Remove followUserLocation to prevent auto-centering on user
       }
     : undefined;
 
@@ -274,6 +544,9 @@ export default function App() {
           >
             <ArrowLeft size={22} color="#374151" />
           </TouchableOpacity>
+
+          {/* 🔥 DEVICE COMPASS - Working magnetometer compass */}
+          <DeviceCompass mapRef={mapRef} />
 
           {/* Trees Button - Minimalist Counter */}
           {!loading && trees.length > 0 && (
