@@ -1,10 +1,12 @@
 import FruitService from "@/services/FruitService";
 import HarvestService from "@/services/HarvestService";
 import NetInfo from "@react-native-community/netinfo";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   AlertCircle,
   ArrowLeft,
+  Camera,
   ChevronDown,
   Package,
   Plus,
@@ -15,10 +17,11 @@ import {
   WifiOff,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -55,7 +58,7 @@ export default function HarvestScreen() {
   // Form states
   const [ripeFruits, setRipeFruits] = useState<string[]>([]);
   const [wasteItems, setWasteItems] = useState<
-    { quantity: string; reason: string }[]
+    { quantity: string; reason: string; image_uri?: string | null }[]
   >([]);
 
   // For tracking existing data
@@ -68,6 +71,12 @@ export default function HarvestScreen() {
   const [backlogReason, setBacklogReason] = useState("");
   const [remainingAfterHarvest, setRemainingAfterHarvest] = useState(0);
   const [hasBacklog, setHasBacklog] = useState(false);
+
+  // Camera states
+  const [showCamera, setShowCamera] = useState(false);
+  const [wasteImage, setWasteImage] = useState<string | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
 
   // Modal states
   const [showWasteModal, setShowWasteModal] = useState(false);
@@ -93,6 +102,59 @@ export default function HarvestScreen() {
     { label: "Other", value: "other" },
   ];
 
+  // Camera functions
+  const takePicture = async () => {
+    if (cameraRef.current) {
+      try {
+        const photo = await cameraRef.current.takePictureAsync({
+          quality: 0.8,
+          base64: false,
+          skipProcessing: false,
+        });
+        setWasteImage(photo.uri);
+        setShowCamera(false);
+        Toast.show({
+          type: "success",
+          text1: "Photo Captured",
+          text2: "Waste photo has been taken successfully",
+        });
+      } catch (error) {
+        console.error("Error taking picture:", error);
+        Toast.show({
+          type: "error",
+          text1: "Failed",
+          text2: "Could not capture image. Please try again.",
+        });
+      }
+    }
+  };
+
+  const openCamera = async () => {
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) {
+        Toast.show({
+          type: "error",
+          text1: "Permission Denied",
+          text2: "Camera permission is required to take waste photos",
+        });
+        return;
+      }
+    }
+    setShowCamera(true);
+  };
+
+  const removeImage = () => {
+    Alert.alert("Remove Photo", "Are you sure you want to remove this photo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => setWasteImage(null),
+      },
+    ]);
+  };
+
   // Initialize service and check network
   useEffect(() => {
     const init = async () => {
@@ -117,7 +179,6 @@ export default function HarvestScreen() {
         const parsedFruit = JSON.parse(fruitData as string);
         setFruit(parsedFruit);
         console.log("Merong parsed fruit data", parsedFruit);
-        // Check if this fruit has backlog
         if (
           parsedFruit.remaining_quantity &&
           parsedFruit.remaining_quantity > 0
@@ -170,7 +231,6 @@ export default function HarvestScreen() {
         setHarvestRecord(harvestDetails);
         await loadExistingHarvestData(harvestDetails.harvest.id);
       } else {
-        // No existing harvest, create one?
         console.log("No existing harvest found for this fruit");
       }
     } catch (error) {
@@ -198,6 +258,7 @@ export default function HarvestScreen() {
           wastes.map((w: any) => ({
             quantity: w.waste_quantity.toString(),
             reason: w.reason,
+            image_uri: w.image_uri || null,
           })),
         );
       }
@@ -320,6 +381,7 @@ export default function HarvestScreen() {
       setEditingWasteIndex(null);
       setWasteQuantity("");
       setWasteReason("");
+      setWasteImage(null);
       setShowWasteModal(true);
     }
   };
@@ -330,7 +392,8 @@ export default function HarvestScreen() {
       setWasteQuantity(wasteItems[index].quantity);
       const reason = wasteItems[index].reason;
       setWasteReason(reason);
-      // Check if the reason is not in the predefined options (custom reason)
+      setWasteImage(wasteItems[index].image_uri || null);
+
       const isCustomReason = !wasteReasonOptions.some(
         (opt) => opt.value === reason,
       );
@@ -354,7 +417,6 @@ export default function HarvestScreen() {
       return;
     }
 
-    // Check if reason is selected
     if (!wasteReason) {
       Toast.show({
         type: "error",
@@ -364,7 +426,6 @@ export default function HarvestScreen() {
       return;
     }
 
-    // If reason is "other", check if custom reason is provided
     if (wasteReason === "other" && !customReason.trim()) {
       Toast.show({
         type: "error",
@@ -374,7 +435,16 @@ export default function HarvestScreen() {
       return;
     }
 
-    // Use custom reason if "other" is selected, otherwise use the selected value
+    // Check if image is provided (required na)
+    if (!wasteImage) {
+      Toast.show({
+        type: "error",
+        text1: "Photo Required",
+        text2: "Please take a photo of the waste for documentation",
+      });
+      return;
+    }
+
     const finalReason = wasteReason === "other" ? customReason : wasteReason;
 
     const totalWaste = wasteItems.reduce(
@@ -404,20 +474,25 @@ export default function HarvestScreen() {
       newWasteItems[editingWasteIndex] = {
         quantity: wasteQuantity,
         reason: finalReason,
+        image_uri: wasteImage, // Save local URI directly - i-upload later during sync
       };
       setWasteItems(newWasteItems);
     } else {
       setWasteItems([
         ...wasteItems,
-        { quantity: wasteQuantity, reason: finalReason },
+        {
+          quantity: wasteQuantity,
+          reason: finalReason,
+          image_uri: wasteImage, // Save local URI directly - i-upload later during sync
+        },
       ]);
     }
 
-    // Reset form
     setShowWasteModal(false);
     setWasteQuantity("");
     setWasteReason("");
     setCustomReason("");
+    setWasteImage(null);
     setShowReasonDropdown(false);
   };
 
@@ -439,7 +514,7 @@ export default function HarvestScreen() {
 
   const getAvailableQuantity = () => {
     if (isHarvestCompleted) {
-      return 0; // No available quantity when harvest is completed
+      return 0;
     }
     if (hasBacklog && fruit?.remaining_quantity) {
       return fruit.remaining_quantity;
@@ -470,35 +545,32 @@ export default function HarvestScreen() {
   const handleSubmitHarvest = async () => {
     if (!fruit || isHarvestCompleted) return;
 
-    // Get current session data
     const currentWeights = ripeFruits.map((w) => parseFloat(w));
     const currentWastes = wasteItems.map((item) => ({
       quantity: parseInt(item.quantity),
       reason: item.reason,
+      image_uri: item.image_uri || null,
     }));
 
-    // Combine with existing data if it's a backlog harvest
     let allWeights = [...currentWeights];
     let allWastes = [...currentWastes];
 
     if (hasBacklog && existingFruitWeights.length > 0) {
-      // Add existing fruit weights to the list
       existingFruitWeights.forEach((fw) => {
         allWeights.push(parseFloat(fw.weight));
       });
     }
 
     if (hasBacklog && existingWastes.length > 0) {
-      // Add existing waste items to the list
       existingWastes.forEach((w) => {
         allWastes.push({
           quantity: parseInt(w.waste_quantity),
           reason: w.reason,
+          image_uri: w.image_uri || null,
         });
       });
     }
 
-    // Validate that we have at least one item total
     if (allWeights.length === 0 && allWastes.length === 0) {
       Toast.show({
         type: "error",
@@ -508,7 +580,6 @@ export default function HarvestScreen() {
       return;
     }
 
-    // Validate current session weights
     for (let i = 0; i < currentWeights.length; i++) {
       if (!ripeFruits[i] || currentWeights[i] <= 0) {
         Toast.show({
@@ -531,15 +602,13 @@ export default function HarvestScreen() {
       setRemainingAfterHarvest(remaining);
       let result = null;
       if (harvestRecord?.harvest) {
-        // Pass ALL weights and wastes (existing + new) to the update
         result = await HarvestService.updateHarvest(
           harvestRecord.harvest.id,
-          allWeights.length, // Total ripe fruits (existing + new)
-          allWeights, // All weights (existing + new)
-          allWastes, // All wastes (existing + new)
+          allWeights.length,
+          allWeights,
+          allWastes,
         );
 
-        // Show different messages based on status
         let statusMessage = "";
         switch (result.harvest.status) {
           case "partial":
@@ -560,10 +629,8 @@ export default function HarvestScreen() {
         });
       }
 
-      // Update fruit's remaining quantity
       await updateFruitRemainingQuantity(fruit.id, remaining);
 
-      // If there are remaining fruits, show backlog modal
       if (remaining > 0 && result.harvest.status !== "harvested") {
         setShowBacklogModal(true);
       } else {
@@ -592,7 +659,6 @@ export default function HarvestScreen() {
     }
 
     try {
-      // Update fruit with next check date
       await FruitService.updateFruit(fruit.id, {
         farmer_extra_days: parseInt(backlogDays),
         farmer_assessed_at: new Date().toISOString(),
@@ -658,7 +724,6 @@ export default function HarvestScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Header */}
       {/* Header */}
       <View className="bg-white pt-12 pb-5 px-5 shadow-sm border-b border-gray-200">
         <View className="flex-row items-center justify-between">
@@ -766,155 +831,6 @@ export default function HarvestScreen() {
           />
         }
       >
-        {/* Fruit Info Card */}
-        {/* <View className="bg-white rounded-xl p-5 mb-4 shadow-sm border border-gray-100">
-          <Text className="text-gray-500 text-sm mb-3">FRUIT DETAILS</Text>
-
-          <View className="flex-row items-center mb-3">
-            <View className="bg-green-100 p-3 rounded-full">
-              <Package size={24} color="#059669" />
-            </View>
-            <View className="ml-3 flex-1">
-              <Text className="text-gray-800 font-semibold text-lg">
-                {fruit.quantity} Fruit{fruit.quantity !== 1 ? "s" : ""}
-              </Text>
-              <Text className="text-gray-500 text-xs">
-                Bagged: {new Date(fruit.bagged_at).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
-
-          <View className="bg-gray-50 p-4 rounded-xl mt-2">
-            <View className="flex-row justify-between mb-2">
-              <Text className="text-gray-600">Fruit ID:</Text>
-              <Text className="text-gray-800 font-mono text-xs">
-                {fruit.id.substring(0, 6)}
-              </Text>
-            </View>
-
-            <View className="flex-row justify-between mb-2">
-              <Text className="text-gray-600">Fruit Tag ID:</Text>
-              <Text className="text-gray-800 font-mono text-xs">
-                {fruit.tag_id || "N/A"}
-              </Text>
-            </View>
-
-            {fruit.tree && (
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-gray-600">Tree:</Text>
-                <Text className="text-gray-800">
-                  {fruit.tree.description ||
-                    `Tree #${fruit.tree_id.substring(0, 6)}`}
-                </Text>
-              </View>
-            )}
-
-          
-            {hasBacklog &&
-              fruit.remaining_quantity > 0 &&
-              !isHarvestCompleted && (
-                <>
-               
-                  <View className="h-px bg-gray-200 my-3" />
-
-                 
-                  <Text className="text-xs font-semibold text-orange-600 mb-2">
-                    📋 FARMER ASSESSMENT (Backlog)
-                  </Text>
-
-              
-                  {fruit.farmer_extra_days && fruit.farmer_extra_days > 0 && (
-                    <View className="flex-row justify-between mb-2">
-                      <Text className="text-gray-600 text-xs">
-                        Extra Days Given:
-                      </Text>
-                      <Text className="text-orange-700 font-medium text-xs">
-                        +{fruit.farmer_extra_days} day
-                        {fruit.farmer_extra_days !== 1 ? "s" : ""}
-                      </Text>
-                    </View>
-                  )}
-
-                
-                  {fruit.farmer_assessed_at && (
-                    <View className="flex-row justify-between mb-2">
-                      <Text className="text-gray-600 text-xs">
-                        Assessed On:
-                      </Text>
-                      <Text className="text-gray-700 text-xs">
-                        {new Date(
-                          fruit.farmer_assessed_at,
-                        ).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  )}
-
-              
-                  {fruit.next_check_date && (
-                    <View className="flex-row justify-between mb-2">
-                      <Text className="text-gray-600 text-xs">
-                        Next Check Date:
-                      </Text>
-                      <Text className="text-blue-600 font-medium text-xs">
-                        {new Date(fruit.next_check_date).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  )}
-
-                 
-                  {fruit.farmer_notes && (
-                    <View className="mt-2 p-2 bg-orange-50 rounded-lg">
-                      <Text className="text-gray-600 text-xs mb-1">
-                        📝 Farmer's Note:
-                      </Text>
-                      <Text className="text-gray-700 text-xs italic">
-                        "{fruit.farmer_notes}"
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-
-            <View className="flex-row justify-between mt-2 pt-2 border-t border-gray-200">
-              <Text className="text-gray-600">Status:</Text>
-              <View
-                className={`px-2 py-0.5 rounded-full ${
-                  isHarvestCompleted
-                    ? "bg-green-100"
-                    : harvestStatus.isReady
-                      ? "bg-green-100"
-                      : "bg-yellow-100"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-medium ${
-                    isHarvestCompleted
-                      ? "text-green-700"
-                      : harvestStatus.isReady
-                        ? "text-green-700"
-                        : "text-yellow-700"
-                  }`}
-                >
-                  {isHarvestCompleted
-                    ? "Harvest Complete"
-                    : harvestStatus.isReady
-                      ? "Ready to Harvest"
-                      : `${harvestStatus.daysLeft} days remaining`}
-                </Text>
-              </View>
-            </View>
-
-            {!isHarvestCompleted && (
-              <View className="flex-row justify-between mt-2 pt-2 border-t border-gray-200">
-                <Text className="text-gray-600">Expected Harvest:</Text>
-                <Text className="text-gray-800">
-                  {harvestStatus.harvestDate}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View> */}
-
         {/* Progress Card */}
         <View className="bg-white rounded-2xl p-6 mb-5 shadow-sm border-2 border-gray-100">
           <Text
@@ -1184,7 +1100,6 @@ export default function HarvestScreen() {
         </View>
 
         {/* Waste Section */}
-        {/* Waste Section */}
         <View className="bg-white rounded-2xl p-6 mb-5 shadow-sm border-2 border-gray-100">
           <View className="flex-row justify-between items-center mb-5">
             <View className="flex-row items-center">
@@ -1271,6 +1186,23 @@ export default function HarvestScreen() {
                           Recorded:{" "}
                           {new Date(waste.created_at).toLocaleDateString()}
                         </Text>
+                        {waste.image_uri && (
+                          <View className="flex-row items-center mt-2">
+                            <Image
+                              source={{ uri: waste.image_uri }}
+                              className="w-16 h-16 rounded-lg"
+                              resizeMode="cover"
+                            />
+                            <View className="ml-2 bg-green-100 px-2 py-1 rounded-full">
+                              <Text
+                                className="text-green-700"
+                                style={{ fontSize: 12 }}
+                              >
+                                📸 Photo
+                              </Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
                     </View>
                   </View>
@@ -1309,6 +1241,23 @@ export default function HarvestScreen() {
                           >
                             {item.reason}
                           </Text>
+                          {item.image_uri && (
+                            <View className="flex-row items-center mt-2">
+                              <Image
+                                source={{ uri: item.image_uri }}
+                                className="w-16 h-16 rounded-lg"
+                                resizeMode="cover"
+                              />
+                              <View className="ml-2 bg-green-100 px-2 py-1 rounded-full">
+                                <Text
+                                  className="text-green-700"
+                                  style={{ fontSize: 12 }}
+                                >
+                                  📸 Photo
+                                </Text>
+                              </View>
+                            </View>
+                          )}
                         </View>
                       </View>
                       <View className="flex-row gap-2">
@@ -1376,7 +1325,6 @@ export default function HarvestScreen() {
             )}
           </TouchableOpacity>
         ) : (
-          // Show a message or alternative when harvested
           <View className="py-5 rounded-2xl mt-3 bg-green-100 border-2 border-green-300">
             <Text
               className="text-center font-bold text-green-700"
@@ -1533,6 +1481,66 @@ export default function HarvestScreen() {
                 />
               </View>
             )}
+
+            {/* Camera Section */}
+            {!isHarvestCompleted && (
+              <View className="mb-5">
+                <Text
+                  className="text-gray-700 font-semibold mb-2"
+                  style={{ fontSize: FONT_SIZE_CAPTION }}
+                >
+                  Waste Photo <Text className="text-red-500">*</Text>
+                </Text>
+
+                {wasteImage ? (
+                  <View className="relative">
+                    <Image
+                      source={{ uri: wasteImage }}
+                      className="w-full h-48 rounded-2xl mb-2"
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      onPress={removeImage}
+                      className="absolute top-2 right-2 bg-red-500 w-8 h-8 rounded-full items-center justify-center"
+                    >
+                      <X size={16} color="white" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={openCamera}
+                      className="mt-2 bg-blue-500 py-3 rounded-xl active:bg-blue-600"
+                    >
+                      <Text
+                        className="text-center text-white font-semibold"
+                        style={{ fontSize: FONT_SIZE_SMALL }}
+                      >
+                        📸 Retake Photo
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={openCamera}
+                    className="border-2 border-dashed border-red-300 rounded-2xl p-6 items-center justify-center bg-red-50 active:bg-red-100"
+                    style={{ minHeight: 120 }}
+                  >
+                    <Camera size={40} color="#ef4444" />
+                    <Text
+                      className="text-red-600 font-semibold mt-2"
+                      style={{ fontSize: FONT_SIZE_CAPTION }}
+                    >
+                      Take Photo of Waste *
+                    </Text>
+                    <Text
+                      className="text-red-400 mt-1"
+                      style={{ fontSize: FONT_SIZE_SMALL }}
+                    >
+                      Photo is required for documentation
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             {!isHarvestCompleted && (
               <TouchableOpacity
                 className="bg-red-500 py-5 rounded-2xl active:bg-red-600"
@@ -1548,6 +1556,57 @@ export default function HarvestScreen() {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+      </Modal>
+
+      {/* Camera Modal */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={showCamera}
+        onRequestClose={() => setShowCamera(false)}
+      >
+        <View className="flex-1 bg-black">
+          {showCamera && (
+            <CameraView
+              ref={cameraRef}
+              style={{ flex: 1 }}
+              facing="back"
+              flash="auto"
+            >
+              {/* Camera overlay controls */}
+              <View className="absolute bottom-0 left-0 right-0 p-6 bg-black/50">
+                <View className="flex-row justify-between items-center">
+                  {/* Close button */}
+                  <TouchableOpacity
+                    onPress={() => setShowCamera(false)}
+                    className="w-12 h-12 rounded-full bg-white/20 items-center justify-center"
+                  >
+                    <X size={24} color="white" />
+                  </TouchableOpacity>
+
+                  {/* Capture button */}
+                  <TouchableOpacity
+                    onPress={takePicture}
+                    className="w-20 h-20 rounded-full bg-white border-4 border-gray-300 items-center justify-center"
+                  >
+                    <View className="w-16 h-16 rounded-full bg-white" />
+                  </TouchableOpacity>
+
+                  {/* Spacer for layout balance */}
+                  <View className="w-12" />
+                </View>
+
+                {/* Instructions */}
+                <Text
+                  className="text-white text-center mt-4"
+                  style={{ fontSize: FONT_SIZE_SMALL }}
+                >
+                  Position the waste clearly in frame
+                </Text>
+              </View>
+            </CameraView>
+          )}
         </View>
       </Modal>
 

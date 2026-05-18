@@ -160,6 +160,7 @@ export const CREATE_WASTES_TABLE = `
     harvest_id TEXT NOT NULL,
     waste_quantity INTEGER NOT NULL DEFAULT 1,
     reason TEXT NOT NULL,
+    image_uri TEXT,      
     reported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     is_synced BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

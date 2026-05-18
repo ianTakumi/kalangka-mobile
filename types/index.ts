@@ -97,6 +97,7 @@ export interface Waste {
   harvest_id: string;
   waste_quantity: number;
   reason: string;
+  image_uri?: string | null;
   reported_at: Date;
   is_synced: boolean;
   created_at: Date;
