@@ -91,11 +91,45 @@ export default function LoginScreen() {
       })
       .catch((err) => {
         console.error("Login error:", err);
-        // Show error message using Toast
+
+        // Extract error message from response
+        let errorMessage = "Invalid email or password";
+
+        if (err.response) {
+          // Server responded with error status
+          const { data, status } = err.response;
+
+          // Handle different error formats
+          if (data.message) {
+            errorMessage = data.message;
+          } else if (data.error) {
+            errorMessage = data.error;
+          } else if (typeof data === "string") {
+            errorMessage = data;
+          }
+
+          // Optional: Handle specific status codes
+          if (status === 401) {
+            errorMessage = "Invalid email or password";
+          } else if (status === 403) {
+            errorMessage = "Your account is locked. Please contact support.";
+          } else if (status === 404) {
+            errorMessage = "Account not found";
+          } else if (status === 429) {
+            errorMessage = "Too many attempts. Please try again later.";
+          }
+        } else if (err.request) {
+          // Request made but no response
+          errorMessage = "Network error. Please check your connection.";
+        } else {
+          // Something else happened
+          errorMessage = err.message || "An unexpected error occurred";
+        }
+
         Toast.show({
           type: "error",
           text1: "Login Failed",
-          text2: "Invalid email or password",
+          text2: errorMessage,
           position: "top",
         });
       });

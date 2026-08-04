@@ -1,4 +1,3 @@
-// redux/store.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { configureStore } from "@reduxjs/toolkit";
 import { combineReducers } from "redux";
@@ -47,4 +46,4 @@ export const store = configureStore({
 export const persistor = persistStore(store);
 
 export type RootState = ReturnType<typeof store.getState>;
-export type AppDispatch = typeof store.getDispatch;
+export type AppDispatch = typeof store.dispatch;

@@ -1,7 +1,7 @@
 import axios from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { store } from "../redux/store"; // Import your store
 
-const DEVELOPMENT_URL = "http://192.168.1.64:8080/api/";
+const DEVELOPMENT_URL = "http://192.168.1.63:8080/api/";
 const PRODUCTION_URL = "https://kalangka-756cdff24eb2.herokuapp.com/api/";
 // const PRODUCTION_URL = "https://apitest.prutasph.com/api";
 
@@ -17,10 +17,11 @@ const client = axios.create({
 client.interceptors.request.use(
   async (config) => {
     try {
-      // Get token from AsyncStorage
-      const token = await AsyncStorage.getItem("token");
+      // Get token directly from Redux store (which is persisted)
+      const state = store.getState();
+      const token = state.auth.token;
 
-      // If token exists, add it to headers
+      console.log("Token from Redux store:", token);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -32,7 +33,6 @@ client.interceptors.request.use(
     }
   },
   (error) => {
-    // Handle request error
     return Promise.reject(error);
   },
 );
